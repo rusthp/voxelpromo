@@ -1,0 +1,33 @@
+{
+  "version": "0.18.0",
+  "installedAt": "2025-11-15T23:07:22.932Z",
+  "updatedAt": "2025-11-17T23:42:51.594Z",
+  "projectId": "voxelpromo",
+  "mode": "full",
+  "features": {
+    "watcher": false,
+    "agent": false,
+    "logging": true,
+    "telemetry": false,
+    "notifications": false,
+    "dryRun": false,
+    "gitHooks": false,
+    "repl": false,
+    "templates": true,
+    "context": true,
+    "health": true,
+    "plugins": false,
+    "parallel": true,
+    "smartContinue": true
+  },
+  "coverageThreshold": 95,
+  "language": "en",
+  "outputLanguage": "en",
+  "cliTools": [],
+  "maxParallelTasks": 5,
+  "timeouts": {
+    "taskExecution": 3600000,
+    "cliResponse": 180000,
+    "testRun": 600000
+  }
+}

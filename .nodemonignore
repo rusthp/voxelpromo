@@ -1,0 +1,4 @@
+# Ignore config.json to prevent restart on save
+config.json
+*.log
+logs/

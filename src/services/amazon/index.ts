@@ -1,0 +1,2 @@
+export { AmazonService } from './AmazonService';
+

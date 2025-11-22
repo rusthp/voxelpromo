@@ -1,0 +1,423 @@
+import TelegramBot from 'node-telegram-bot-api';
+import { Offer } from '../../types';
+import { logger } from '../../utils/logger';
+import { AIService } from '../ai/AIService';
+
+export class TelegramService {
+  private bot: TelegramBot | null = null;
+  private chatId: string;
+  private aiService: AIService | null = null;
+
+  constructor() {
+    // Don't initialize bot on startup - lazy initialization
+    this.chatId = process.env.TELEGRAM_CHAT_ID || '';
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    
+    if (token && this.chatId) {
+      logger.info('✅ Telegram configured - will initialize on first use');
+    } else {
+      logger.warn('⚠️ Telegram bot token or chat ID not configured');
+    }
+  }
+
+  /**
+   * Get AI service (lazy initialization)
+   */
+  private getAIService(): AIService {
+    if (!this.aiService) {
+      this.aiService = new AIService();
+    }
+    return this.aiService;
+  }
+
+  /**
+   * Initialize bot if not already done
+   */
+  private initializeBot(): void {
+    if (this.bot) {
+      return; // Already initialized
+    }
+
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    if (!token) {
+      logger.warn('⚠️ Telegram bot token not configured');
+      return;
+    }
+
+    this.bot = new TelegramBot(token, { polling: false });
+    logger.info('✅ Telegram bot initialized');
+  }
+
+  /**
+   * Send offer to Telegram channel
+   */
+  async sendOffer(offer: Offer): Promise<boolean> {
+    if (!this.chatId) {
+      logger.warn('⚠️ Telegram chat ID not configured, skipping send');
+      return false;
+    }
+
+    // Initialize bot if not already done
+    this.initializeBot();
+
+    if (!this.bot) {
+      logger.warn('⚠️ Telegram bot not initialized, skipping send');
+      return false;
+    }
+
+    try {
+      logger.info(`📤 Sending offer to Telegram - Title: ${offer.title}, Chat ID: ${this.chatId}`);
+      const message = await this.formatMessage(offer);
+
+      if (offer.imageUrl) {
+        logger.debug(`📷 Sending offer with image: ${offer.imageUrl}`);
+        await this.bot.sendPhoto(this.chatId, offer.imageUrl, {
+          caption: message,
+          parse_mode: 'HTML'
+        });
+      } else {
+        logger.debug('📝 Sending offer without image');
+        await this.bot.sendMessage(this.chatId, message, {
+          parse_mode: 'HTML'
+        });
+      }
+
+      logger.info(`✅ Offer sent successfully to Telegram: ${offer.title} (ID: ${offer._id})`);
+      return true;
+    } catch (error: any) {
+      logger.error(`❌ Error sending offer to Telegram: ${error.message}`, error);
+      logger.error(`   Offer details - ID: ${offer._id}, Title: ${offer.title}`);
+      return false;
+    }
+  }
+
+  /**
+   * Format offer message for Telegram
+   */
+  private async formatMessage(offer: Offer): Promise<string> {
+    let post = offer.aiGeneratedPost || await this.generateDefaultPost(offer);
+
+    // Convert Markdown to HTML if needed (IA might return Markdown)
+    post = this.convertMarkdownToHtml(post);
+
+    // If AI generated post doesn't have hashtags, add them
+    if (offer.aiGeneratedPost && !post.includes('#')) {
+      const hashtags = this.generateHashtags(offer);
+      if (hashtags.length > 0) {
+        post += '\n\n' + hashtags.join(' ');
+      }
+    }
+
+    // Preserve spacing - don't collapse newlines (keep the spacing we added)
+    // Only limit excessive newlines (more than 4) to avoid spam
+    post = post.replace(/\n{5,}/g, '\n\n\n'); // Max 3 newlines for spacing
+
+    // Include link directly in the message, not as a separate "Ver oferta" link
+    return post;
+  }
+
+  /**
+   * Convert Markdown bold (*text*) to HTML bold (<b>text</b>)
+   * Telegram uses HTML, not Markdown
+   * Also removes <br> tags (Telegram doesn't support them in HTML mode)
+   * Preserves spacing between sections
+   */
+  private convertMarkdownToHtml(text: string): string {
+    // Remove <br> and <br/> tags (Telegram doesn't support them)
+    let cleaned = text
+      .replace(/<br\s*\/?>/gi, '\n') // Replace <br> with newline
+      .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>') // **bold** to <b>bold</b>
+      .replace(/\*([^*]+)\*/g, '<b>$1</b>'); // *bold* to <b>bold</b>
+    
+    // Preserve spacing - don't collapse too many newlines (keep at least 2 for spacing)
+    // But limit to max 3 consecutive newlines to avoid excessive spacing
+    cleaned = cleaned.replace(/\n{4,}/g, '\n\n\n'); // Max 3 newlines
+    
+    return cleaned;
+  }
+
+  /**
+   * Generate dynamic impact phrase using AI (Groq) or fallback
+   * Tries to use AI first, falls back to static phrases if AI fails
+   */
+  private async getImpactPhrase(offer: Offer): Promise<string> {
+    try {
+      // Try to use AI to generate a creative phrase
+      // Use timeout to avoid delays (max 2 seconds)
+      const aiPhrase = await Promise.race([
+        this.getAIService().generateImpactPhrase(offer),
+        new Promise<string>((resolve) => {
+          setTimeout(() => resolve(''), 2000); // 2 second timeout
+        })
+      ]);
+
+      if (aiPhrase && aiPhrase.length > 0) {
+        logger.debug(`✅ Using AI-generated impact phrase: "${aiPhrase}"`);
+        return aiPhrase;
+      }
+    } catch (error: any) {
+      logger.debug(`⚠️ AI phrase generation failed, using fallback: ${error.message}`);
+    }
+
+    // Fallback to static phrases
+    return this.getFallbackImpactPhrase(offer);
+  }
+
+  /**
+   * Get fallback impact phrase (static phrases)
+   */
+  private getFallbackImpactPhrase(offer: Offer): string {
+    const discount = offer.discountPercentage;
+
+    // High discount phrases (50%+)
+    if (discount >= 50) {
+      const phrases = [
+        'NUNCA VI TÃO BARATO ASSIM',
+        'PROMOÇÃO IMPERDÍVEL',
+        'DESCONTO INSANO',
+        'OPORTUNIDADE ÚNICA',
+        'PREÇO IMBATÍVEL',
+        'OFERTA DO ANO',
+        'NÃO VAI TER OUTRA CHANCE'
+      ];
+      return phrases[Math.floor(Math.random() * phrases.length)];
+    }
+
+    // Medium-high discount (30-49%)
+    if (discount >= 30) {
+      const phrases = [
+        'SUPER PROMOÇÃO',
+        'OFERTA ESPECIAL',
+        'DESCONTO IMPERDÍVEL',
+        'PROMOÇÃO RELÂMPAGO',
+        'OPORTUNIDADE RARA',
+        'PREÇO BOM DEMAIS',
+        'NÃO PERCA ESSA'
+      ];
+      return phrases[Math.floor(Math.random() * phrases.length)];
+    }
+
+    // Medium discount (15-29%)
+    if (discount >= 15) {
+      const phrases = [
+        'ÓTIMA OFERTA',
+        'PROMOÇÃO EM ANDAMENTO',
+        'DESCONTO BOM',
+        'VALE A PENA',
+        'OPORTUNIDADE',
+        'PREÇO EM CONTA'
+      ];
+      return phrases[Math.floor(Math.random() * phrases.length)];
+    }
+
+    // Low discount (5-14%)
+    if (discount >= 5) {
+      const phrases = [
+        'EM PROMOÇÃO',
+        'COM DESCONTO',
+        'OFERTA DISPONÍVEL',
+        'PREÇO ESPECIAL'
+      ];
+      return phrases[Math.floor(Math.random() * phrases.length)];
+    }
+
+    // No discount or very low
+    return 'OFERTA DISPONÍVEL';
+  }
+
+  /**
+   * Get emoji for category
+   */
+  private getCategoryEmoji(category: string): string {
+    const categoryEmojis: Record<string, string> = {
+      electronics: '📱',
+      fashion: '👕',
+      home: '🏠',
+      beauty: '💄',
+      sports: '⚽',
+      toys: '🧸',
+      books: '📚',
+      automotive: '🚗',
+      pets: '🐾',
+      food: '🍔',
+      health: '💊',
+      other: '📦'
+    };
+    return categoryEmojis[category.toLowerCase()] || '🔥';
+  }
+
+  /**
+   * Generate default post if AI didn't generate one
+   * Format: Dynamic impact phrase + Product + Price + Coupon + Link + Hashtags
+   * Spacious format with proper line breaks
+   */
+  private async generateDefaultPost(offer: Offer): Promise<string> {
+    const impactPhrase = await this.getImpactPhrase(offer);
+    const categoryEmoji = this.getCategoryEmoji(offer.category || '');
+    
+    // Format price
+    const priceFormatted = offer.currentPrice.toFixed(2).replace('.', ',');
+    const hasDiscount = offer.discountPercentage >= 5 && offer.originalPrice > offer.currentPrice;
+
+    // Build message parts with spacious formatting
+    const parts: string[] = [];
+
+    // Impact phrase (bold, uppercase style) - use HTML for Telegram
+    parts.push(`<b>${impactPhrase}</b>`);
+    parts.push(''); // Empty line for spacing
+    parts.push(''); // Extra empty line for more spacing
+
+    // Product title with category emoji - use HTML for Telegram
+    parts.push(`${categoryEmoji} <b>${offer.title}</b>`);
+    parts.push(''); // Empty line for spacing
+    parts.push(''); // Extra empty line for more spacing
+
+    // Price - NO duplication: if has discount, show only discount format
+    if (hasDiscount) {
+      // If has discount, show ONLY discount format (no "🔥 POR" line)
+      const originalFormatted = offer.originalPrice.toFixed(2).replace('.', ',');
+      parts.push(`💰 De R$ ${originalFormatted} por apenas R$ ${priceFormatted}`);
+      parts.push(''); // Empty line
+      parts.push(`🎯 ${offer.discountPercentage.toFixed(0)}% OFF`);
+    } else {
+      // If no discount, show simple price (don't show 0% OFF)
+      parts.push(`🔥 POR ${priceFormatted}`);
+    }
+
+    // Coupons (if available) - show prominently
+    if (offer.coupons && offer.coupons.length > 0) {
+      parts.push(''); // Empty line before coupon
+      parts.push(''); // Extra empty line
+      const couponCode = offer.coupons[0]; // Use first coupon
+      parts.push(`🎟️ CUPOM: <b>${couponCode}</b>`);
+    }
+
+    // Link directly in the message
+    parts.push(''); // Empty line before link
+    parts.push(''); // Extra empty line for more spacing
+    parts.push(`🔗 ${offer.affiliateUrl}`);
+
+    // Hashtags
+    parts.push(''); // Empty line before hashtags
+    const hashtags = this.generateHashtags(offer);
+    if (hashtags.length > 0) {
+      parts.push(hashtags.join(' '));
+    }
+
+    return parts.join('\n');
+  }
+
+  /**
+   * Generate hashtags for the offer
+   */
+  private generateHashtags(offer: Offer): string[] {
+    const hashtags: string[] = [];
+
+    // Category hashtag
+    if (offer.category) {
+      const categoryTag = `#${offer.category.toLowerCase().replace(/\s+/g, '')}`;
+      hashtags.push(categoryTag);
+    }
+
+    // Source hashtag
+    if (offer.source) {
+      const sourceTag = `#${offer.source.toLowerCase()}`;
+      hashtags.push(sourceTag);
+    }
+
+    // Discount hashtag
+    if (offer.discountPercentage >= 50) {
+      hashtags.push('#superdesconto');
+    } else if (offer.discountPercentage >= 30) {
+      hashtags.push('#megaoferta');
+    } else if (offer.discountPercentage >= 15) {
+      hashtags.push('#promocao');
+    }
+
+    // Always add these
+    hashtags.push('#oferta', '#promocao', '#desconto');
+
+    // Remove duplicates and return
+    return Array.from(new Set(hashtags));
+  }
+
+  /**
+   * Send multiple offers
+   */
+  async sendOffers(offers: Offer[]): Promise<number> {
+    if (!this.chatId) {
+      logger.warn('⚠️ Telegram chat ID not configured, skipping send');
+      return 0;
+    }
+
+    // Initialize bot if not already done
+    this.initializeBot();
+
+    if (!this.bot) {
+      logger.warn('⚠️ Telegram bot not initialized, skipping send');
+      return 0;
+    }
+
+    logger.info(`📤 Sending ${offers.length} offers to Telegram...`);
+    let successCount = 0;
+
+    for (const offer of offers) {
+      const success = await this.sendOffer(offer);
+      if (success) {
+        successCount++;
+        // Add delay between messages to avoid rate limiting
+        await this.delay(2000);
+      }
+    }
+
+    logger.info(`✅ Sent ${successCount}/${offers.length} offers to Telegram`);
+    return successCount;
+  }
+
+  /**
+   * Send test message to verify bot configuration
+   */
+  async sendTestMessage(): Promise<boolean> {
+    if (!this.chatId) {
+      logger.warn('⚠️ Telegram chat ID not configured, cannot send test message');
+      return false;
+    }
+
+    // Initialize bot if not already done
+    this.initializeBot();
+
+    if (!this.bot) {
+      logger.warn('⚠️ Telegram bot not initialized, cannot send test message');
+      return false;
+    }
+
+    try {
+      const testMessage = `🤖 <b>Teste do VoxelPromo</b>
+
+✅ Bot Telegram configurado com sucesso!
+
+📅 Data/Hora: ${new Date().toLocaleString('pt-BR')}
+🔗 Sistema: VoxelPromo - Monitoramento de Ofertas
+
+Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
+
+      logger.info(`📤 Sending test message to Telegram chat ${this.chatId}...`);
+      await this.bot.sendMessage(this.chatId, testMessage, {
+        parse_mode: 'HTML'
+      });
+
+      logger.info('✅ Test message sent successfully to Telegram');
+      return true;
+    } catch (error: any) {
+      logger.error(`❌ Error sending test message to Telegram: ${error.message}`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Delay helper
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "amazon": {
+    "accessKey": "",
+    "secretKey": "",
+    "associateTag": "",
+    "region": "BR"
+  },
+  "aliexpress": {
+    "trackingId": "your-tracking-id",
+    "appKey": "",
+    "appSecret": "",
+    "exchangeRate": 5
+  },
+  "mercadolivre": {
+    "clientId": "",
+    "clientSecret": "",
+    "redirectUri": "https://yourdomain.com/",
+    "accessToken": "",
+    "refreshToken": "",
+    "tokenExpiresAt": null,
+    "affiliateCode": ""
+  },
+  "telegram": {
+    "chatId": "",
+    "botToken": ""
+  },
+  "whatsapp": {
+    "enabled": false,
+    "targetNumber": ""
+  },
+  "x": {
+    "bearerToken": "",
+    "apiKey": "",
+    "apiKeySecret": "",
+    "accessToken": "",
+    "accessTokenSecret": "",
+    "oauth2ClientId": "",
+    "oauth2ClientSecret": "",
+    "oauth2RedirectUri": "https://yourdomain.com/",
+    "oauth2AccessToken": "",
+    "oauth2RefreshToken": "",
+    "oauth2TokenExpiresAt": null,
+    "oauth2Scope": ""
+  },
+  "ai": {
+    "provider": "groq",
+    "groqApiKey": "",
+    "openaiApiKey": ""
+  },
+  "shopee": {
+    "feedUrls": [],
+    "affiliateCode": ""
+  },
+  "rss": [],
+  "collection": {
+    "enabled": true,
+    "schedule": "0 */6 * * *",
+    "sources": [
+      "amazon",
+      "aliexpress",
+      "mercadolivre",
+      "rss"
+    ]
+  }
+}
+

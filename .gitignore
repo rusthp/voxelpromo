@@ -1,0 +1,81 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend
+frontend/.next/
+frontend/out/
+frontend/.vercel
+
+# WhatsApp session
+.wwebjs_auth/
+.wwebjs_cache/
+
+# Testing
+coverage/
+.nyc_output/
+
+# Configuration (contains sensitive data)
+config.json
+*.env
+.env.local
+.env.production
+.env.development
+
+# Exchange rate cache
+scripts/.exchange-rate-cache.json
+
+# Database dumps and backups
+*.db
+*.sqlite
+*.sql
+*.dump
+*.backup
+
+# Sensitive data files
+*secret*
+*credential*
+*token*
+*key*
+*.pem
+*.p12
+*.pfx
+
+
+# Patterns added by @hivellm/rulebook
+# Added at: 2025-11-15T23:07:23.044Z
+
+*.tsbuildinfo.*
+.cache/
+.env.*.local
+.tsc/
+out/
+temp/
+tmp/

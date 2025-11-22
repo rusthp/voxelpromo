@@ -1,0 +1,21 @@
+{
+  "ignore": [
+    "config.json",
+    "*.log",
+    "logs/**",
+    ".next/**",
+    "node_modules/**",
+    "frontend/**",
+    "dist/**",
+    "build/**",
+    ".git/**",
+    "*.tsbuildinfo"
+  ],
+  "watch": [
+    "src"
+  ],
+  "ext": "ts",
+  "exec": "ts-node src/server.ts",
+  "delay": 2000,
+  "verbose": true
+}
