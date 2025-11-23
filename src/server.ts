@@ -1,14 +1,20 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { connectDatabase } from './config/database';
 import { setupRoutes } from './routes';
 import { setupCronJobs } from './jobs/scheduler';
 import { logger } from './utils/logger';
 import { loadConfigFromFile } from './utils/loadConfig';
+import { validateAndLogEnv } from './utils/validateEnv';
 
 // Load environment variables
 dotenv.config();
+
+// Validate critical environment variables
+validateAndLogEnv();
 
 // Verify MongoDB URI is loaded
 if (process.env.MONGODB_URI) {
@@ -20,11 +26,53 @@ if (process.env.MONGODB_URI) {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middlewares
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3001',
-  credentials: true
-}));
+// Security: Helmet.js for security headers
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+      },
+    },
+  })
+);
+
+// Security: Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/', limiter);
+
+// Security: CORS with better configuration
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['http://localhost:3001'];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, Postman, curl)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        logger.warn(`CORS blocked request from origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -44,20 +92,29 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 // Start server
 async function startServer() {
+  const startTime = Date.now();
   try {
     // Load configuration from config.json (if exists)
+    const configStart = Date.now();
     loadConfigFromFile();
-    
-    await connectDatabase();
-    logger.info('Database connected');
+    logger.info(`⚙️  Config loaded in ${Date.now() - configStart}ms`);
 
+    // Connect to database (this can be slow)
+    const dbStart = Date.now();
+    await connectDatabase();
+    logger.info(`💾 Database connected in ${Date.now() - dbStart}ms`);
+
+    // Setup cron jobs
+    const cronStart = Date.now();
     setupCronJobs();
-    logger.info('Cron jobs scheduled');
+    logger.info(`⏰ Cron jobs scheduled in ${Date.now() - cronStart}ms`);
 
     app.listen(PORT, () => {
+      const totalTime = Date.now() - startTime;
       logger.info(`🚀 Server running on port ${PORT}`);
       logger.info(`📡 API available at http://localhost:${PORT}/api`);
       logger.info(`❤️  Health check: http://localhost:${PORT}/health`);
+      logger.info(`⏱️  Total startup time: ${totalTime}ms`);
     });
   } catch (error: any) {
     // Extract error message from various error formats
@@ -69,10 +126,10 @@ async function startServer() {
     } else {
       errorMessage = String(error);
     }
-    
+
     logger.error('❌ Failed to start server:');
     logger.error(errorMessage);
-    
+
     const errorLower = errorMessage.toLowerCase();
     if (errorLower.includes('mongodb') || errorLower.includes('database')) {
       logger.error('');
@@ -84,10 +141,9 @@ async function startServer() {
       logger.error('   - See docs/MONGODB_SETUP.md for more help.');
       logger.error('');
     }
-    
+
     process.exit(1);
   }
 }
 
 startServer();
-

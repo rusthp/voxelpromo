@@ -30,7 +30,7 @@ export class ExchangeRateService {
         logger.debug('Using cached exchange rate', {
           rate: cachedRate.rate,
           source: cachedRate.source,
-          cachedAt: new Date(cachedRate.timestamp).toISOString()
+          cachedAt: new Date(cachedRate.timestamp).toISOString(),
         });
         return cachedRate.rate;
       }
@@ -42,7 +42,7 @@ export class ExchangeRateService {
         this.cacheRate(realTimeRate, 'api');
         logger.info('✅ Fetched real-time exchange rate', {
           rate: realTimeRate,
-          source: 'real-time API'
+          source: 'real-time API',
         });
         return realTimeRate;
       }
@@ -52,7 +52,7 @@ export class ExchangeRateService {
         logger.warn('⚠️ Using cached exchange rate (real-time API unavailable)', {
           rate: cachedRate.rate,
           source: cachedRate.source,
-          cachedAt: new Date(cachedRate.timestamp).toISOString()
+          cachedAt: new Date(cachedRate.timestamp).toISOString(),
         });
         return cachedRate.rate;
       }
@@ -62,7 +62,7 @@ export class ExchangeRateService {
       if (configRate) {
         logger.info('Using exchange rate from config', {
           rate: configRate,
-          source: 'config.json'
+          source: 'config.json',
         });
         return configRate;
       }
@@ -70,7 +70,7 @@ export class ExchangeRateService {
       // Final fallback to default
       logger.warn('⚠️ Using default exchange rate (5.0) - consider updating config.json', {
         rate: 5.0,
-        source: 'default'
+        source: 'default',
       });
       return 5.0;
     } catch (error: any) {
@@ -89,7 +89,7 @@ export class ExchangeRateService {
       async () => {
         try {
           const response = await axios.get('https://api.exchangerate-api.com/v4/latest/USD', {
-            timeout: 5000
+            timeout: 5000,
           });
           const rate = response.data?.rates?.BRL;
           if (rate && rate > 3 && rate < 7) {
@@ -106,7 +106,7 @@ export class ExchangeRateService {
         try {
           // Try without API key first (may have rate limits)
           const response = await axios.get('https://api.fixer.io/latest?base=USD&symbols=BRL', {
-            timeout: 5000
+            timeout: 5000,
           });
           const rate = response.data?.rates?.BRL;
           if (rate && rate > 3 && rate < 7) {
@@ -121,9 +121,12 @@ export class ExchangeRateService {
       // API 3: CurrencyAPI (free tier)
       async () => {
         try {
-          const response = await axios.get('https://api.currencyapi.com/v3/latest?apikey=free&currencies=BRL&base_currency=USD', {
-            timeout: 5000
-          });
+          const response = await axios.get(
+            'https://api.currencyapi.com/v3/latest?apikey=free&currencies=BRL&base_currency=USD',
+            {
+              timeout: 5000,
+            }
+          );
           const rate = response.data?.data?.BRL?.value;
           if (rate && rate > 3 && rate < 7) {
             return rate;
@@ -132,7 +135,7 @@ export class ExchangeRateService {
           // Silent fail
         }
         return null;
-      }
+      },
     ];
 
     // Try each API in order
@@ -183,7 +186,7 @@ export class ExchangeRateService {
       const cache: ExchangeRateCache = {
         rate,
         timestamp: Date.now(),
-        source
+        source,
       };
       writeFileSync(this.cacheFile, JSON.stringify(cache, null, 2), 'utf-8');
     } catch (error) {
@@ -222,4 +225,3 @@ export class ExchangeRateService {
     throw new Error('Failed to fetch real-time exchange rate');
   }
 }
-

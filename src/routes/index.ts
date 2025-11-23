@@ -6,7 +6,9 @@ import { configRoutes } from './config.routes';
 import { authRoutes } from './auth.routes';
 import { mercadoLivreRoutes } from './mercadolivre.routes';
 import { xRoutes } from './x.routes';
+import whatsappRoutes from './whatsapp.routes';
 import { authenticate } from '../middleware/auth';
+import { adminRoutes } from './admin.routes';
 
 export function setupRoutes(app: Express): void {
   // Root callback route for X OAuth (Twitter accepts root domain as callback)
@@ -17,7 +19,7 @@ export function setupRoutes(app: Express): void {
     if (req.query.code || req.query.error) {
       // Redirect to the actual OAuth callback handler, preserving all query parameters
       const queryParams = new URLSearchParams();
-      Object.keys(req.query).forEach(key => {
+      Object.keys(req.query).forEach((key) => {
         const value = req.query[key];
         if (value) {
           // Convert to string: handle arrays, objects (ParsedQs), and strings
@@ -45,11 +47,12 @@ export function setupRoutes(app: Express): void {
   app.use('/api/auth', authRoutes);
   app.use('/api/mercadolivre', mercadoLivreRoutes); // OAuth callback needs to be public
   app.use('/api/x', xRoutes); // OAuth callback needs to be public
+  app.use('/api/whatsapp', whatsappRoutes); // WhatsApp QR code needs to be accessible
 
   // Protected routes (require authentication)
   app.use('/api/offers', authenticate, offerRoutes);
   app.use('/api/collector', authenticate, collectorRoutes);
   app.use('/api/stats', authenticate, statsRoutes);
   app.use('/api/config', authenticate, configRoutes);
+  app.use('/api/admin', authenticate, adminRoutes);
 }
-

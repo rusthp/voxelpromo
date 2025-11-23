@@ -1,8 +1,25 @@
 import { Router } from 'express';
+import Joi from 'joi';
 import { OfferService } from '../services/offer/OfferService';
+import { validateRequest } from '../middleware/validation';
 import { FilterOptions } from '../types';
 
 const router = Router();
+
+// Validation schemas for offer routes
+const deleteOffersSchema = Joi.object({
+  offerIds: Joi.array()
+    .items(Joi.string().pattern(/^[0-9a-fA-F]{24}$/))
+    .min(1)
+    .required()
+    .messages({
+      'array.min': 'Pelo menos um ID de oferta deve ser fornecido',
+      'any.required': 'IDs de ofertas são obrigatórios',
+      'string.pattern.base': 'IDs de ofertas inválidos',
+    }),
+  permanent: Joi.boolean().optional(),
+});
+
 const offerService = new OfferService();
 
 /**
@@ -20,10 +37,18 @@ router.get('/', async (req, res) => {
       sources,
       excludePosted,
       limit,
-      skip
+      skip,
     } = req.query;
 
-    if (minDiscount || maxPrice || minPrice || minRating || categories || sources || excludePosted) {
+    if (
+      minDiscount ||
+      maxPrice ||
+      minPrice ||
+      minRating ||
+      categories ||
+      sources ||
+      excludePosted
+    ) {
       // Use filter service
       const filterOptions: FilterOptions = {
         minDiscount: minDiscount ? parseFloat(minDiscount as string) : undefined,
@@ -33,20 +58,22 @@ router.get('/', async (req, res) => {
         categories: categories ? (categories as string).split(',') : undefined,
         sources: sources ? (sources as string).split(',') : undefined,
         excludePosted: excludePosted === 'true',
-        limit: limit ? parseInt(limit as string) : undefined
+        limit: limit ? parseInt(limit as string) : undefined,
       };
 
       const offers = await offerService.filterOffers(filterOptions);
       res.json(offers);
     } else {
-      // Get all offers (no limit by default, or use limit if provided)
-      const requestedLimit = limit ? parseInt(limit as string) : undefined;
+      // Get all offers with default limit of 50 (use limit query param to override)
+      const requestedLimit = limit ? parseInt(limit as string) : 50;
       const offers = await offerService.getAllOffers(
-        requestedLimit, // No limit by default
+        requestedLimit,
         skip ? parseInt(skip as string) : 0
       );
       // Log for debugging
-      console.log(`[API] GET /offers - Limit: ${requestedLimit || 'none'}, Returned: ${offers.length} offers`);
+      console.log(
+        `[API] GET /offers - Limit: ${requestedLimit}, Skip: ${skip || 0}, Returned: ${offers.length} offers`
+      );
       res.json(offers);
     }
   } catch (error: any) {
@@ -122,7 +149,10 @@ router.delete('/:id', async (req, res) => {
     if (!success) {
       return res.status(404).json({ error: 'Offer not found' });
     }
-    return res.json({ success: true, message: permanent ? 'Offer permanently deleted' : 'Offer deleted' });
+    return res.json({
+      success: true,
+      message: permanent ? 'Offer permanently deleted' : 'Offer deleted',
+    });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
@@ -131,20 +161,27 @@ router.delete('/:id', async (req, res) => {
 /**
  * DELETE /api/offers
  * Delete multiple offers
- * Body: { ids: string[], permanent?: boolean }
+ * Body: { offerIds: string[], permanent?: boolean }
  */
-router.delete('/', async (req, res) => {
+router.delete('/', validateRequest(deleteOffersSchema), async (req, res) => {
   try {
-    const { ids, permanent } = req.body;
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ error: 'ids array is required' });
-    }
-    const deletedCount = await offerService.deleteOffers(ids, permanent === true);
+    const { offerIds, permanent } = req.body;
+
+    console.log('[DELETE BATCH] Received request:', {
+      offerIdsCount: offerIds?.length,
+      permanent,
+      firstIds: offerIds?.slice(0, 3),
+    });
+
+    const deletedCount = await offerService.deleteOffers(offerIds, permanent === true);
+
+    console.log('[DELETE BATCH] Success:', { deletedCount });
+
     return res.json({ success: true, deletedCount, message: `Deleted ${deletedCount} offers` });
   } catch (error: any) {
+    console.error('[DELETE BATCH] Error:', error);
     return res.status(500).json({ error: error.message });
   }
 });
 
 export { router as offerRoutes };
-

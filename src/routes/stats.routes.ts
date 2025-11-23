@@ -18,4 +18,3 @@ router.get('/', async (_req, res) => {
 });
 
 export { router as statsRoutes };
-

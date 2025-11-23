@@ -5,7 +5,7 @@ export async function connectDatabase(): Promise<void> {
   try {
     // Read MONGODB_URI after dotenv.config() has been called
     const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/voxelpromo';
-    
+
     logger.info(`Attempting to connect to MongoDB at ${MONGODB_URI.replace(/\/\/.*@/, '//***@')}`);
     await mongoose.connect(MONGODB_URI);
     logger.info('✅ MongoDB connected successfully');
@@ -19,7 +19,8 @@ export async function connectDatabase(): Promise<void> {
     } else if (error?.reason) {
       errorMessage = error.reason;
     } else if (error?.error) {
-      errorMessage = typeof error.error === 'string' ? error.error : error.error?.message || String(error.error);
+      errorMessage =
+        typeof error.error === 'string' ? error.error : error.error?.message || String(error.error);
     } else {
       // Try to extract from error object
       const errorStr = String(error);
@@ -30,20 +31,23 @@ export async function connectDatabase(): Promise<void> {
         errorMessage = JSON.stringify(error, null, 2);
       }
     }
-    
+
     logger.error('❌ MongoDB connection error:');
     logger.error(errorMessage);
-    
+
     // Check for specific error types
     const errorLower = errorMessage.toLowerCase();
-    
+
     if (errorLower.includes('econnrefused') || errorLower.includes('connection refused')) {
       logger.error('');
       logger.error('⚠️  MongoDB is not running!');
       logger.error('   Please start MongoDB before running the server.');
       logger.error('   See docs/MONGODB_SETUP.md for instructions.');
       logger.error('');
-    } else if (errorLower.includes('whitelist') || errorLower.includes('ip') && errorLower.includes('not allowed')) {
+    } else if (
+      errorLower.includes('whitelist') ||
+      (errorLower.includes('ip') && errorLower.includes('not allowed'))
+    ) {
       logger.error('');
       logger.error('⚠️  MongoDB Atlas IP Whitelist Error!');
       logger.error('   Your current IP address is not whitelisted in MongoDB Atlas.');
@@ -71,7 +75,7 @@ export async function connectDatabase(): Promise<void> {
       logger.error('   See docs/MONGODB_WSL.md for Atlas setup');
       logger.error('');
     }
-    
+
     throw error;
   }
 }
@@ -85,4 +89,3 @@ export async function disconnectDatabase(): Promise<void> {
     throw error;
   }
 }
-

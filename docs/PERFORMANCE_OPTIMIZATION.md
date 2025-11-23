@@ -71,7 +71,7 @@ Ensure your `.env` file has the correct values:
 ```env
 # Telegram
 TELEGRAM_BOT_TOKEN=your_bot_token_here
-TELEGRAM_CHAT_ID=-5038858254
+TELEGRAM_CHAT_ID=YOUR_TELEGRAM_CHAT_ID_HERE
 
 # WhatsApp (optional)
 WHATSAPP_ENABLED=false

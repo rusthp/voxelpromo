@@ -21,7 +21,7 @@ const OfferSchema = new Schema<OfferDocument>(
       type: String,
       enum: ['amazon', 'aliexpress', 'shopee', 'rss', 'manual'],
       required: true,
-      index: true
+      index: true,
     },
     category: { type: String, required: true, index: true },
     subcategory: { type: String },
@@ -37,10 +37,10 @@ const OfferSchema = new Schema<OfferDocument>(
     postedChannels: [{ type: String }],
     aiGeneratedPost: { type: String },
     createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now }
+    updatedAt: { type: Date, default: Date.now },
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
 
@@ -49,6 +49,7 @@ OfferSchema.index({ createdAt: -1 });
 OfferSchema.index({ discountPercentage: -1 });
 OfferSchema.index({ isActive: 1, isPosted: 1 });
 OfferSchema.index({ source: 1, category: 1 });
+// Compound index for common queries: active offers sorted by date and discount
+OfferSchema.index({ isActive: 1, createdAt: -1, discountPercentage: -1 });
 
 export const OfferModel = mongoose.model<OfferDocument>('Offer', OfferSchema);
-

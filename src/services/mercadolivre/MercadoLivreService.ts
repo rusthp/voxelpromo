@@ -76,15 +76,15 @@ interface CacheEntry<T> {
 export class MercadoLivreService {
   private baseUrl = 'https://api.mercadolibre.com';
   private authUrl = 'https://auth.mercadolivre.com.br';
-  
+
   // Cache em memória para resultados de busca
   private searchCache = new Map<string, CacheEntry<MercadoLivreProduct[]>>();
   private cacheDuration = 10 * 60 * 1000; // 10 minutos
-  
+
   // Controle de rate limiting - última requisição
   private lastRequestTime = 0;
   private minRequestDelay = 250; // 250ms entre requisições
-  
+
   /**
    * Get current config from environment variables or config.json
    */
@@ -92,7 +92,7 @@ export class MercadoLivreService {
     // Try to load from config.json first
     try {
       const configPath = join(process.cwd(), 'config.json');
-      
+
       if (existsSync(configPath)) {
         const config = JSON.parse(readFileSync(configPath, 'utf-8'));
         if (config.mercadolivre?.clientId) {
@@ -102,7 +102,7 @@ export class MercadoLivreService {
             redirectUri: config.mercadolivre.redirectUri || 'https://proplaynews.com.br/',
             accessToken: config.mercadolivre.accessToken,
             refreshToken: config.mercadolivre.refreshToken,
-            tokenExpiresAt: config.mercadolivre.tokenExpiresAt
+            tokenExpiresAt: config.mercadolivre.tokenExpiresAt,
           };
         }
       }
@@ -117,9 +117,9 @@ export class MercadoLivreService {
       redirectUri: process.env.MERCADOLIVRE_REDIRECT_URI || 'https://proplaynews.com.br/',
       accessToken: process.env.MERCADOLIVRE_ACCESS_TOKEN,
       refreshToken: process.env.MERCADOLIVRE_REFRESH_TOKEN,
-      tokenExpiresAt: process.env.MERCADOLIVRE_TOKEN_EXPIRES_AT 
-        ? parseInt(process.env.MERCADOLIVRE_TOKEN_EXPIRES_AT) 
-        : undefined
+      tokenExpiresAt: process.env.MERCADOLIVRE_TOKEN_EXPIRES_AT
+        ? parseInt(process.env.MERCADOLIVRE_TOKEN_EXPIRES_AT)
+        : undefined,
     };
   }
 
@@ -131,7 +131,7 @@ export class MercadoLivreService {
     const params = new URLSearchParams({
       response_type: 'code',
       client_id: config.clientId,
-      redirect_uri: config.redirectUri
+      redirect_uri: config.redirectUri,
     });
 
     if (state) {
@@ -152,7 +152,7 @@ export class MercadoLivreService {
     scope: string;
   }> {
     const config = this.getConfig();
-    
+
     if (!config.clientId || !config.clientSecret) {
       throw new Error('Mercado Livre Client ID or Client Secret not configured');
     }
@@ -165,32 +165,34 @@ export class MercadoLivreService {
           client_id: config.clientId,
           client_secret: config.clientSecret,
           code: code,
-          redirect_uri: config.redirectUri
+          redirect_uri: config.redirectUri,
         }),
         {
           headers: {
-            'accept': 'application/json',
-            'content-type': 'application/x-www-form-urlencoded'
-          }
+            accept: 'application/json',
+            'content-type': 'application/x-www-form-urlencoded',
+          },
         }
       );
 
       logger.info('✅ Successfully exchanged code for access token');
-      
+
       return {
         access_token: response.data.access_token,
         refresh_token: response.data.refresh_token,
         expires_in: response.data.expires_in,
         user_id: response.data.user_id,
-        scope: response.data.scope
+        scope: response.data.scope,
       };
     } catch (error: any) {
       logger.error('Error exchanging code for token:', {
         status: error.response?.status,
         data: error.response?.data,
-        message: error.message
+        message: error.message,
       });
-      throw new Error(`Failed to exchange code for token: ${error.response?.data?.error_description || error.message}`);
+      throw new Error(
+        `Failed to exchange code for token: ${error.response?.data?.error_description || error.message}`
+      );
     }
   }
 
@@ -203,7 +205,7 @@ export class MercadoLivreService {
     expires_in: number;
   }> {
     const config = this.getConfig();
-    
+
     if (!config.refreshToken) {
       throw new Error('Refresh token not available');
     }
@@ -219,30 +221,32 @@ export class MercadoLivreService {
           grant_type: 'refresh_token',
           client_id: config.clientId,
           client_secret: config.clientSecret,
-          refresh_token: config.refreshToken
+          refresh_token: config.refreshToken,
         }),
         {
           headers: {
-            'accept': 'application/json',
-            'content-type': 'application/x-www-form-urlencoded'
-          }
+            accept: 'application/json',
+            'content-type': 'application/x-www-form-urlencoded',
+          },
         }
       );
 
       logger.info('✅ Successfully refreshed access token');
-      
+
       return {
         access_token: response.data.access_token,
         refresh_token: response.data.refresh_token,
-        expires_in: response.data.expires_in
+        expires_in: response.data.expires_in,
       };
     } catch (error: any) {
       logger.error('Error refreshing token:', {
         status: error.response?.status,
         data: error.response?.data,
-        message: error.message
+        message: error.message,
       });
-      throw new Error(`Failed to refresh token: ${error.response?.data?.error_description || error.message}`);
+      throw new Error(
+        `Failed to refresh token: ${error.response?.data?.error_description || error.message}`
+      );
     }
   }
 
@@ -264,10 +268,12 @@ export class MercadoLivreService {
       if (isRateLimit && attempt < maxRetries) {
         // Exponential backoff: 500ms, 1000ms, 2000ms, 4000ms, 8000ms
         const waitTime = Math.min(500 * Math.pow(2, attempt - 1), 10000);
-        
-        logger.warn(`Rate limit atingido (${status}). Tentando novamente em ${waitTime}ms... (tentativa ${attempt}/${maxRetries})`);
-        
-        await new Promise(resolve => setTimeout(resolve, waitTime));
+
+        logger.warn(
+          `Rate limit atingido (${status}). Tentando novamente em ${waitTime}ms... (tentativa ${attempt}/${maxRetries})`
+        );
+
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
         return this.retryRequest(requestFn, maxRetries, attempt + 1);
       }
 
@@ -283,12 +289,12 @@ export class MercadoLivreService {
   private async throttleRequest(): Promise<void> {
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequestTime;
-    
+
     if (timeSinceLastRequest < this.minRequestDelay) {
       const waitTime = this.minRequestDelay - timeSinceLastRequest;
-      await new Promise(resolve => setTimeout(resolve, waitTime));
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
     }
-    
+
     this.lastRequestTime = Date.now();
   }
 
@@ -305,7 +311,7 @@ export class MercadoLivreService {
    */
   private getCachedResults(cacheKey: string): MercadoLivreProduct[] | null {
     const cached = this.searchCache.get(cacheKey);
-    
+
     if (!cached) {
       return null;
     }
@@ -329,7 +335,7 @@ export class MercadoLivreService {
     this.searchCache.set(cacheKey, {
       data,
       timestamp: now,
-      expiresAt: now + this.cacheDuration
+      expiresAt: now + this.cacheDuration,
     });
 
     // Limpar cache antigo (manter apenas últimos 1000 itens)
@@ -345,19 +351,19 @@ export class MercadoLivreService {
    * Search products by keyword
    * Reference: https://developers.mercadolivre.com.br/pt_br/itens-e-buscas
    * Note: Public search endpoint doesn't require authentication
-   * 
+   *
    * Features:
    * - Automatic retry with exponential backoff for rate limits
    * - Request throttling (250ms minimum delay)
    * - Result caching (10 minutes)
-   * 
+   *
    * @param keyword - Search keyword
    * @param limit - Maximum results (default: 20, max: 100)
    * @param options - Additional search options
    * @returns Array of products
    */
   async searchProducts(
-    keyword: string = 'eletrônicos', 
+    keyword: string = 'eletrônicos',
     limit: number = 20,
     options?: {
       sort?: string; // e.g., 'price_asc', 'price_desc', 'relevance'
@@ -370,14 +376,14 @@ export class MercadoLivreService {
   ): Promise<MercadoLivreProduct[]> {
     try {
       logger.info(`Searching Mercado Livre products with keyword: "${keyword}"`);
-      
+
       // Validate limit (max 100 per API documentation)
       const validLimit = Math.min(Math.max(limit, 1), 100);
-      
+
       // Build search parameters
       const params: Record<string, any> = {
         q: keyword,
-        limit: validLimit
+        limit: validLimit,
       };
 
       // Add sort (default: price_asc to find deals)
@@ -423,9 +429,9 @@ export class MercadoLivreService {
         return await axios.get(`${this.baseUrl}/sites/MLB/search`, {
           params,
           headers: {
-            'Accept': 'application/json'
+            Accept: 'application/json',
           },
-          timeout: 30000
+          timeout: 30000,
         });
       });
 
@@ -435,9 +441,9 @@ export class MercadoLivreService {
           limit: validLimit,
           totalResults: response.data.paging?.total || 0,
           hasOriginalPrice: response.data.results.filter((p: any) => p.original_price).length,
-          hasDiscounts: response.data.results.filter((p: any) => p.discounts).length
+          hasDiscounts: response.data.results.filter((p: any) => p.discounts).length,
         });
-        
+
         // Log first product structure for debugging
         if (response.data.results.length > 0) {
           const firstProduct = response.data.results[0];
@@ -448,30 +454,30 @@ export class MercadoLivreService {
             original_price: firstProduct.original_price,
             hasDiscounts: !!firstProduct.discounts,
             condition: firstProduct.condition,
-            free_shipping: firstProduct.shipping?.free_shipping
+            free_shipping: firstProduct.shipping?.free_shipping,
           });
         }
-        
+
         // Cache results
         this.cacheResults(cacheKey, response.data.results);
-        
+
         // Note: available_quantity returns reference values, not exact quantities
         // RANGO_1_50 = 1, RANGO_51_100 = 50, etc.
-        
+
         return response.data.results;
       }
 
       logger.warn('No products found in response', {
         keyword,
         responseKeys: Object.keys(response.data || {}),
-        hasResults: !!response.data.results
+        hasResults: !!response.data.results,
       });
       return [];
     } catch (error: any) {
       logger.error('Error searching Mercado Livre products:', {
         message: error.message,
         status: error.response?.status,
-        data: error.response?.data
+        data: error.response?.data,
       });
       return [];
     }
@@ -481,7 +487,7 @@ export class MercadoLivreService {
    * Get hot deals / promotions
    * Uses public search endpoint (no authentication required)
    * Optimized for finding products with discounts and free shipping
-   * 
+   *
    * Improvements:
    * - Reduced search terms (2 instead of 5) to avoid rate limiting
    * - Increased limit per search to get more results
@@ -491,37 +497,34 @@ export class MercadoLivreService {
   async getHotDeals(limit: number = 20): Promise<MercadoLivreProduct[]> {
     try {
       logger.info('Fetching hot deals from Mercado Livre...');
-      
+
       const allDeals: MercadoLivreProduct[] = [];
-      
+
       // Reduced search terms to avoid rate limiting
       // Using only 2 most effective terms instead of 5
-      const searchTerms = [
-        'promoção',
-        'desconto'
-      ];
-      
+      const searchTerms = ['promoção', 'desconto'];
+
       // Calculate how many products to fetch per term
       const productsPerTerm = Math.ceil(limit / searchTerms.length);
-      
+
       for (const term of searchTerms) {
         try {
           // Search with higher limit per term to get more results
           const deals = await this.searchProducts(term, Math.min(productsPerTerm * 2, 50), {
             sort: 'price_asc',
-            condition: 'new'
+            condition: 'new',
             // Removed shippingCost: 'free' to get more results
           });
-          
+
           logger.debug(`Found ${deals.length} products for term "${term}"`);
-          
+
           // Add all products (we'll filter by discount later when we have details)
           for (const product of deals) {
             if (!allDeals.find((d: any) => d.id === product.id)) {
               allDeals.push(product);
             }
           }
-          
+
           // Stop if we have enough products
           if (allDeals.length >= limit) {
             break;
@@ -530,16 +533,16 @@ export class MercadoLivreService {
           // Delay between searches to avoid rate limiting
           // Only delay if not the last term
           if (searchTerms.indexOf(term) < searchTerms.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise((resolve) => setTimeout(resolve, 500));
           }
         } catch (error: any) {
           logger.debug(`Search term "${term}" failed: ${error.message}`);
           // Continue with next term even if one fails
         }
       }
-      
+
       logger.info(`🔥 Found ${allDeals.length} potential deals from Mercado Livre`);
-      
+
       // Return all products - we'll filter by discount when converting to offers
       // This allows us to fetch product details first to get accurate original_price
       return allDeals.slice(0, limit);
@@ -547,7 +550,7 @@ export class MercadoLivreService {
       logger.error('Error fetching hot deals:', {
         message: error.message,
         status: error.response?.status,
-        data: error.response?.data
+        data: error.response?.data,
       });
       return [];
     }
@@ -556,24 +559,24 @@ export class MercadoLivreService {
   /**
    * Get detailed product information by item ID
    * Reference: https://developers.mercadolivre.com.br/pt_br/itens-e-buscas
-   * 
+   *
    * @param itemId - Mercado Livre item ID (e.g., "MLB123456789")
    * @returns Detailed product information
    */
   async getProductDetails(itemId: string): Promise<MercadoLivreProduct | null> {
     try {
       logger.info(`Fetching product details for item: ${itemId}`);
-      
+
       // Throttle request
       await this.throttleRequest();
-      
+
       // Public endpoint - no authentication required
       const response = await this.retryRequest(async () => {
         return await axios.get(`${this.baseUrl}/items/${itemId}`, {
           headers: {
-            'Accept': 'application/json'
+            Accept: 'application/json',
           },
-          timeout: 30000
+          timeout: 30000,
         });
       });
 
@@ -589,7 +592,7 @@ export class MercadoLivreService {
         itemId,
         message: error.message,
         status: error.response?.status,
-        data: error.response?.data
+        data: error.response?.data,
       });
       return null;
     }
@@ -599,38 +602,38 @@ export class MercadoLivreService {
    * Get multiple products by IDs (Multiget)
    * Reference: https://developers.mercadolivre.com.br/pt_br/itens-e-buscas
    * Maximum 20 items per request
-   * 
+   *
    * @param itemIds - Array of item IDs (max 20)
    * @param attributes - Optional: specific attributes to return
    * @returns Array of products with status codes
    */
   async getMultipleProducts(
-    itemIds: string[], 
+    itemIds: string[],
     _attributes?: string[]
   ): Promise<Array<{ code: number; body?: MercadoLivreProduct; error?: any }>> {
     try {
       // Limit to 20 items per API documentation
       const ids = itemIds.slice(0, 20).join(',');
-      
+
       const params: Record<string, any> = {
-        ids
+        ids,
       };
 
       // Note: Mercado Livre API doesn't support attributes filter in multiget
       // The attributes parameter is ignored here but kept for API compatibility
 
       logger.info(`Fetching ${itemIds.length} products via multiget (limited to 20)`);
-      
+
       // Throttle request
       await this.throttleRequest();
-      
+
       const response = await this.retryRequest(async () => {
         return await axios.get(`${this.baseUrl}/items`, {
           params,
           headers: {
-            'Accept': 'application/json'
+            Accept: 'application/json',
           },
-          timeout: 30000
+          timeout: 30000,
         });
       });
 
@@ -649,7 +652,7 @@ export class MercadoLivreService {
         itemIds: itemIds.slice(0, 5),
         message: error.message,
         status: error.response?.status,
-        data: error.response?.data
+        data: error.response?.data,
       });
       return [];
     }
@@ -658,7 +661,7 @@ export class MercadoLivreService {
   /**
    * Search products by seller (for affiliate programs)
    * Reference: https://developers.mercadolivre.com.br/pt_br/itens-e-buscas
-   * 
+   *
    * @param sellerId - Seller ID
    * @param nickname - Seller nickname (alternative to sellerId)
    * @param limit - Maximum results
@@ -688,13 +691,13 @@ export class MercadoLivreService {
         category: options?.category,
         sort: options?.sort || 'price_asc',
         shippingCost: options?.shippingCost,
-        condition: 'new'
+        condition: 'new',
       });
     } catch (error: any) {
       logger.error('Error searching by seller:', {
         sellerId,
         nickname,
-        message: error.message
+        message: error.message,
       });
       return [];
     }
@@ -703,7 +706,7 @@ export class MercadoLivreService {
   /**
    * Get product prices (original and sale price)
    * Reference: https://developers.mercadolivre.com.br/pt_br/itens-e-buscas
-   * 
+   *
    * @param itemId - Mercado Livre item ID
    * @returns Price information
    */
@@ -711,20 +714,20 @@ export class MercadoLivreService {
     try {
       // Throttle request
       await this.throttleRequest();
-      
+
       const response = await this.retryRequest(async () => {
         return await axios.get(`${this.baseUrl}/items/${itemId}/prices`, {
           headers: {
-            'Accept': 'application/json'
+            Accept: 'application/json',
           },
-          timeout: 30000
+          timeout: 30000,
         });
       });
 
       if (response.data) {
         return {
           original: response.data.original_price || response.data.price || 0,
-          sale: response.data.sale_price || response.data.price || 0
+          sale: response.data.sale_price || response.data.price || 0,
         };
       }
 
@@ -732,7 +735,7 @@ export class MercadoLivreService {
     } catch (error: any) {
       logger.error('Error fetching product prices:', {
         itemId,
-        message: error.message
+        message: error.message,
       });
       return null;
     }
@@ -740,12 +743,12 @@ export class MercadoLivreService {
 
   /**
    * Build affiliate link for Mercado Livre product
-   * 
+   *
    * Supported formats:
    * 1. Simple affiliate code: https://produto.mercadolivre.com.br/MLB-123456?a=SEU_CODIGO
    * 2. Hub de Afiliados: https://www.mercadolivre.com.br/afiliados/hub?u=PRODUCT_URL
    * 3. Direct permalink (if no affiliate code): PRODUCT_PERMALINK
-   * 
+   *
    * @param productUrl - Product permalink or URL
    * @param itemId - Mercado Livre item ID
    * @returns Affiliate link
@@ -766,19 +769,19 @@ export class MercadoLivreService {
       if (affiliateCode.startsWith('http://') || affiliateCode.startsWith('https://')) {
         // If it's a full URL (hub de afiliados), append product URL as parameter
         const hubUrl = new URL(affiliateCode);
-        
+
         // Preserve hash fragment if present
         const hash = hubUrl.hash;
         hubUrl.hash = ''; // Remove hash temporarily to add query param
-        
+
         // Add product URL as parameter
         hubUrl.searchParams.set('u', productUrl);
-        
+
         // Restore hash fragment if it existed
         if (hash) {
           hubUrl.hash = hash;
         }
-        
+
         logger.debug(`Built affiliate link using hub format for item ${itemId}`);
         return hubUrl.toString();
       }
@@ -786,10 +789,10 @@ export class MercadoLivreService {
       // Method 1: Simple affiliate code (most common)
       // Format: https://produto.mercadolivre.com.br/MLB-123456?a=SEU_CODIGO
       const url = new URL(productUrl);
-      
+
       // Add affiliate code as query parameter
       url.searchParams.set('a', affiliateCode);
-      
+
       logger.debug(`Built affiliate link for item ${itemId} with code ${affiliateCode}`);
       return url.toString();
     } catch (error) {
@@ -808,8 +811,9 @@ export class MercadoLivreService {
     try {
       // Get prices - prioritize detailed product data
       const currentPrice = product.sale_price || product.price || 0;
-      const originalPrice = product.original_price || product.base_price || product.price || currentPrice;
-      
+      const originalPrice =
+        product.original_price || product.base_price || product.price || currentPrice;
+
       // Calculate discount
       const discount = originalPrice - currentPrice;
       const discountPercentage = originalPrice > 0 ? (discount / originalPrice) * 100 : 0;
@@ -821,17 +825,17 @@ export class MercadoLivreService {
           productId: product.id,
           discountPercentage: discountPercentage.toFixed(2),
           currentPrice,
-          originalPrice
+          originalPrice,
         });
         return null;
       }
-      
+
       // If no discount but product has discounts field, accept it
       // (some products may have discounts that aren't reflected in original_price)
       if (discountPercentage === 0 && !product.discounts && originalPrice === currentPrice) {
         logger.debug('Product filtered: no discount detected', {
           productId: product.id,
-          hasDiscountsField: !!product.discounts
+          hasDiscountsField: !!product.discounts,
         });
         // Still accept products without discount if they're new and have good rating
         // This allows more products to appear
@@ -847,16 +851,17 @@ export class MercadoLivreService {
       }
 
       // Build product URL
-      const productUrl = product.permalink || `https://produto.mercadolivre.com.br/MLB-${product.id}`;
-      
+      const productUrl =
+        product.permalink || `https://produto.mercadolivre.com.br/MLB-${product.id}`;
+
       // Build affiliate link
       const affiliateUrl = this.buildAffiliateLink(productUrl, product.id);
 
       // Extract brand from attributes if available
       let brand = '';
       if (product.attributes && Array.isArray(product.attributes)) {
-        const brandAttr = product.attributes.find(attr => 
-          attr.id === 'BRAND' || attr.name?.toLowerCase().includes('marca')
+        const brandAttr = product.attributes.find(
+          (attr) => attr.id === 'BRAND' || attr.name?.toLowerCase().includes('marca')
         );
         if (brandAttr) {
           brand = brandAttr.value_name || '';
@@ -878,7 +883,7 @@ export class MercadoLivreService {
             '4_light_green': 4,
             '3_yellow': 3,
             '2_orange': 2,
-            '1_red': 1
+            '1_red': 1,
           };
           rating = levelMap[levelId] || 0;
         }
@@ -902,8 +907,8 @@ export class MercadoLivreService {
       let description = product.title;
       if (product.attributes && Array.isArray(product.attributes)) {
         const keyAttributes = product.attributes
-          .filter(attr => ['MODEL', 'BRAND', 'COLOR', 'STORAGE_CAPACITY'].includes(attr.id))
-          .map(attr => `${attr.name}: ${attr.value_name}`)
+          .filter((attr) => ['MODEL', 'BRAND', 'COLOR', 'STORAGE_CAPACITY'].includes(attr.id))
+          .map((attr) => `${attr.name}: ${attr.value_name}`)
           .join(', ');
         if (keyAttributes) {
           description = `${product.title} - ${keyAttributes}`;
@@ -931,7 +936,7 @@ export class MercadoLivreService {
         isActive: true,
         isPosted: false,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       };
     } catch (error) {
       logger.error('Error converting Mercado Livre product to offer:', error);
@@ -942,15 +947,18 @@ export class MercadoLivreService {
   /**
    * Scrape products from Mercado Livre Affiliates Hub page
    * Alternative method when API is rate-limited
-   * 
+   *
    * @param hubUrl - URL of the affiliates hub page
    * @param limit - Maximum number of products to scrape
    * @returns Array of products
    */
-  async scrapeAffiliatesHub(hubUrl: string = 'https://www.mercadolivre.com.br/afiliados/hub', limit: number = 50): Promise<MercadoLivreProduct[]> {
+  async scrapeAffiliatesHub(
+    hubUrl: string = 'https://www.mercadolivre.com.br/afiliados/hub',
+    limit: number = 50
+  ): Promise<MercadoLivreProduct[]> {
     try {
       logger.info(`🔍 Scraping Mercado Livre Affiliates Hub: ${hubUrl}`);
-      
+
       // Throttle request
       await this.throttleRequest();
 
@@ -958,14 +966,15 @@ export class MercadoLivreService {
       const response = await this.retryRequest(async () => {
         return await axios.get(hubUrl, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
             'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
+            Connection: 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
           },
-          timeout: 30000
+          timeout: 30000,
         });
       });
 
@@ -979,7 +988,7 @@ export class MercadoLivreService {
         '[data-testid="product"]',
         '.item',
         'li[class*="item"]',
-        'div[class*="item"]'
+        'div[class*="item"]',
       ];
 
       let productElements: cheerio.Cheerio<any> | null = null;
@@ -987,7 +996,9 @@ export class MercadoLivreService {
       for (const selector of productSelectors) {
         productElements = $(selector);
         if (productElements.length > 0) {
-          logger.debug(`Found products using selector: ${selector} (${productElements.length} items)`);
+          logger.debug(
+            `Found products using selector: ${selector} (${productElements.length} items)`
+          );
           break;
         }
       }
@@ -1009,17 +1020,25 @@ export class MercadoLivreService {
       productElements.slice(0, limit).each((_index, element) => {
         try {
           const $el = $(element);
-          
+
           // Extract product information - try multiple methods
           // Title - try multiple selectors and fallbacks
-          let title = $el.find('h2, h3, .ui-search-item__title, [data-testid="product-title"], .item-title, [class*="title"]').first().text().trim();
-          
+          let title = $el
+            .find(
+              'h2, h3, .ui-search-item__title, [data-testid="product-title"], .item-title, [class*="title"]'
+            )
+            .first()
+            .text()
+            .trim();
+
           if (!title) {
             // Try from link
-            const linkEl = $el.find('a[href*="/produto/"], a[href*="/MLB-"], a[href*="item.mercadolivre"]').first();
+            const linkEl = $el
+              .find('a[href*="/produto/"], a[href*="/MLB-"], a[href*="item.mercadolivre"]')
+              .first();
             title = linkEl.attr('title') || linkEl.text().trim();
           }
-          
+
           if (!title) {
             // Try from any link in the element
             title = $el.find('a').first().attr('title') || $el.find('a').first().text().trim();
@@ -1030,57 +1049,89 @@ export class MercadoLivreService {
           }
 
           // Price - try multiple selectors
-          let priceText = $el.find('.price-tag, .ui-search-price, [data-testid="price"], .price, [class*="price"], .andes-money-amount').first().text().trim();
-          
+          let priceText = $el
+            .find(
+              '.price-tag, .ui-search-price, [data-testid="price"], .price, [class*="price"], .andes-money-amount'
+            )
+            .first()
+            .text()
+            .trim();
+
           // If no price found, search in all text
           if (!priceText || !priceText.match(/R\$\s*[\d.,]+/)) {
             const allText = $el.text();
             const priceMatch = allText.match(/R\$\s*([\d.,]+)/);
             priceText = priceMatch ? `R$ ${priceMatch[1]}` : '';
           }
-          
+
           const priceMatch = priceText.match(/R\$\s*([\d.,]+)/) || priceText.match(/([\d.,]+)/);
-          const price = priceMatch ? parseFloat(priceText.replace(/[^\d.,]/g, '').replace(',', '.')) : 0;
+          const price = priceMatch
+            ? parseFloat(priceText.replace(/[^\d.,]/g, '').replace(',', '.'))
+            : 0;
 
           // Original price (if discounted)
-          const originalPriceText = $el.find('.price-tag-original, .ui-search-price__original, [data-testid="original-price"], [class*="original"]').first().text().trim();
+          const originalPriceText = $el
+            .find(
+              '.price-tag-original, .ui-search-price__original, [data-testid="original-price"], [class*="original"]'
+            )
+            .first()
+            .text()
+            .trim();
           const originalPriceMatch = originalPriceText.match(/R\$\s*([\d.,]+)/);
-          const originalPrice = originalPriceMatch ? parseFloat(originalPriceText.replace(/[^\d.,]/g, '').replace(',', '.')) : price;
+          const originalPrice = originalPriceMatch
+            ? parseFloat(originalPriceText.replace(/[^\d.,]/g, '').replace(',', '.'))
+            : price;
 
           // Product URL - try multiple patterns
-          let productLink = $el.find('a[href*="/produto/"], a[href*="/MLB-"], a[href*="item.mercadolivre"]').first().attr('href');
-          
+          let productLink = $el
+            .find('a[href*="/produto/"], a[href*="/MLB-"], a[href*="item.mercadolivre"]')
+            .first()
+            .attr('href');
+
           if (!productLink) {
             // Try any link that might be a product
             productLink = $el.find('a[href*="mercadolivre"]').first().attr('href');
           }
-          
-          const productUrl = productLink ? (productLink.startsWith('http') ? productLink : `https://www.mercadolivre.com.br${productLink}`) : '';
+
+          const productUrl = productLink
+            ? productLink.startsWith('http')
+              ? productLink
+              : `https://www.mercadolivre.com.br${productLink}`
+            : '';
 
           // Extract product ID from URL
-          const idMatch = productUrl.match(/MLB-(\d+)/) || 
-                         productUrl.match(/\/produto\/([^/?]+)/) ||
-                         productUrl.match(/\/item\/([^/?]+)/);
-          const productId = idMatch ? idMatch[1] : `scraped-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          const idMatch =
+            productUrl.match(/MLB-(\d+)/) ||
+            productUrl.match(/\/produto\/([^/?]+)/) ||
+            productUrl.match(/\/item\/([^/?]+)/);
+          const productId = idMatch
+            ? idMatch[1]
+            : `scraped-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
           // Image - try multiple attributes
-          const imageUrl = $el.find('img').first().attr('src') || 
-                          $el.find('img').first().attr('data-src') ||
-                          $el.find('img').first().attr('data-lazy') ||
-                          $el.find('img').first().attr('data-original') ||
-                          '';
+          const imageUrl =
+            $el.find('img').first().attr('src') ||
+            $el.find('img').first().attr('data-src') ||
+            $el.find('img').first().attr('data-lazy') ||
+            $el.find('img').first().attr('data-original') ||
+            '';
 
           // Condition
-          const conditionText = $el.find('[class*="condition"], .item-condition').first().text().toLowerCase() ||
-                               $el.text().toLowerCase();
-          const condition = conditionText.includes('novo') ? 'new' : 
-                           conditionText.includes('usado') ? 'used' : 
-                           'not_specified';
+          const conditionText =
+            $el.find('[class*="condition"], .item-condition').first().text().toLowerCase() ||
+            $el.text().toLowerCase();
+          const condition = conditionText.includes('novo')
+            ? 'new'
+            : conditionText.includes('usado')
+              ? 'used'
+              : 'not_specified';
 
           // Free shipping
-          const freeShipping = $el.find('[class*="free-shipping"], [class*="frete-gratis"], .shipping-free').length > 0 ||
-                              $el.text().toLowerCase().includes('frete grátis') ||
-                              $el.text().toLowerCase().includes('frete gratis');
+          const freeShipping =
+            $el.find('[class*="free-shipping"], [class*="frete-gratis"], .shipping-free').length >
+              0 ||
+            $el.text().toLowerCase().includes('frete grátis') ||
+            $el.text().toLowerCase().includes('frete gratis');
 
           // Only add if we have minimum required data
           if (price > 0 && title && productUrl) {
@@ -1094,9 +1145,9 @@ export class MercadoLivreService {
               permalink: productUrl,
               thumbnail: imageUrl,
               shipping: {
-                free_shipping: freeShipping
+                free_shipping: freeShipping,
               },
-              available_quantity: 1
+              available_quantity: 1,
             });
           }
         } catch (error: any) {
@@ -1110,7 +1161,7 @@ export class MercadoLivreService {
       logger.error('Error scraping Affiliates Hub:', {
         message: error.message,
         status: error.response?.status,
-        url: hubUrl
+        url: hubUrl,
       });
       return [];
     }
@@ -1118,38 +1169,47 @@ export class MercadoLivreService {
 
   /**
    * Collect products using scraping as fallback when API is rate-limited
-   * 
+   *
    * @param category - Product category
    * @param limit - Maximum products to collect
    * @returns Array of products
    */
-  async collectViaScraping(_category: string = 'electronics', limit: number = 50): Promise<MercadoLivreProduct[]> {
+  async collectViaScraping(
+    _category: string = 'electronics',
+    limit: number = 50
+  ): Promise<MercadoLivreProduct[]> {
     try {
       logger.info('🕷️ Using scraping method to collect products (API fallback)');
-      
+
       const allProducts: MercadoLivreProduct[] = [];
-      
+
       // Try scraping the affiliates hub
-      const hubProducts = await this.scrapeAffiliatesHub('https://www.mercadolivre.com.br/afiliados/hub', limit);
+      const hubProducts = await this.scrapeAffiliatesHub(
+        'https://www.mercadolivre.com.br/afiliados/hub',
+        limit
+      );
       allProducts.push(...hubProducts);
 
       // Try scraping category pages
       const categoryUrls = [
         'https://www.mercadolivre.com.br/ofertas',
         'https://www.mercadolivre.com.br/ofertas/eletronicos',
-        'https://www.mercadolivre.com.br/ofertas/celulares'
+        'https://www.mercadolivre.com.br/ofertas/celulares',
       ];
 
       for (const url of categoryUrls) {
         if (allProducts.length >= limit) break;
-        
+
         try {
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Delay between requests
-          const products = await this.scrapeAffiliatesHub(url, Math.min(20, limit - allProducts.length));
-          
+          await new Promise((resolve) => setTimeout(resolve, 1000)); // Delay between requests
+          const products = await this.scrapeAffiliatesHub(
+            url,
+            Math.min(20, limit - allProducts.length)
+          );
+
           // Add unique products
           for (const product of products) {
-            if (!allProducts.find(p => p.id === product.id)) {
+            if (!allProducts.find((p) => p.id === product.id)) {
               allProducts.push(product);
             }
           }
@@ -1166,4 +1226,3 @@ export class MercadoLivreService {
     }
   }
 }
-

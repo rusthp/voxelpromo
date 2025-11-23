@@ -31,7 +31,7 @@ export function OffersListWithFilters({ offers, onUpdate }: OffersListProps) {
   const [deleting, setDeleting] = useState<string | null>(null)
   const [selectedOffers, setSelectedOffers] = useState<Set<string>>(new Set())
   const [deletingMultiple, setDeletingMultiple] = useState(false)
-  
+
   // Filter states
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedSource, setSelectedSource] = useState<string>('all')
@@ -58,8 +58,8 @@ export function OffersListWithFilters({ offers, onUpdate }: OffersListProps) {
       if (searchQuery) {
         const query = searchQuery.toLowerCase()
         if (!offer.title.toLowerCase().includes(query) &&
-            !offer.category.toLowerCase().includes(query) &&
-            !offer.source.toLowerCase().includes(query)) {
+          !offer.category.toLowerCase().includes(query) &&
+          !offer.source.toLowerCase().includes(query)) {
           return false
         }
       }
@@ -130,8 +130,8 @@ export function OffersListWithFilters({ offers, onUpdate }: OffersListProps) {
   }
 
   const handleDelete = async (offerId: string, permanent: boolean = true) => {
-    if (!confirm(permanent 
-      ? 'Tem certeza que deseja excluir permanentemente esta oferta? Esta ação não pode ser desfeita.' 
+    if (!confirm(permanent
+      ? 'Tem certeza que deseja excluir permanentemente esta oferta? Esta ação não pode ser desfeita.'
       : 'Tem certeza que deseja excluir esta oferta?')) {
       return
     }
@@ -169,9 +169,9 @@ export function OffersListWithFilters({ offers, onUpdate }: OffersListProps) {
     const allFilteredIds = Object.values(filteredAndGroupedOffers)
       .flat()
       .map(o => o._id)
-    
-    if (selectedOffers.size === allFilteredIds.length && 
-        allFilteredIds.every(id => selectedOffers.has(id))) {
+
+    if (selectedOffers.size === allFilteredIds.length &&
+      allFilteredIds.every(id => selectedOffers.has(id))) {
       setSelectedOffers(new Set())
     } else {
       setSelectedOffers(new Set(allFilteredIds))
@@ -194,13 +194,22 @@ export function OffersListWithFilters({ offers, onUpdate }: OffersListProps) {
 
     try {
       setDeletingMultiple(true)
-      const ids = Array.from(selectedOffers)
-      await api.delete('/offers', { data: { ids, permanent } })
+      const offerIds = Array.from(selectedOffers)
+
+      console.log('[Frontend] Deleting offers:', { count: offerIds.length, permanent, firstIds: offerIds.slice(0, 3) })
+
+      const response = await api.delete('/offers', { data: { offerIds, permanent } })
+
+      console.log('[Frontend] Delete response:', response.data)
+
       setSelectedOffers(new Set())
       onUpdate()
-    } catch (error) {
+
+      alert(`✅ ${response.data.deletedCount || offerIds.length} ofertas excluídas com sucesso!`)
+    } catch (error: any) {
       console.error('Error deleting offers:', error)
-      alert('Erro ao excluir ofertas')
+      console.error('Error response:', error.response?.data)
+      alert(`❌ Erro ao excluir ofertas: ${error.response?.data?.error || error.message}`)
     } finally {
       setDeletingMultiple(false)
     }
@@ -258,11 +267,10 @@ export function OffersListWithFilters({ offers, onUpdate }: OffersListProps) {
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`px-4 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 ${
-              showFilters 
-                ? 'bg-purple-600 text-white' 
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+            className={`px-4 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 ${showFilters
+              ? 'bg-purple-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
           >
             <Filter className="w-4 h-4" />
             Filtros
@@ -365,7 +373,10 @@ export function OffersListWithFilters({ offers, onUpdate }: OffersListProps) {
           {selectedOffers.size > 0 && (
             <div className="flex items-center gap-3">
               <button
-                onClick={() => handleDeleteSelected(true)}
+                onClick={() => {
+                  console.log('[DELETE BUTTON] Clicked! Selected:', selectedOffers.size);
+                  handleDeleteSelected(true);
+                }}
                 disabled={deletingMultiple}
                 className="px-5 py-2.5 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center gap-2"
               >
@@ -402,11 +413,10 @@ export function OffersListWithFilters({ offers, onUpdate }: OffersListProps) {
             groupOffers.map((offer) => (
               <div
                 key={offer._id}
-                className={`bg-white rounded-xl border-2 p-6 hover:shadow-lg transition-all duration-300 mb-4 ${
-                  selectedOffers.has(offer._id) 
-                    ? 'border-purple-500 bg-purple-50' 
-                    : 'border-gray-100 hover:border-purple-300'
-                }`}
+                className={`bg-white rounded-xl border-2 p-6 hover:shadow-lg transition-all duration-300 mb-4 ${selectedOffers.has(offer._id)
+                  ? 'border-purple-500 bg-purple-50'
+                  : 'border-gray-100 hover:border-purple-300'
+                  }`}
               >
                 <div className="flex flex-col md:flex-row gap-6">
                   {/* Checkbox for selection */}
@@ -422,7 +432,7 @@ export function OffersListWithFilters({ offers, onUpdate }: OffersListProps) {
                       )}
                     </button>
                   </div>
-                  
+
                   {/* Image */}
                   <div className="flex-shrink-0">
                     {offer.imageUrl ? (
@@ -508,8 +518,8 @@ export function OffersListWithFilters({ offers, onUpdate }: OffersListProps) {
                         {posting === offer._id
                           ? 'Publicando...'
                           : offer.isPosted
-                          ? 'Já Publicado'
-                          : 'Publicar'}
+                            ? 'Já Publicado'
+                            : 'Publicar'}
                       </button>
                       {offer.affiliateUrl && (
                         <a

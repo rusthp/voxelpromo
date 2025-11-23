@@ -2,6 +2,8 @@ import axios from 'axios';
 import { logger } from '../../utils/logger';
 import { Offer } from '../../types';
 import { CategoryService } from '../category/CategoryService';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
 
 interface ShopeeProduct {
   image_link: string;
@@ -31,7 +33,7 @@ export class ShopeeService {
   constructor() {
     this.categoryService = new CategoryService();
   }
-  
+
   /**
    * Parse CSV line handling quoted fields with commas
    */
@@ -72,16 +74,14 @@ export class ShopeeService {
    */
   private getConfig(): ShopeeConfig {
     try {
-      const { readFileSync, existsSync } = require('fs');
-      const { join } = require('path');
       const configPath = join(process.cwd(), 'config.json');
-      
+
       if (existsSync(configPath)) {
         const config = JSON.parse(readFileSync(configPath, 'utf-8'));
         if (config.shopee) {
           return {
             feedUrls: config.shopee.feedUrls || [],
-            affiliateCode: config.shopee.affiliateCode
+            affiliateCode: config.shopee.affiliateCode,
           };
         }
       }
@@ -91,28 +91,28 @@ export class ShopeeService {
 
     return {
       feedUrls: process.env.SHOPEE_FEED_URLS?.split(',') || [],
-      affiliateCode: process.env.SHOPEE_AFFILIATE_CODE
+      affiliateCode: process.env.SHOPEE_AFFILIATE_CODE,
     };
   }
 
   /**
    * Download and parse CSV feed from Shopee
-   * 
+   *
    * @param feedUrl - URL of the CSV feed
    * @returns Array of products
    */
   async downloadFeed(feedUrl: string): Promise<ShopeeProduct[]> {
     try {
       logger.info(`📥 Downloading Shopee feed: ${feedUrl.substring(0, 80)}...`);
-      
+
       const response = await axios.get(feedUrl, {
         headers: {
-          'Accept': 'text/csv, application/csv',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          Accept: 'text/csv, application/csv',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         },
         timeout: 120000, // 120 seconds for large CSV files
         responseType: 'text',
-        maxContentLength: 200 * 1024 * 1024 // 200MB max (Shopee feeds can be large)
+        maxContentLength: 200 * 1024 * 1024, // 200MB max (Shopee feeds can be large)
       });
 
       logger.info(`✅ Downloaded feed (${(response.data.length / 1024).toFixed(2)} KB)`);
@@ -146,7 +146,7 @@ export class ShopeeService {
           currentLine += char;
         }
       }
-      
+
       // Add last line
       if (currentLine.trim()) {
         lines.push(currentLine);
@@ -164,7 +164,7 @@ export class ShopeeService {
       // Parse records (limit to reasonable number for performance)
       const maxRecords = Math.min(lines.length - 1, 10000); // Process up to 10k products per feed
       const records: any[] = [];
-      
+
       for (let i = 1; i <= maxRecords; i++) {
         try {
           const values = this.parseCSVLine(lines[i]);
@@ -181,22 +181,29 @@ export class ShopeeService {
       }
 
       if (lines.length - 1 > maxRecords) {
-        logger.info(`Processed ${maxRecords} of ${lines.length - 1} records (limited for performance)`);
+        logger.info(
+          `Processed ${maxRecords} of ${lines.length - 1} records (limited for performance)`
+        );
       }
 
       logger.info(`✅ Parsed ${records.length} products from CSV`);
 
       // Convert to ShopeeProduct format
       const products: ShopeeProduct[] = [];
-      
+
       for (const record of records) {
         try {
           const price = parseFloat(record.price?.replace(/[^\d.,]/g, '').replace(',', '.') || '0');
-          const salePrice = record.sale_price 
+          const salePrice = record.sale_price
             ? parseFloat(record.sale_price.replace(/[^\d.,]/g, '').replace(',', '.') || '0')
             : price;
-          const discount = record.discount_percentage 
-            ? parseFloat(record.discount_percentage.toString().replace(/[^\d.,]/g, '').replace(',', '.'))
+          const discount = record.discount_percentage
+            ? parseFloat(
+                record.discount_percentage
+                  .toString()
+                  .replace(/[^\d.,]/g, '')
+                  .replace(',', '.')
+              )
             : 0;
 
           if (record.itemid && record.title && price > 0) {
@@ -212,9 +219,11 @@ export class ShopeeService {
               product_short_link: record.product_short_link || record.product_link || '',
               global_category1: record.global_category1 || 'electronics',
               global_category2: record.global_category2,
-              item_rating: record.item_rating ? parseFloat(record.item_rating.toString()) : undefined,
+              item_rating: record.item_rating
+                ? parseFloat(record.item_rating.toString())
+                : undefined,
               global_catid1: record.global_catid1,
-              global_catid2: record.global_catid2
+              global_catid2: record.global_catid2,
             });
           }
         } catch (error: any) {
@@ -228,7 +237,7 @@ export class ShopeeService {
       logger.error('Error downloading Shopee feed:', {
         message: error.message,
         status: error.response?.status,
-        url: feedUrl.substring(0, 80)
+        url: feedUrl.substring(0, 80),
       });
       return [];
     }
@@ -236,7 +245,7 @@ export class ShopeeService {
 
   /**
    * Download multiple feeds and combine products
-   * 
+   *
    * @param feedUrls - Array of feed URLs
    * @param limit - Maximum products to return
    * @returns Array of unique products
@@ -244,14 +253,14 @@ export class ShopeeService {
   async downloadMultipleFeeds(feedUrls: string[], limit: number = 1000): Promise<ShopeeProduct[]> {
     try {
       logger.info(`📥 Downloading ${feedUrls.length} Shopee feeds...`);
-      
+
       const allProducts: ShopeeProduct[] = [];
       const productMap = new Map<string, ShopeeProduct>(); // Use itemid as key to avoid duplicates
 
       for (const feedUrl of feedUrls) {
         try {
           const products = await this.downloadFeed(feedUrl);
-          
+
           for (const product of products) {
             if (!productMap.has(product.itemid)) {
               productMap.set(product.itemid, product);
@@ -261,7 +270,7 @@ export class ShopeeService {
 
           // Delay between feeds to avoid rate limiting
           if (feedUrls.indexOf(feedUrl) < feedUrls.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await new Promise((resolve) => setTimeout(resolve, 2000));
           }
 
           // Stop if we have enough products
@@ -283,7 +292,7 @@ export class ShopeeService {
 
   /**
    * Convert Shopee product to Offer format
-   * 
+   *
    * @param product - Shopee product
    * @param category - Product category
    * @returns Offer object
@@ -291,9 +300,10 @@ export class ShopeeService {
   convertToOffer(product: ShopeeProduct, category: string = 'electronics'): Offer | null {
     try {
       const currentPrice = product.sale_price || product.price || 0;
-      const originalPrice = product.discount_percentage && product.discount_percentage > 0
-        ? currentPrice / (1 - product.discount_percentage / 100)
-        : product.price || currentPrice;
+      const originalPrice =
+        product.discount_percentage && product.discount_percentage > 0
+          ? currentPrice / (1 - product.discount_percentage / 100)
+          : product.price || currentPrice;
 
       const discount = originalPrice - currentPrice;
       const discountPercentage = originalPrice > 0 ? (discount / originalPrice) * 100 : 0;
@@ -302,7 +312,7 @@ export class ShopeeService {
       if (originalPrice > currentPrice && discountPercentage < 3) {
         logger.debug('Product filtered: discount too low', {
           itemid: product.itemid,
-          discountPercentage: discountPercentage.toFixed(2)
+          discountPercentage: discountPercentage.toFixed(2),
         });
         return null;
       }
@@ -350,7 +360,7 @@ export class ShopeeService {
         isActive: true,
         isPosted: false,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       };
     } catch (error) {
       logger.error('Error converting Shopee product to offer:', error);
@@ -360,29 +370,33 @@ export class ShopeeService {
 
   /**
    * Get products from configured feeds
-   * 
+   *
    * @param category - Product category filter
    * @param limit - Maximum products to return
    * @returns Array of products
    */
-  async getProducts(category: string = 'electronics', limit: number = 100): Promise<ShopeeProduct[]> {
+  async getProducts(
+    category: string = 'electronics',
+    limit: number = 100
+  ): Promise<ShopeeProduct[]> {
     try {
       const config = this.getConfig();
-      
+
       if (!config.feedUrls || config.feedUrls.length === 0) {
         logger.warn('No Shopee feed URLs configured');
         return [];
       }
 
       logger.info(`🔍 Fetching products from ${config.feedUrls.length} Shopee feed(s)...`);
-      
+
       const products = await this.downloadMultipleFeeds(config.feedUrls, limit);
-      
+
       // Filter by category if specified
       if (category && category !== 'electronics') {
-        const filtered = products.filter(p => 
-          p.global_category1?.toLowerCase().includes(category.toLowerCase()) ||
-          p.global_category2?.toLowerCase().includes(category.toLowerCase())
+        const filtered = products.filter(
+          (p) =>
+            p.global_category1?.toLowerCase().includes(category.toLowerCase()) ||
+            p.global_category2?.toLowerCase().includes(category.toLowerCase())
         );
         logger.info(`📦 Filtered to ${filtered.length} products in category "${category}"`);
         return filtered.slice(0, limit);
@@ -395,4 +409,3 @@ export class ShopeeService {
     }
   }
 }
-

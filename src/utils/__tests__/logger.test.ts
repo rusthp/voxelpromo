@@ -23,4 +23,3 @@ describe('Logger', () => {
     }).not.toThrow();
   });
 });
-

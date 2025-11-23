@@ -205,3 +205,10 @@ Após configurar:
 4. Teste o envio para Telegram/WhatsApp
 5. Configure os cron jobs conforme necessário
 
+## 📚 Documentação Relacionada
+
+Para informações mais detalhadas, consulte:
+- [Guia Completo de Configuração](CONFIGURATION_COMPLETE.md) - Guia consolidado com todos os detalhes
+- [Troubleshooting](TROUBLESHOOTING.md) - Solução de problemas
+- [Setup Guide](SETUP.md) - Instalação inicial
+

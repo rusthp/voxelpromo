@@ -27,15 +27,15 @@ const defaultOptions: Required<RetryOptions> = {
     'Network Error',
     'timeout',
     'InvalidApiPath',
-    'InsufficientPermission'
-  ]
+    'InsufficientPermission',
+  ],
 };
 
 /**
  * Sleep utility
  */
 const sleep = (ms: number): Promise<void> => {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
 /**
@@ -43,19 +43,20 @@ const sleep = (ms: number): Promise<void> => {
  */
 const isRetryableError = (error: any, retryableErrors: string[]): boolean => {
   if (!error) return false;
-  
+
   const errorMessage = error.message || error.toString() || '';
   const errorCode = error.code || '';
-  
-  return retryableErrors.some(retryable => 
-    errorMessage.toLowerCase().includes(retryable.toLowerCase()) ||
-    errorCode.toLowerCase().includes(retryable.toLowerCase())
+
+  return retryableErrors.some(
+    (retryable) =>
+      errorMessage.toLowerCase().includes(retryable.toLowerCase()) ||
+      errorCode.toLowerCase().includes(retryable.toLowerCase())
   );
 };
 
 /**
  * Retry a function with exponential backoff
- * 
+ *
  * @param fn - Function to retry
  * @param options - Retry options
  * @returns Result of the function
@@ -71,33 +72,33 @@ export async function retryWithBackoff<T>(
   for (let attempt = 0; attempt <= opts.maxRetries; attempt++) {
     try {
       const result = await fn();
-      
+
       if (attempt > 0) {
         logger.info(`✅ Retry successful after ${attempt} attempt(s)`);
       }
-      
+
       return result;
     } catch (error: any) {
       lastError = error;
-      
+
       // Check if we should retry
-      const shouldRetry = attempt < opts.maxRetries && 
-        isRetryableError(error, opts.retryableErrors);
-      
+      const shouldRetry =
+        attempt < opts.maxRetries && isRetryableError(error, opts.retryableErrors);
+
       if (!shouldRetry) {
         logger.warn(`❌ Max retries reached or non-retryable error: ${error.message}`);
         throw error;
       }
-      
+
       // Log retry attempt
       logger.warn(
         `⚠️ Attempt ${attempt + 1}/${opts.maxRetries + 1} failed: ${error.message}. ` +
-        `Retrying in ${delay}ms...`
+          `Retrying in ${delay}ms...`
       );
-      
+
       // Wait before retrying
       await sleep(delay);
-      
+
       // Calculate next delay with exponential backoff
       delay = Math.min(delay * opts.backoffMultiplier, opts.maxDelay);
     }
@@ -126,4 +127,3 @@ export async function retryWithFallback<T>(
     }
   }
 }
-

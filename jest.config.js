@@ -10,6 +10,14 @@ module.exports = {
       },
     }],
   },
+  // Allow Jest to transform ESM modules from node_modules (like Baileys)
+  transformIgnorePatterns: [
+    'node_modules/(?!(baileys|@whiskeysockets)/)',
+  ],
+  // Mock ESM modules that can't be transformed
+  moduleNameMapper: {
+    '^baileys$': '<rootDir>/src/__mocks__/baileys.ts',
+  },
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',

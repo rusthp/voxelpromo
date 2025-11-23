@@ -3,13 +3,20 @@ import { readFileSync, existsSync } from 'fs';
 
 // Mock dependencies
 jest.mock('fs');
-jest.mock('../../utils/logger', () => ({
+jest.mock('../../../utils/logger', () => ({
   logger: {
     info: jest.fn(),
     error: jest.fn(),
     debug: jest.fn(),
     warn: jest.fn(),
   },
+}));
+
+// Mock ExchangeRateService to always fail (forcing fallback to config/env)
+jest.mock('../../exchangerate/ExchangeRateService', () => ({
+  ExchangeRateService: jest.fn().mockImplementation(() => ({
+    getUSDtoBRLRate: jest.fn().mockRejectedValue(new Error('API unavailable')),
+  })),
 }));
 
 const mockedReadFileSync = readFileSync as jest.MockedFunction<typeof readFileSync>;
@@ -21,10 +28,11 @@ describe('AliExpressService', () => {
   beforeEach(() => {
     service = new AliExpressService();
     jest.clearAllMocks();
-    
+
     // Default mocks
     mockedExistsSync.mockReturnValue(false);
-    process.env.ALIEXPRESS_EXCHANGE_RATE = undefined;
+    // Remove env var instead of setting to undefined
+    delete process.env.ALIEXPRESS_EXCHANGE_RATE;
   });
 
   describe('constructor', () => {
@@ -37,15 +45,12 @@ describe('AliExpressService', () => {
   describe('getExchangeRate', () => {
     it('should return default exchange rate when config.json does not exist and API fails', async () => {
       mockedExistsSync.mockReturnValue(false);
-      
-      // Mock axios to fail (simulating API failure)
-      jest.mock('axios', () => ({
-        get: jest.fn().mockRejectedValue(new Error('API unavailable'))
-      }));
-      
+      // Ensure env var is not set
+      delete process.env.ALIEXPRESS_EXCHANGE_RATE;
+
       const result = await (service as any).getExchangeRate();
-      
-      expect(result).toBe(5.0); // Default value
+
+      expect(result).toBe(5.0); // Default value from env fallback
     });
 
     it('should return exchange rate from config.json when API fails', async () => {
@@ -53,48 +58,37 @@ describe('AliExpressService', () => {
       mockedReadFileSync.mockReturnValue(
         JSON.stringify({
           aliexpress: {
-            exchangeRate: 5.5
-          }
+            exchangeRate: 5.5,
+          },
         })
       );
-      
-      // Mock axios to fail
-      jest.mock('axios', () => ({
-        get: jest.fn().mockRejectedValue(new Error('API unavailable'))
-      }));
-      
+
       const result = await (service as any).getExchangeRate();
-      
+
       expect(result).toBe(5.5);
     });
 
     it('should return exchange rate from environment variable when API fails', async () => {
       mockedExistsSync.mockReturnValue(false);
       process.env.ALIEXPRESS_EXCHANGE_RATE = '5.8';
-      
-      // Mock axios to fail
-      jest.mock('axios', () => ({
-        get: jest.fn().mockRejectedValue(new Error('API unavailable'))
-      }));
-      
+
       const result = await (service as any).getExchangeRate();
-      
+
+      // Note: getExchangeRate tries ExchangeRateService first, which will use mocked value or fail
+      // Since we're testing fallback behavior, we expect the env var fallback
       expect(result).toBe(5.8);
     });
 
     it('should fall back to default on error reading config', async () => {
       mockedExistsSync.mockReturnValue(true);
+      // Ensure env var is not set
+      delete process.env.ALIEXPRESS_EXCHANGE_RATE;
       mockedReadFileSync.mockImplementation(() => {
         throw new Error('File read error');
       });
-      
-      // Mock axios to fail
-      jest.mock('axios', () => ({
-        get: jest.fn().mockRejectedValue(new Error('API unavailable'))
-      }));
-      
+
       const result = await (service as any).getExchangeRate();
-      
+
       expect(result).toBe(5.0); // Default fallback
     });
   });
@@ -103,30 +97,21 @@ describe('AliExpressService', () => {
     it('should convert USD to BRL using exchange rate', async () => {
       mockedExistsSync.mockReturnValue(false);
       process.env.ALIEXPRESS_EXCHANGE_RATE = '5.0';
-      
-      // Mock axios to fail (will use env var)
-      jest.mock('axios', () => ({
-        get: jest.fn().mockRejectedValue(new Error('API unavailable'))
-      }));
-      
+
       const usdPrice = 10;
       const result = await (service as any).convertToBRL(usdPrice);
-      
+
       expect(result).toBe(50); // 10 * 5.0 = 50
     });
 
     it('should round to 2 decimal places', async () => {
       mockedExistsSync.mockReturnValue(false);
       process.env.ALIEXPRESS_EXCHANGE_RATE = '5.123';
-      
-      // Mock axios to fail (will use env var)
-      jest.mock('axios', () => ({
-        get: jest.fn().mockRejectedValue(new Error('API unavailable'))
-      }));
-      
+
       const usdPrice = 10;
       const result = await (service as any).convertToBRL(usdPrice);
-      
+
+      // Math.round(10 * 5.123 * 100) / 100 = Math.round(512.3) / 100 = 512 / 100 = 5.12
       expect(result).toBe(51.23); // 10 * 5.123 = 51.23, rounded to 2 decimals
     });
   });
@@ -176,17 +161,17 @@ describe('AliExpressService', () => {
           aliexpress: {
             appKey: 'test-key',
             appSecret: 'test-secret',
-            trackingId: 'test-tracking'
-          }
+            trackingId: 'test-tracking',
+          },
         })
       );
-      
+
       const config = (service as any).getConfig();
-      
+
       expect(config).toEqual({
         appKey: 'test-key',
         appSecret: 'test-secret',
-        trackingId: 'test-tracking'
+        trackingId: 'test-tracking',
       });
     });
 
@@ -195,19 +180,19 @@ describe('AliExpressService', () => {
       const originalAppKey = process.env.ALIEXPRESS_APP_KEY;
       const originalAppSecret = process.env.ALIEXPRESS_APP_SECRET;
       const originalTrackingId = process.env.ALIEXPRESS_TRACKING_ID;
-      
+
       process.env.ALIEXPRESS_APP_KEY = 'env-key';
       process.env.ALIEXPRESS_APP_SECRET = 'env-secret';
       process.env.ALIEXPRESS_TRACKING_ID = 'env-tracking';
-      
+
       const config = (service as any).getConfig();
-      
+
       expect(config).toEqual({
         appKey: 'env-key',
         appSecret: 'env-secret',
-        trackingId: 'env-tracking'
+        trackingId: 'env-tracking',
       });
-      
+
       // Restore original values
       if (originalAppKey) process.env.ALIEXPRESS_APP_KEY = originalAppKey;
       else delete process.env.ALIEXPRESS_APP_KEY;
@@ -222,17 +207,17 @@ describe('AliExpressService', () => {
       const originalAppKey = process.env.ALIEXPRESS_APP_KEY;
       const originalAppSecret = process.env.ALIEXPRESS_APP_SECRET;
       const originalTrackingId = process.env.ALIEXPRESS_TRACKING_ID;
-      
+
       delete process.env.ALIEXPRESS_APP_KEY;
       delete process.env.ALIEXPRESS_APP_SECRET;
       delete process.env.ALIEXPRESS_TRACKING_ID;
-      
+
       const config = (service as any).getConfig();
-      
+
       expect(config.appKey).toBe('');
       expect(config.appSecret).toBe('');
       expect(config.trackingId).toBe('');
-      
+
       // Restore original values
       if (originalAppKey) process.env.ALIEXPRESS_APP_KEY = originalAppKey;
       if (originalAppSecret) process.env.ALIEXPRESS_APP_SECRET = originalAppSecret;
@@ -240,4 +225,3 @@ describe('AliExpressService', () => {
     });
   });
 });
-

@@ -13,11 +13,11 @@ export class AIService {
 
     if (this.provider === 'groq' && process.env.GROQ_API_KEY) {
       this.groqClient = new Groq({
-        apiKey: process.env.GROQ_API_KEY
+        apiKey: process.env.GROQ_API_KEY,
       });
     } else if (this.provider === 'openai' && process.env.OPENAI_API_KEY) {
       this.openaiClient = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY
+        apiKey: process.env.OPENAI_API_KEY,
       });
     }
   }
@@ -52,8 +52,9 @@ export class AIService {
     const toneInstructions: Record<string, string> = {
       casual: 'Use linguagem casual e descontraída, como se estivesse conversando com um amigo.',
       professional: 'Use linguagem profissional e informativa.',
-      viral: 'Crie um post que seja irresistível e viralizável, use gatilhos mentais como urgência e escassez.',
-      urgent: 'Crie senso de urgência, mostre que a oferta é limitada e imperdível.'
+      viral:
+        'Crie um post que seja irresistível e viralizável, use gatilhos mentais como urgência e escassez.',
+      urgent: 'Crie senso de urgência, mostre que a oferta é limitada e imperdível.',
     };
 
     const toneText = toneInstructions[tone || 'viral'] || toneInstructions.viral;
@@ -158,21 +159,22 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
         messages: [
           {
             role: 'system',
-            content: 'Você é um especialista em criar frases de impacto para promoções. Seja criativo mas direto.'
+            content:
+              'Você é um especialista em criar frases de impacto para promoções. Seja criativo mas direto.',
           },
           {
             role: 'user',
-            content: prompt
-          }
+            content: prompt,
+          },
         ],
         model: 'llama-3.1-8b-instant', // Fast model for quick responses
         temperature: 0.9, // More creative
         max_tokens: 20, // Short phrases only
-        stream: false
+        stream: false,
       });
 
       const phrase = completion.choices[0]?.message?.content?.trim() || '';
-      
+
       if (phrase && phrase.length > 0 && phrase.length < 60) {
         // Clean up the phrase
         const cleanPhrase = phrase
@@ -180,7 +182,7 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
           .replace(/\.$/, '') // Remove trailing period
           .trim()
           .toUpperCase();
-        
+
         if (cleanPhrase.length > 0) {
           logger.debug(`✅ Generated impact phrase with Groq: "${cleanPhrase}"`);
           return cleanPhrase;
@@ -209,7 +211,7 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
         'DESCONTO INSANO',
         'OPORTUNIDADE ÚNICA',
         'PREÇO IMBATÍVEL',
-        'OFERTA DO ANO'
+        'OFERTA DO ANO',
       ];
       return phrases[Math.floor(Math.random() * phrases.length)];
     }
@@ -220,18 +222,13 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
         'OFERTA ESPECIAL',
         'DESCONTO IMPERDÍVEL',
         'PROMOÇÃO RELÂMPAGO',
-        'OPORTUNIDADE RARA'
+        'OPORTUNIDADE RARA',
       ];
       return phrases[Math.floor(Math.random() * phrases.length)];
     }
 
     if (discount >= 15) {
-      const phrases = [
-        'ÓTIMA OFERTA',
-        'PROMOÇÃO EM ANDAMENTO',
-        'DESCONTO BOM',
-        'VALE A PENA'
-      ];
+      const phrases = ['ÓTIMA OFERTA', 'PROMOÇÃO EM ANDAMENTO', 'DESCONTO BOM', 'VALE A PENA'];
       return phrases[Math.floor(Math.random() * phrases.length)];
     }
 
@@ -245,10 +242,7 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
   /**
    * Generate with Groq
    */
-  private async generateWithGroq(
-    prompt: string,
-    request: AIPostRequest
-  ): Promise<AIPostResponse> {
+  private async generateWithGroq(prompt: string, request: AIPostRequest): Promise<AIPostResponse> {
     if (!this.groqClient) {
       throw new Error('Groq client not initialized');
     }
@@ -257,17 +251,18 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
       messages: [
         {
           role: 'system',
-          content: 'You are an expert at creating engaging social media posts for deals and promotions. Always respond with valid JSON only. Escape all newlines and special characters in string values properly.'
+          content:
+            'You are an expert at creating engaging social media posts for deals and promotions. Always respond with valid JSON only. Escape all newlines and special characters in string values properly.',
         },
         {
           role: 'user',
-          content: prompt
-        }
+          content: prompt,
+        },
       ],
       model: 'llama-3.3-70b-versatile',
       temperature: 0.7,
       max_tokens: 500,
-      response_format: { type: 'json_object' } // Force JSON format
+      response_format: { type: 'json_object' }, // Force JSON format
     });
 
     const content = completion.choices[0]?.message?.content || '{}';
@@ -290,16 +285,17 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
       messages: [
         {
           role: 'system',
-          content: 'You are an expert at creating engaging social media posts for deals and promotions. Always respond with valid JSON only.'
+          content:
+            'You are an expert at creating engaging social media posts for deals and promotions. Always respond with valid JSON only.',
         },
         {
           role: 'user',
-          content: prompt
-        }
+          content: prompt,
+        },
       ],
       temperature: 0.7,
       max_tokens: 500,
-      response_format: { type: 'json_object' }
+      response_format: { type: 'json_object' },
     });
 
     const content = completion.choices[0]?.message?.content || '{}';
@@ -314,23 +310,23 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
     try {
       // Clean the content first
       let cleanedContent = content.trim();
-      
+
       // Remove markdown code blocks if present
       cleanedContent = cleanedContent.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-      
+
       // Try to extract JSON from response
       const jsonMatch = cleanedContent.match(/\{[\s\S]*\}/);
       let jsonContent = jsonMatch ? jsonMatch[0] : cleanedContent;
-      
+
       // Parse with multiple fallback strategies
       let parsed: any;
-      
+
       // Strategy 1: Direct parse
       try {
         parsed = JSON.parse(jsonContent);
       } catch (error1: any) {
         logger.debug(`Parse attempt 1 failed: ${error1.message}`);
-        
+
         // Strategy 2: Fix newlines and control characters in string values
         try {
           // Use a more sophisticated approach: parse character by character
@@ -339,7 +335,7 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
           parsed = JSON.parse(jsonContent);
         } catch (error2: any) {
           logger.debug(`Parse attempt 2 failed: ${error2.message}`);
-          
+
           // Strategy 3: Try to manually extract fields using regex
           try {
             parsed = this.extractJsonFields(jsonContent);
@@ -353,14 +349,18 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
       // Clean parsed values (remove any remaining control characters)
       const cleanString = (str: string): string => {
         if (!str || typeof str !== 'string') return str || '';
-        return str
-          .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '') // Remove control chars except \n, \r, \t
-          .trim();
+        // Remove control chars except \n, \r, \t
+        return (
+          str
+            // eslint-disable-next-line no-control-regex
+            .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
+            .trim()
+        );
       };
 
       const cleanArray = (arr: any[]): any[] => {
         if (!Array.isArray(arr)) return [];
-        return arr.map(item => typeof item === 'string' ? cleanString(item) : item);
+        return arr.map((item) => (typeof item === 'string' ? cleanString(item) : item));
       };
 
       return {
@@ -368,12 +368,12 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
         description: cleanString(parsed.description) || offer.description,
         hashtags: cleanArray(parsed.hashtags || []),
         emojis: cleanArray(parsed.emojis || ['🔥', '💰']),
-        fullPost: cleanString(parsed.fullPost) || this.generateFallbackPost(offer).fullPost
+        fullPost: cleanString(parsed.fullPost) || this.generateFallbackPost(offer).fullPost,
       };
     } catch (error: any) {
       logger.error('Error parsing AI response:', {
         message: error.message,
-        contentPreview: content.substring(0, 200)
+        contentPreview: content.substring(0, 200),
       });
       logger.debug('Full AI response content:', content);
       return this.generateFallbackPost(offer);
@@ -387,28 +387,28 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
     let result = '';
     let inString = false;
     let escapeNext = false;
-    
+
     for (let i = 0; i < json.length; i++) {
       const char = json[i];
-      
+
       if (escapeNext) {
         result += char;
         escapeNext = false;
         continue;
       }
-      
+
       if (char === '\\') {
         result += char;
         escapeNext = true;
         continue;
       }
-      
+
       if (char === '"') {
         inString = !inString;
         result += char;
         continue;
       }
-      
+
       if (inString) {
         // Inside string: escape control characters
         if (char === '\n') {
@@ -417,17 +417,20 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
           result += '\\r';
         } else if (char === '\t') {
           result += '\\t';
-        } else if (/[\x00-\x1F\x7F]/.test(char)) {
-          // Skip other control characters
-          continue;
         } else {
-          result += char;
+          // Skip other control characters
+          // eslint-disable-next-line no-control-regex
+          if (/[\x00-\x1F\x7F]/.test(char)) {
+            continue;
+          } else {
+            result += char;
+          }
         }
       } else {
         result += char;
       }
     }
-    
+
     return result;
   }
 
@@ -436,35 +439,35 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
    */
   private extractJsonFields(json: string): any {
     const result: any = {};
-    
+
     // Extract title
     const titleMatch = json.match(/"title"\s*:\s*"([^"]*)"/);
     if (titleMatch) result.title = titleMatch[1];
-    
+
     // Extract description
     const descMatch = json.match(/"description"\s*:\s*"([^"]*)"/);
     if (descMatch) result.description = descMatch[1];
-    
+
     // Extract fullPost (may contain newlines, so use multiline match)
     const fullPostMatch = json.match(/"fullPost"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/s);
     if (fullPostMatch) {
       result.fullPost = fullPostMatch[1].replace(/\\n/g, '\n').replace(/\\r/g, '\r');
     }
-    
+
     // Extract hashtags array
     const hashtagsMatch = json.match(/"hashtags"\s*:\s*\[(.*?)\]/);
     if (hashtagsMatch) {
       const tags = hashtagsMatch[1].match(/"([^"]*)"/g);
       result.hashtags = tags ? tags.map((t: string) => t.replace(/"/g, '')) : [];
     }
-    
+
     // Extract emojis array
     const emojisMatch = json.match(/"emojis"\s*:\s*\[(.*?)\]/);
     if (emojisMatch) {
       const emojis = emojisMatch[1].match(/"([^"]*)"/g);
       result.emojis = emojis ? emojis.map((e: string) => e.replace(/"/g, '')) : [];
     }
-    
+
     return result;
   }
 
@@ -476,7 +479,7 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
     // Get impact phrase based on discount
     const discount = offer.discountPercentage;
     let impactPhrase = 'OFERTA DISPONÍVEL';
-    
+
     if (discount >= 50) {
       impactPhrase = 'NUNCA VI TÃO BARATO ASSIM';
     } else if (discount >= 30) {
@@ -498,7 +501,7 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
       pets: '🐾',
       food: '🍔',
       health: '💊',
-      other: '📦'
+      other: '📦',
     };
     const categoryEmoji = categoryEmojis[offer.category?.toLowerCase() || ''] || '🔥';
 
@@ -564,8 +567,7 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
       description: `Oferta de ${offer.discountPercentage.toFixed(0)}% OFF`,
       hashtags,
       emojis: [categoryEmoji, '🔥', '💰', '🎯'],
-      fullPost
+      fullPost,
     };
   }
 }
-

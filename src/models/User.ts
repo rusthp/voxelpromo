@@ -21,7 +21,7 @@ const UserSchema = new Schema<IUser>(
       unique: true,
       trim: true,
       minlength: 3,
-      maxlength: 30
+      maxlength: 30,
     },
     email: {
       type: String,
@@ -29,29 +29,29 @@ const UserSchema = new Schema<IUser>(
       unique: true,
       trim: true,
       lowercase: true,
-      match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email']
+      match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email'],
     },
     password: {
       type: String,
       required: true,
       minlength: 6,
-      select: false // Don't return password by default
+      select: false, // Don't return password by default
     },
     role: {
       type: String,
       enum: ['admin', 'user'],
-      default: 'user'
+      default: 'user',
     },
     isActive: {
       type: Boolean,
-      default: true
+      default: true,
     },
     lastLogin: {
-      type: Date
-    }
+      type: Date,
+    },
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
 
@@ -71,11 +71,8 @@ UserSchema.pre('save', async function (next) {
 });
 
 // Method to compare password
-UserSchema.methods.comparePassword = async function (
-  candidatePassword: string
-): Promise<boolean> {
+UserSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
 export const UserModel = mongoose.model<IUser>('User', UserSchema);
-

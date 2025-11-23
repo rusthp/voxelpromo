@@ -3,13 +3,14 @@ import { Offer, FilterOptions } from '../../types';
 import { logger } from '../../utils/logger';
 import { AIService } from '../ai/AIService';
 import { TelegramService } from '../messaging/TelegramService';
-import { WhatsAppService } from '../messaging/WhatsAppService';
+import { WhatsAppServiceFactory } from '../messaging/WhatsAppServiceFactory';
+import { IWhatsAppService } from '../messaging/IWhatsAppService';
 import { XService } from '../messaging/XService';
 
 export class OfferService {
   private aiService: AIService | null = null;
   private telegramService: TelegramService | null = null;
-  private whatsappService: WhatsAppService | null = null;
+  private whatsappService: IWhatsAppService | null = null;
   private xService: XService | null = null;
 
   constructor() {
@@ -31,9 +32,10 @@ export class OfferService {
     return this.telegramService;
   }
 
-  private getWhatsAppService(): WhatsAppService {
+  private getWhatsAppService(): IWhatsAppService {
     if (!this.whatsappService) {
-      this.whatsappService = new WhatsAppService();
+      const library = process.env.WHATSAPP_LIBRARY || 'whatsapp-web.js';
+      this.whatsappService = WhatsAppServiceFactory.create(library);
     }
     return this.whatsappService;
   }
@@ -50,26 +52,32 @@ export class OfferService {
    */
   private validateOfferNumbers(offer: Offer): Offer {
     const validated = { ...offer };
-    
+
     // Validate and fix numeric fields
-    validated.originalPrice = isNaN(offer.originalPrice) || offer.originalPrice <= 0 ? 0 : offer.originalPrice;
-    validated.currentPrice = isNaN(offer.currentPrice) || offer.currentPrice <= 0 ? 0 : offer.currentPrice;
+    validated.originalPrice =
+      isNaN(offer.originalPrice) || offer.originalPrice <= 0 ? 0 : offer.originalPrice;
+    validated.currentPrice =
+      isNaN(offer.currentPrice) || offer.currentPrice <= 0 ? 0 : offer.currentPrice;
     validated.discount = isNaN(offer.discount) ? 0 : offer.discount;
     validated.discountPercentage = isNaN(offer.discountPercentage) ? 0 : offer.discountPercentage;
-    validated.rating = (offer.rating === undefined || offer.rating === null || isNaN(offer.rating)) ? 0 : offer.rating;
-    validated.reviewsCount = (offer.reviewsCount === undefined || offer.reviewsCount === null || isNaN(offer.reviewsCount)) ? 0 : offer.reviewsCount;
-    
+    validated.rating =
+      offer.rating === undefined || offer.rating === null || isNaN(offer.rating) ? 0 : offer.rating;
+    validated.reviewsCount =
+      offer.reviewsCount === undefined || offer.reviewsCount === null || isNaN(offer.reviewsCount)
+        ? 0
+        : offer.reviewsCount;
+
     // Ensure originalPrice >= currentPrice
     if (validated.originalPrice < validated.currentPrice) {
       validated.originalPrice = validated.currentPrice;
     }
-    
+
     // Recalculate discount if needed
     if (validated.originalPrice > 0 && validated.currentPrice >= 0) {
       validated.discount = validated.originalPrice - validated.currentPrice;
       validated.discountPercentage = (validated.discount / validated.originalPrice) * 100;
     }
-    
+
     return validated;
   }
 
@@ -80,7 +88,7 @@ export class OfferService {
     try {
       // Validate numeric fields before saving
       const validatedOffer = this.validateOfferNumbers(offer);
-      
+
       // Check if offer already exists (by URL) - check both active and inactive
       const existing = await OfferModel.findOne({ productUrl: validatedOffer.productUrl });
 
@@ -90,7 +98,7 @@ export class OfferService {
           existing.isActive = true;
           logger.info(`♻️  Reactivating offer: ${validatedOffer.title.substring(0, 50)}...`);
         }
-        
+
         // Update existing offer
         Object.assign(existing, validatedOffer);
         existing.updatedAt = new Date();
@@ -114,7 +122,7 @@ export class OfferService {
   private convertToOffer(doc: any): Offer {
     return {
       ...doc,
-      _id: doc._id?.toString() || doc._id
+      _id: doc._id?.toString() || doc._id,
     } as Offer;
   }
 
@@ -134,9 +142,9 @@ export class OfferService {
     let duplicateCount = 0;
 
     // Extract all product URLs and IDs for batch checking
-    const productUrls = offers.map(o => o.productUrl).filter(Boolean);
+    const productUrls = offers.map((o) => o.productUrl).filter(Boolean);
     const productIds = offers
-      .map(o => {
+      .map((o) => {
         // Try to extract product ID from URL or use a custom field if available
         const urlMatch = o.productUrl?.match(/\/item\/(\d+)\.html/);
         return urlMatch ? urlMatch[1] : null;
@@ -149,8 +157,10 @@ export class OfferService {
       isActive: true,
       $or: [
         { productUrl: { $in: productUrls } },
-        ...(productIds.length > 0 ? [{ productUrl: { $regex: new RegExp(productIds.join('|')) } }] : [])
-      ]
+        ...(productIds.length > 0
+          ? [{ productUrl: { $regex: new RegExp(productIds.join('|')) } }]
+          : []),
+      ],
     }).lean();
 
     // Also check inactive offers to see if we should reactivate them
@@ -158,8 +168,10 @@ export class OfferService {
       isActive: false,
       $or: [
         { productUrl: { $in: productUrls } },
-        ...(productIds.length > 0 ? [{ productUrl: { $regex: new RegExp(productIds.join('|')) } }] : [])
-      ]
+        ...(productIds.length > 0
+          ? [{ productUrl: { $regex: new RegExp(productIds.join('|')) } }]
+          : []),
+      ],
     }).lean();
 
     // Create Sets for fast lookup - only active offers count as duplicates
@@ -174,15 +186,13 @@ export class OfferService {
     );
 
     // Map inactive offers by URL for reactivation
-    const inactiveOffersMap = new Map(
-      inactiveOffers.map((o: any) => [o.productUrl, o])
-    );
+    const inactiveOffersMap = new Map(inactiveOffers.map((o: any) => [o.productUrl, o]));
 
     // Process offers
     for (const offer of offers) {
       try {
         const validatedOffer = this.validateOfferNumbers(offer);
-        
+
         // Check if already exists as ACTIVE offer
         const urlMatch = validatedOffer.productUrl?.match(/\/item\/(\d+)\.html/);
         const productId = urlMatch ? urlMatch[1] : null;
@@ -191,7 +201,9 @@ export class OfferService {
 
         if (urlExists || idExists) {
           duplicateCount++;
-          logger.debug(`Skipping duplicate active offer: ${validatedOffer.title.substring(0, 50)}...`);
+          logger.debug(
+            `Skipping duplicate active offer: ${validatedOffer.title.substring(0, 50)}...`
+          );
           continue;
         }
 
@@ -202,11 +214,11 @@ export class OfferService {
           await OfferModel.findByIdAndUpdate(inactiveOffer._id, {
             ...validatedOffer,
             isActive: true,
-            updatedAt: new Date()
+            updatedAt: new Date(),
           });
           savedCount++;
           logger.info(`♻️  Reactivated offer: ${validatedOffer.title.substring(0, 50)}...`);
-          
+
           // Add to active sets to avoid duplicates in the same batch
           activeUrls.add(validatedOffer.productUrl);
           if (productId) {
@@ -219,7 +231,7 @@ export class OfferService {
         const newOffer = new OfferModel(validatedOffer);
         await newOffer.save();
         savedCount++;
-        
+
         // Add to existing sets to avoid duplicates in the same batch
         activeUrls.add(validatedOffer.productUrl);
         if (productId) {
@@ -279,7 +291,7 @@ export class OfferService {
         .limit(limit)
         .lean();
 
-      return offers.map(doc => this.convertToOffer(doc));
+      return offers.map((doc) => this.convertToOffer(doc));
     } catch (error) {
       logger.error('Error filtering offers:', error);
       throw error;
@@ -291,18 +303,16 @@ export class OfferService {
    */
   async getAllOffers(limit?: number, skip: number = 0): Promise<Offer[]> {
     try {
-      let query = OfferModel.find({ isActive: true })
-        .sort({ createdAt: -1 })
-        .skip(skip);
-      
+      let query = OfferModel.find({ isActive: true }).sort({ createdAt: -1 }).skip(skip);
+
       // Only apply limit if provided
       if (limit !== undefined && limit > 0) {
         query = query.limit(limit);
       }
-      
+
       const offers = await query.lean();
 
-      return offers.map(doc => this.convertToOffer(doc));
+      return offers.map((doc) => this.convertToOffer(doc));
     } catch (error) {
       logger.error('Error getting offers:', error);
       throw error;
@@ -328,7 +338,10 @@ export class OfferService {
   /**
    * Generate AI post for offer
    */
-  async generateAIPost(offerId: string, tone?: 'casual' | 'professional' | 'viral' | 'urgent'): Promise<string> {
+  async generateAIPost(
+    offerId: string,
+    tone?: 'casual' | 'professional' | 'viral' | 'urgent'
+  ): Promise<string> {
     try {
       const offer = await this.getOfferById(offerId);
       if (!offer) {
@@ -339,13 +352,13 @@ export class OfferService {
         offer,
         tone: tone || 'viral',
         includeEmojis: true,
-        includeHashtags: true
+        includeHashtags: true,
       });
 
       // Update offer with AI generated post
       await OfferModel.findByIdAndUpdate(offerId, {
         aiGeneratedPost: aiResponse.fullPost,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       });
 
       return aiResponse.fullPost;
@@ -413,7 +426,10 @@ export class OfferService {
             logger.warn(`⚠️ Failed to post offer ${offerId} to X (Twitter) - check logs above`);
           }
         } catch (xError: any) {
-          logger.error(`❌ Error posting offer ${offerId} to X (Twitter): ${xError.message}`, xError);
+          logger.error(
+            `❌ Error posting offer ${offerId} to X (Twitter): ${xError.message}`,
+            xError
+          );
         }
       }
 
@@ -423,7 +439,7 @@ export class OfferService {
           isPosted: true,
           postedAt: new Date(),
           postedChannels,
-          updatedAt: new Date()
+          updatedAt: new Date(),
         });
       }
 
@@ -483,7 +499,7 @@ export class OfferService {
   async deleteOffers(ids: string[], permanent: boolean = false): Promise<number> {
     try {
       let deletedCount = 0;
-      
+
       if (permanent) {
         // Permanent deletion
         const result = await OfferModel.deleteMany({ _id: { $in: ids } });
@@ -491,14 +507,11 @@ export class OfferService {
         logger.info(`Permanently deleted ${deletedCount} offers`);
       } else {
         // Soft delete - mark as inactive
-        const result = await OfferModel.updateMany(
-          { _id: { $in: ids } },
-          { isActive: false }
-        );
+        const result = await OfferModel.updateMany({ _id: { $in: ids } }, { isActive: false });
         deletedCount = result.modifiedCount || 0;
         logger.info(`Soft deleted ${deletedCount} offers`);
       }
-      
+
       return deletedCount;
     } catch (error) {
       logger.error('Error deleting offers:', error);
@@ -513,32 +526,34 @@ export class OfferService {
     try {
       // Count all active offers
       const total = await OfferModel.countDocuments({ isActive: true });
-      
+
       // Count posted offers
       const posted = await OfferModel.countDocuments({ isActive: true, isPosted: true });
-      
+
       // Count not posted offers (should be total - posted)
       const notPosted = total - posted;
-      
+
       // Log for debugging
       logger.debug('Statistics calculated:', { total, posted, notPosted });
 
       const bySource = await OfferModel.aggregate([
         { $match: { isActive: true } },
-        { $group: { _id: '$source', count: { $sum: 1 } } }
+        { $group: { _id: '$source', count: { $sum: 1 } } },
       ]);
 
       const byCategory = await OfferModel.aggregate([
         { $match: { isActive: true } },
-        { $group: { _id: '$category', count: { $sum: 1 } } }
+        { $group: { _id: '$category', count: { $sum: 1 } } },
       ]);
 
       // Calculate average discount - only include offers with valid discount > 0
       // MongoDB doesn't support $ne: NaN, so we filter manually
       const offersWithDiscount = await OfferModel.find({
         isActive: true,
-        discountPercentage: { $exists: true, $ne: null, $gt: 0 }
-      }).select('discountPercentage').lean();
+        discountPercentage: { $exists: true, $ne: null, $gt: 0 },
+      })
+        .select('discountPercentage')
+        .lean();
 
       let avgDiscount = 0;
       if (offersWithDiscount.length > 0) {
@@ -562,7 +577,7 @@ export class OfferService {
         notPosted,
         bySource,
         byCategory,
-        avgDiscount: avgDiscount || 0
+        avgDiscount: avgDiscount || 0,
       };
     } catch (error) {
       logger.error('Error getting statistics:', error);
@@ -574,7 +589,6 @@ export class OfferService {
    * Delay helper
    */
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
-

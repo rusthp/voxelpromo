@@ -8,7 +8,7 @@ Quando você executa `npm run dev:backend`, todos os logs aparecem no terminal:
 
 ```bash
 [0] 2024-01-15 10:30:45 [info]: ✅ Telegram bot initialized
-[0] 2024-01-15 10:30:45 [info]: 📱 Chat ID configured: -5038858254
+[0] 2024-01-15 10:30:45 [info]: 📱 Chat ID configured: YOUR_TELEGRAM_CHAT_ID_HERE
 [0] 2024-01-15 10:31:20 [info]: 📤 Sending offer to Telegram - Title: Produto XYZ
 [0] 2024-01-15 10:31:21 [info]: ✅ Offer sent successfully to Telegram
 ```
@@ -32,7 +32,7 @@ Algumas informações aparecem no dashboard:
 ### Logs de Inicialização
 ```
 ✅ Telegram bot initialized
-📱 Chat ID configured: -5038858254
+📱 Chat ID configured: YOUR_TELEGRAM_CHAT_ID_HERE
 ✅ Database connected
 ✅ Cron jobs scheduled
 ```
@@ -126,7 +126,7 @@ O sistema mostra mensagens específicas:
 
 ```
 📤 Posting offer 123 to channels: telegram
-📤 Sending offer to Telegram - Title: Produto XYZ, Chat ID: -5038858254
+📤 Sending offer to Telegram - Title: Produto XYZ, Chat ID: YOUR_TELEGRAM_CHAT_ID_HERE
 📷 Sending offer with image: https://...
 ✅ Offer sent successfully to Telegram: Produto XYZ (ID: 123)
 ✅ Offer 123 marked as posted in channels: telegram

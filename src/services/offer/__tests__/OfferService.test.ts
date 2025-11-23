@@ -470,10 +470,7 @@ describe('OfferService', () => {
       const result = await offerService.deleteOffer(offerId);
 
       expect(result).toBe(true);
-      expect(OfferModel.findByIdAndUpdate).toHaveBeenCalledWith(
-        offerId,
-        { isActive: false }
-      );
+      expect(OfferModel.findByIdAndUpdate).toHaveBeenCalledWith(offerId, { isActive: false });
     });
 
     it('should permanently delete when permanent=true', async () => {
@@ -538,11 +535,13 @@ describe('OfferService', () => {
 
       (OfferModel.find as jest.Mock) = jest.fn().mockReturnValue({
         select: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockResolvedValue([
-          { discountPercentage: 20 },
-          { discountPercentage: 30 },
-          { discountPercentage: 25 },
-        ]),
+        lean: jest
+          .fn()
+          .mockResolvedValue([
+            { discountPercentage: 20 },
+            { discountPercentage: 30 },
+            { discountPercentage: 25 },
+          ]),
       });
 
       (OfferModel.aggregate as jest.Mock) = jest.fn().mockResolvedValue([
@@ -559,4 +558,3 @@ describe('OfferService', () => {
     });
   });
 });
-

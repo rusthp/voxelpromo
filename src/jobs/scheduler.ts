@@ -34,7 +34,7 @@ export function setupCronJobs(): void {
       const offers = await offerService.filterOffers({
         excludePosted: true,
         minDiscount: 20,
-        limit: 5
+        limit: 5,
       });
 
       logger.info(`📊 Found ${offers.length} offers to post`);
@@ -61,7 +61,7 @@ export function setupCronJobs(): void {
       logger.info('🔍 Searching for offers without AI posts...');
       const offers = await offerService.filterOffers({
         excludePosted: true,
-        limit: 10
+        limit: 10,
       });
 
       logger.info(`📊 Found ${offers.length} offers to generate AI posts for`);
@@ -88,4 +88,3 @@ export function setupCronJobs(): void {
 
   logger.info('Cron jobs scheduled');
 }
-

@@ -58,18 +58,18 @@ export const authenticate = async (
       id: String(user._id),
       username: user.username,
       email: user.email,
-      role: user.role
+      role: user.role,
     };
 
     next();
   } catch (error: any) {
     logger.error('Authentication error:', error);
-    
+
     if (error.name === 'JsonWebTokenError') {
       res.status(401).json({ error: 'Token inválido' });
       return;
     }
-    
+
     if (error.name === 'TokenExpiredError') {
       res.status(401).json({ error: 'Token expirado' });
       return;
@@ -82,11 +82,7 @@ export const authenticate = async (
 /**
  * Middleware to check if user is admin
  */
-export const requireAdmin = (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): void => {
+export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction): void => {
   if (!req.user) {
     res.status(401).json({ error: 'Não autenticado' });
     return;
@@ -99,4 +95,3 @@ export const requireAdmin = (
 
   next();
 };
-

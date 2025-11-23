@@ -3,6 +3,12 @@ import jwt from 'jsonwebtoken';
 import { UserModel } from '../models/User';
 import { logger } from '../utils/logger';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import {
+  validateRequest,
+  registerSchema,
+  loginSchema,
+  changePasswordSchema,
+} from '../middleware/validation';
 
 const router = Router();
 
@@ -10,7 +16,7 @@ const router = Router();
  * POST /api/auth/register
  * Register a new user
  */
-router.post('/register', async (req: Request, res: Response) => {
+router.post('/register', validateRequest(registerSchema), async (req: Request, res: Response) => {
   try {
     const { username, email, password, role } = req.body;
 
@@ -27,7 +33,7 @@ router.post('/register', async (req: Request, res: Response) => {
 
     // Check if user already exists
     const existingUser = await UserModel.findOne({
-      $or: [{ email }, { username }]
+      $or: [{ email }, { username }],
     });
 
     if (existingUser) {
@@ -36,13 +42,13 @@ router.post('/register', async (req: Request, res: Response) => {
     }
 
     // Create user (only admin can create admin users)
-    const userRole = role === 'admin' ? 'user' : (role || 'user');
+    const userRole = role === 'admin' ? 'user' : role || 'user';
 
     const user = new UserModel({
       username,
       email,
       password,
-      role: userRole
+      role: userRole,
     });
 
     await user.save();
@@ -51,11 +57,9 @@ router.post('/register', async (req: Request, res: Response) => {
 
     // Generate token
     const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-    const token = jwt.sign(
-      { id: user._id, username: user.username, role: user.role },
-      jwtSecret,
-      { expiresIn: '7d' }
-    );
+    const token = jwt.sign({ id: user._id, username: user.username, role: user.role }, jwtSecret, {
+      expiresIn: '7d',
+    });
 
     res.status(201).json({
       success: true,
@@ -65,29 +69,28 @@ router.post('/register', async (req: Request, res: Response) => {
         id: user._id,
         username: user.username,
         email: user.email,
-        role: user.role
-      }
+        role: user.role,
+      },
     });
   } catch (error: any) {
     logger.error('Registration error:', error);
-    
+
     // Handle specific MongoDB errors
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern)[0];
-      const message = field === 'email' 
-        ? 'Este email já está em uso' 
-        : 'Este username já está em uso';
+      const message =
+        field === 'email' ? 'Este email já está em uso' : 'Este username já está em uso';
       res.status(400).json({ error: message });
       return;
     }
-    
+
     // Handle validation errors
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map((e: any) => e.message);
       res.status(400).json({ error: messages.join(', ') });
       return;
     }
-    
+
     // Generic error
     const errorMessage = error.message || 'Erro ao criar usuário';
     res.status(500).json({ error: errorMessage });
@@ -98,7 +101,7 @@ router.post('/register', async (req: Request, res: Response) => {
  * POST /api/auth/login
  * Login user
  */
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', validateRequest(loginSchema), async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
@@ -135,11 +138,9 @@ router.post('/login', async (req: Request, res: Response) => {
 
     // Generate token
     const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-    const token = jwt.sign(
-      { id: user._id, username: user.username, role: user.role },
-      jwtSecret,
-      { expiresIn: '7d' }
-    );
+    const token = jwt.sign({ id: user._id, username: user.username, role: user.role }, jwtSecret, {
+      expiresIn: '7d',
+    });
 
     logger.info(`User logged in: ${user.username} (${user.email})`);
 
@@ -151,8 +152,8 @@ router.post('/login', async (req: Request, res: Response) => {
         id: user._id,
         username: user.username,
         email: user.email,
-        role: user.role
-      }
+        role: user.role,
+      },
     });
   } catch (error: any) {
     logger.error('Login error:', error);
@@ -182,8 +183,8 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
         role: user.role,
         isActive: user.isActive,
         lastLogin: user.lastLogin,
-        createdAt: user.createdAt
-      }
+        createdAt: user.createdAt,
+      },
     });
   } catch (error: any) {
     logger.error('Get user error:', error);
@@ -209,47 +210,51 @@ router.post('/logout', authenticate, async (req: AuthRequest, res: Response) => 
  * PUT /api/auth/change-password
  * Change user password
  */
-router.put('/change-password', authenticate, async (req: AuthRequest, res: Response) => {
-  try {
-    const { currentPassword, newPassword } = req.body;
+router.put(
+  '/change-password',
+  authenticate,
+  validateRequest(changePasswordSchema),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
 
-    if (!currentPassword || !newPassword) {
-      res.status(400).json({ error: 'Senha atual e nova senha são obrigatórias' });
-      return;
+      if (!currentPassword || !newPassword) {
+        res.status(400).json({ error: 'Senha atual e nova senha são obrigatórias' });
+        return;
+      }
+
+      if (newPassword.length < 6) {
+        res.status(400).json({ error: 'Nova senha deve ter no mínimo 6 caracteres' });
+        return;
+      }
+
+      const user = await UserModel.findById(req.user!.id).select('+password');
+
+      if (!user) {
+        res.status(404).json({ error: 'Usuário não encontrado' });
+        return;
+      }
+
+      // Verify current password
+      const isPasswordValid = await user.comparePassword(currentPassword);
+
+      if (!isPasswordValid) {
+        res.status(401).json({ error: 'Senha atual incorreta' });
+        return;
+      }
+
+      // Update password
+      user.password = newPassword;
+      await user.save();
+
+      logger.info(`Password changed for user: ${user.username}`);
+
+      res.json({ success: true, message: 'Senha alterada com sucesso' });
+    } catch (error: any) {
+      logger.error('Change password error:', error);
+      res.status(500).json({ error: error.message || 'Erro ao alterar senha' });
     }
-
-    if (newPassword.length < 6) {
-      res.status(400).json({ error: 'Nova senha deve ter no mínimo 6 caracteres' });
-      return;
-    }
-
-    const user = await UserModel.findById(req.user!.id).select('+password');
-
-    if (!user) {
-      res.status(404).json({ error: 'Usuário não encontrado' });
-      return;
-    }
-
-    // Verify current password
-    const isPasswordValid = await user.comparePassword(currentPassword);
-
-    if (!isPasswordValid) {
-      res.status(401).json({ error: 'Senha atual incorreta' });
-      return;
-    }
-
-    // Update password
-    user.password = newPassword;
-    await user.save();
-
-    logger.info(`Password changed for user: ${user.username}`);
-
-    res.json({ success: true, message: 'Senha alterada com sucesso' });
-  } catch (error: any) {
-    logger.error('Change password error:', error);
-    res.status(500).json({ error: error.message || 'Erro ao alterar senha' });
   }
-});
+);
 
 export { router as authRoutes };
-

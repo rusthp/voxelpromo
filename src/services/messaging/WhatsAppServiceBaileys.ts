@@ -1,0 +1,782 @@
+import makeWASocket, {
+  DisconnectReason,
+  useMultiFileAuthState,
+  fetchLatestBaileysVersion,
+  WASocket,
+  ConnectionState,
+} from 'baileys';
+import { Boom } from '@hapi/boom';
+import { Offer } from '../../types';
+import { logger } from '../../utils/logger';
+import { IWhatsAppService } from './IWhatsAppService';
+import axios from 'axios';
+import QRCode from 'qrcode';
+import { JIDValidator } from './whatsapp/utils/JIDValidator';
+import { RetryHelper } from './whatsapp/utils/RetryHelper';
+import { readdirSync, unlinkSync, rmdirSync, existsSync, readFileSync } from 'fs';
+import { join } from 'path';
+import { loadConfigFromFile } from '../../utils/loadConfig';
+
+/**
+ * WhatsApp Service usando Baileys (recomendado - mais leve e rápido)
+ */
+export class WhatsAppServiceBaileys implements IWhatsAppService {
+  private sock: WASocket | null = null;
+  private _isReady = false;
+  private targetNumber: string = '';
+  private initialized = false;
+  private currentQRCode: string | null = null;
+  private currentQRCodeDataURL: string | null = null; // QR code as Data URL (base64 image)
+  private qrCodeCallbacks: ((qr: string) => void)[] = [];
+  private qrCodeTimestamp: number = 0; // Track when QR code was last updated
+  private connectionState: string = 'disconnected'; // 'disconnected' | 'connecting' | 'connected'
+  private lastError: string | null = null;
+  private messagesSent = 0;
+  private messagesFailed = 0;
+
+  constructor() {
+    // Load target number from environment or config
+    this.loadTargetNumber();
+  }
+
+  /**
+   * Load target number from environment or config.json
+   */
+  private loadTargetNumber(forceReload: boolean = false): void {
+    // Use loadConfigFromFile to ensure env vars are up to date
+    // Use cache by default to avoid repeated file reads
+    loadConfigFromFile(forceReload);
+
+    // Read from environment (which was set by loadConfigFromFile)
+    this.targetNumber = process.env.WHATSAPP_TARGET_NUMBER || '';
+
+    // Only log when actually loading (not on every call)
+    if (this.targetNumber && forceReload) {
+      logger.debug(`WhatsApp target number loaded: ${this.targetNumber}`);
+    }
+  }
+
+  /**
+   * Generate QR code as Data URL (base64-encoded PNG image)
+   */
+  private async generateQRCodeDataURL(qr: string): Promise<string | null> {
+    try {
+      // Generate QR code as Data URL using qrcode library
+      // This ensures consistency with terminal QR code
+      const dataURL = await QRCode.toDataURL(qr, {
+        errorCorrectionLevel: 'M',
+        type: 'image/png',
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF',
+        },
+      });
+      return dataURL;
+    } catch (error: any) {
+      logger.warn('Error generating QR code Data URL:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Initialize Baileys socket
+   */
+  private async initializeSocket(): Promise<void> {
+    // Prevent multiple simultaneous initializations
+    if (this.initialized) {
+      logger.debug('WhatsApp (Baileys) already initializing, skipping...');
+      return;
+    }
+
+    // Reset state before initialization
+    // Don't set initialized=true yet - wait until socket is created
+    this._isReady = false;
+    this.connectionState = 'connecting';
+    this.lastError = null;
+
+    try {
+      const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+      const { version } = await fetchLatestBaileysVersion();
+
+      // Mark as initialized only after we start creating the socket
+      this.initialized = true;
+
+      this.sock = makeWASocket({
+        version,
+        printQRInTerminal: true,
+        auth: state,
+        browser: ['VoxelPromo', 'Chrome', '1.0.0'],
+      });
+
+      this.sock.ev.on('creds.update', saveCreds);
+
+      this.sock.ev.on('connection.update', (update: Partial<ConnectionState>) => {
+        const { connection, lastDisconnect, qr, receivedPendingNotifications } = update;
+
+        // Track connection state with detailed logging
+        if (connection === 'connecting') {
+          this.connectionState = 'connecting';
+          logger.info('🔄 WhatsApp (Baileys) connecting...');
+        } else if (connection === 'close') {
+          this.connectionState = 'disconnected';
+          if (lastDisconnect?.error) {
+            const errorMsg = (lastDisconnect.error as any)?.message || String(lastDisconnect.error);
+            this.lastError = errorMsg;
+            logger.warn(`⚠️ WhatsApp (Baileys) connection closed: ${errorMsg}`);
+          } else {
+            logger.warn('⚠️ WhatsApp (Baileys) connection closed (no error details)');
+          }
+        }
+        // Note: 'open' connection is handled separately below after QR code handling
+
+        // Detect pairing completion: when we receive pending notifications after QR scan
+        // This indicates the device was successfully paired
+        // IMPORTANT: Don't clear QR code immediately - wait for connection to close with code 515
+        // This prevents the QR code from disappearing before the pairing is fully processed
+        if (receivedPendingNotifications && this.currentQRCode) {
+          logger.info('📱 WhatsApp (Baileys) pairing detectado! QR code escaneado com sucesso.');
+          logger.debug('   Aguardando reinicialização automática (não limpe o QR code ainda)...');
+          // Don't clear QR code here - let it be cleared when connection closes with code 515
+          // This ensures the frontend still has the QR code visible during the pairing process
+        }
+
+        // Handle QR code (including when it's regenerated after expiration)
+        if (qr) {
+          const qrChanged = this.currentQRCode !== qr;
+          const wasNull = this.currentQRCode === null;
+          this.currentQRCode = qr;
+
+          if (qrChanged || wasNull) {
+            logger.info('WhatsApp (Baileys) QR Code generated/updated. Scan with your phone.');
+            logger.info(`QR Code length: ${qr.length} chars`);
+            logger.info(`QR Code hash: ${qr.substring(0, 20)}...${qr.substring(qr.length - 20)}`);
+            // Force a timestamp update by clearing and setting again (triggers frontend update)
+            this.qrCodeTimestamp = Date.now();
+
+            // Generate Data URL for web display
+            this.generateQRCodeDataURL(qr)
+              .then((dataURL) => {
+                if (dataURL) {
+                  this.currentQRCodeDataURL = dataURL;
+                  logger.debug('✅ QR Code Data URL generated successfully');
+                } else {
+                  logger.warn('⚠️ Failed to generate QR Code Data URL');
+                }
+              })
+              .catch((error) => {
+                logger.warn('⚠️ Error generating QR Code Data URL:', error);
+              });
+          } else {
+            logger.debug('WhatsApp (Baileys) QR Code still valid (unchanged).');
+          }
+
+          // Always notify all callbacks when QR code is available
+          // This ensures frontend gets updates immediately, even if QR code is the same
+          if (this.qrCodeCallbacks.length > 0) {
+            logger.debug(`Notifying ${this.qrCodeCallbacks.length} QR code callbacks`);
+          }
+          this.qrCodeCallbacks.forEach((callback, index) => {
+            try {
+              callback(qr);
+            } catch (error) {
+              logger.warn(`Error in QR code callback ${index}:`, error);
+            }
+          });
+        } else if (this.currentQRCode && connection !== 'open' && connection !== 'connecting') {
+          // QR code expired but not connected - clear it
+          // But only if we're not in the middle of pairing (no pending notifications)
+          // Also check if we're not waiting for restart after pairing (code 515)
+          if (!receivedPendingNotifications) {
+            logger.debug('WhatsApp (Baileys) QR Code expired, waiting for new one...');
+            this.currentQRCode = null;
+            this.currentQRCodeDataURL = null; // Clear Data URL too
+            this.qrCodeTimestamp = 0; // Clear timestamp when QR code expires
+            // Notify callbacks that QR code is gone
+            this.qrCodeCallbacks.forEach((callback) => {
+              try {
+                callback(''); // Empty string to signal QR code cleared
+              } catch (error) {
+                logger.warn('Error in QR code callback:', error);
+              }
+            });
+          } else {
+            logger.debug(
+              'WhatsApp (Baileys) QR Code expirou mas pairing em progresso, mantendo QR code visível...'
+            );
+            // Keep QR code visible during pairing process
+          }
+        }
+
+        if (connection === 'close') {
+          const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+          const errorContent = (lastDisconnect?.error as any)?.output?.payload;
+          const isDeviceRemoved =
+            statusCode === DisconnectReason.badSession ||
+            (statusCode === 401 && errorContent?.content?.[0]?.attrs?.type === 'device_removed');
+
+          // Check if this is a restart after pairing (code 515 = restart required)
+          // This happens when QR code is scanned and pairing is successful
+          const isRestartAfterPairing = statusCode === 515;
+
+          if (isRestartAfterPairing) {
+            logger.info('📱 WhatsApp (Baileys) reiniciando após pairing bem-sucedido...');
+            logger.info('   ✅ Pairing configurado! As credenciais foram salvas.');
+            logger.info('   🔄 Fechando socket atual e reconectando com novas credenciais...');
+
+            // Reset state
+            this._isReady = false;
+            this.initialized = false; // Allow re-initialization
+            // Clear QR code NOW (after pairing is confirmed and restart is needed)
+            this.currentQRCode = null;
+            this.currentQRCodeDataURL = null; // Clear Data URL too
+            this.qrCodeTimestamp = 0;
+            this.connectionState = 'connecting';
+            this.lastError = null;
+
+            // Notify callbacks that QR code is cleared (pairing complete)
+            this.qrCodeCallbacks.forEach((callback) => {
+              try {
+                callback(''); // Empty string to signal QR code cleared
+              } catch (error) {
+                logger.warn('Error in QR code callback:', error);
+              }
+            });
+
+            // Close current socket properly to allow fresh connection
+            if (this.sock) {
+              try {
+                logger.debug('Fechando socket atual...');
+                this.sock.end(undefined);
+              } catch (error) {
+                logger.warn('Erro ao fechar socket:', error);
+              }
+              this.sock = null;
+            }
+
+            // Reconnect after a short delay to ensure socket is fully closed
+            // The auth files are already saved by Baileys, so we just need to reconnect
+            setTimeout(() => {
+              if (!this._isReady && !this.initialized) {
+                logger.info('🔄 Reinicializando após pairing bem-sucedido...');
+                logger.info('   Usando credenciais salvas para reconectar...');
+                this.initializeSocket();
+              }
+            }, 1500); // Wait 1.5 seconds for the socket to fully close, then reconnect
+            return; // Exit early to prevent immediate reconnection
+          }
+
+          // Handle device removed error
+          if (isDeviceRemoved) {
+            logger.warn('⚠️ WhatsApp (Baileys) dispositivo removido do WhatsApp!');
+            logger.warn(
+              '   O dispositivo foi desconectado manualmente ou detectado como removido.'
+            );
+            logger.warn('   Limpando autenticação e gerando novo QR code...');
+            this._isReady = false;
+            this.initialized = false;
+            this.currentQRCode = null;
+            this.currentQRCodeDataURL = null; // Clear Data URL too
+            this.qrCodeTimestamp = 0;
+            this.connectionState = 'disconnected';
+            this.lastError = 'Dispositivo removido do WhatsApp. Escaneie o QR code novamente.';
+            this.sock = null;
+
+            // Clear auth files to force new QR code
+            try {
+              const authDir = join(process.cwd(), 'auth_info_baileys');
+
+              if (existsSync(authDir)) {
+                logger.info('Limpando arquivos de autenticação após remoção do dispositivo...');
+                const files = readdirSync(authDir);
+                for (const file of files) {
+                  try {
+                    unlinkSync(join(authDir, file));
+                  } catch (error) {
+                    // Ignore errors
+                  }
+                }
+                try {
+                  rmdirSync(authDir);
+                  logger.info('✅ Arquivos de autenticação limpos. Gere um novo QR code.');
+                } catch (error) {
+                  // Ignore if directory not empty
+                }
+              }
+            } catch (error) {
+              logger.warn('Erro ao limpar arquivos de autenticação:', error);
+            }
+
+            // Don't auto-reconnect - user needs to scan QR code again
+            return;
+          }
+
+          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+          if (shouldReconnect) {
+            logger.info('WhatsApp (Baileys) disconnected, reconnecting...');
+            this._isReady = false;
+            this.initialized = false;
+            this.currentQRCode = null; // Clear old QR code
+            this.currentQRCodeDataURL = null; // Clear Data URL too
+            this.qrCodeTimestamp = 0; // Clear timestamp
+            // Add a delay to prevent connection loops
+            setTimeout(() => {
+              if (!this._isReady && !this.initialized && this.sock === null) {
+                this.initializeSocket();
+              }
+            }, 3000); // Wait 3 seconds before reconnecting
+          } else {
+            logger.warn('WhatsApp (Baileys) logged out - resetting state for new QR code');
+            this._isReady = false;
+            this.initialized = false; // Reset to allow re-initialization
+            this.currentQRCode = null; // Clear QR code
+            this.currentQRCodeDataURL = null; // Clear Data URL too
+            this.qrCodeTimestamp = 0; // Clear timestamp
+            this.sock = null; // Clear socket to allow fresh start
+
+            // Clear authentication files to force new QR code on next initialization
+            try {
+              const authDir = join(process.cwd(), 'auth_info_baileys');
+
+              if (existsSync(authDir)) {
+                logger.info('Clearing authentication files after logout...');
+                const files = readdirSync(authDir);
+                for (const file of files) {
+                  try {
+                    unlinkSync(join(authDir, file));
+                  } catch (error) {
+                    // Ignore errors deleting individual files
+                  }
+                }
+                try {
+                  rmdirSync(authDir);
+                  logger.info(
+                    '✅ Authentication files cleared - new QR code will be generated on next initialization'
+                  );
+                } catch (error) {
+                  // Ignore if directory not empty or other errors
+                }
+              }
+            } catch (error) {
+              logger.warn('Could not clear authentication files after logout:', error);
+              // Continue anyway
+            }
+          }
+        }
+
+        // Handle connection open (successful connection)
+        if (connection === 'open') {
+          logger.info('✅ WhatsApp (Baileys) connected successfully!');
+          this._isReady = true;
+          this.connectionState = 'connected';
+          this.currentQRCode = null; // Clear QR code when connected
+          this.currentQRCodeDataURL = null; // Clear Data URL too
+          this.qrCodeTimestamp = 0; // Clear timestamp when connected
+          this.lastError = null;
+          logger.info('📱 WhatsApp (Baileys) está pronto para enviar mensagens!');
+          logger.debug(`   Target: ${this.targetNumber || 'not configured'}`);
+        }
+      });
+
+      // Listen for messages to help identify group IDs
+      this.sock.ev.on('messages.upsert', (m) => {
+        const messages = m.messages || [];
+        for (const msg of messages) {
+          if (msg.key?.remoteJid && msg.key.remoteJid.includes('@g.us')) {
+            logger.info(`📱 💡 Grupo detectado! ID do grupo: ${msg.key.remoteJid}`);
+            logger.info(`   Use este ID na configuração: ${msg.key.remoteJid}`);
+          }
+        }
+      });
+
+      logger.info('🔄 WhatsApp (Baileys) initialization started');
+      logger.debug(`   Target number: ${this.targetNumber || 'not configured'}`);
+    } catch (error: any) {
+      const errorMsg = error?.message || String(error);
+      const errorStack = error?.stack;
+
+      logger.error(`❌ Error initializing WhatsApp (Baileys): ${errorMsg}`);
+      if (errorStack) {
+        logger.debug(`   Stack trace:`, errorStack);
+      }
+
+      this.initialized = false;
+      this._isReady = false;
+      this.connectionState = 'disconnected';
+      this.lastError = errorMsg;
+      this.sock = null;
+
+      // If initialization fails, try again after a delay with exponential backoff
+      const retryDelay = 5000; // 5 seconds
+      setTimeout(() => {
+        if (!this._isReady && !this.initialized) {
+          logger.info(`🔄 Tentando reinicializar após erro (delay: ${retryDelay}ms)...`);
+          this.initializeSocket();
+        }
+      }, retryDelay);
+    }
+  }
+
+  /**
+   * Wait for socket to be ready
+   */
+  private async waitForReady(): Promise<boolean> {
+    if (this._isReady) {
+      logger.debug('✅ WhatsApp (Baileys) is ready');
+      return true;
+    }
+
+    logger.debug('⏳ Waiting for WhatsApp (Baileys) to be ready...');
+    const startTime = Date.now();
+
+    return new Promise((resolve) => {
+      let checkCount = 0;
+      const checkInterval = setInterval(() => {
+        checkCount++;
+        if (this._isReady) {
+          const elapsed = Date.now() - startTime;
+          logger.debug(`✅ WhatsApp (Baileys) ready after ${elapsed}ms (${checkCount} checks)`);
+          clearInterval(checkInterval);
+          resolve(true);
+        } else if (checkCount % 10 === 0) {
+          // Log every 10 seconds
+          logger.debug(`⏳ Still waiting for WhatsApp connection... (${checkCount}s)`);
+        }
+      }, 1000);
+
+      // Timeout after 60 seconds
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        const elapsed = Date.now() - startTime;
+        logger.warn(`⚠️ WhatsApp (Baileys) not ready after ${elapsed}ms timeout`);
+        logger.debug(`   Connection state: ${this.connectionState}`);
+        logger.debug(`   Last error: ${this.lastError || 'none'}`);
+        resolve(false);
+      }, 60000);
+    });
+  }
+
+  /**
+   * Initialize service
+   */
+  async initialize(force = false): Promise<void> {
+    // Reload config before checking (force reload only if explicitly requested)
+    this.loadTargetNumber(force);
+
+    // Check enabled from env or config
+    let enabled = process.env.WHATSAPP_ENABLED === 'true';
+
+    // Always check config.json to ensure we have the latest
+    try {
+      const configPath = join(process.cwd(), 'config.json');
+
+      if (existsSync(configPath)) {
+        const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+        if (config.whatsapp?.enabled !== undefined) {
+          enabled = config.whatsapp.enabled === true;
+          process.env.WHATSAPP_ENABLED = enabled.toString();
+          logger.debug(`WhatsApp enabled status loaded from config: ${enabled}`);
+        }
+        if (config.whatsapp?.targetNumber && !this.targetNumber) {
+          this.targetNumber = config.whatsapp.targetNumber;
+          process.env.WHATSAPP_TARGET_NUMBER = this.targetNumber;
+          logger.debug(`WhatsApp target number loaded from config: ${this.targetNumber}`);
+        }
+      }
+    } catch (error) {
+      logger.warn('Error loading WhatsApp config:', error);
+    }
+
+    if (!enabled || !this.targetNumber) {
+      const reason = !enabled ? 'not enabled' : 'target number not configured';
+      logger.warn(
+        `⚠️ WhatsApp (Baileys) ${reason}. Enabled: ${enabled}, Target: ${this.targetNumber || 'empty'}`
+      );
+      logger.debug(
+        `   To enable: Set WHATSAPP_ENABLED=true and WHATSAPP_TARGET_NUMBER in config.json or .env`
+      );
+      return;
+    }
+
+    // Validate target number format
+    try {
+      JIDValidator.detectAndFormat(this.targetNumber);
+      logger.debug(`✅ Target number validated: ${this.targetNumber}`);
+    } catch (validationError: any) {
+      logger.error(`❌ Invalid target number format: ${this.targetNumber}`);
+      logger.error(`   Error: ${validationError.message}`);
+      logger.debug(
+        `   Expected format: phone number (e.g., 5511999999999) or JID (e.g., 5511999999999@s.whatsapp.net or 120363123456789012@g.us)`
+      );
+      this.lastError = `Invalid target number: ${validationError.message}`;
+      return;
+    }
+
+    // If forced, reset state for fresh start
+    if (force) {
+      logger.info('Force re-initializing WhatsApp (Baileys) client...');
+      this.initialized = false;
+      this._isReady = false;
+      this.currentQRCode = null;
+      if (this.sock) {
+        try {
+          await this.sock.end(undefined);
+        } catch (error) {
+          // Ignore errors when ending socket
+        }
+        this.sock = null;
+      }
+
+      // Clear authentication files to force new QR code generation
+      try {
+        const authDir = join(process.cwd(), 'auth_info_baileys');
+
+        if (existsSync(authDir)) {
+          logger.info('Clearing old Baileys authentication files to generate new QR code...');
+          const files = readdirSync(authDir);
+          for (const file of files) {
+            try {
+              unlinkSync(join(authDir, file));
+            } catch (error) {
+              // Ignore errors deleting individual files
+            }
+          }
+          try {
+            rmdirSync(authDir);
+            logger.info('✅ Old authentication files cleared');
+          } catch (error) {
+            // Ignore if directory not empty or other errors
+          }
+        }
+      } catch (error) {
+        logger.warn('Could not clear authentication files:', error);
+        // Continue anyway - Baileys will handle it
+      }
+    }
+
+    logger.info(`WhatsApp (Baileys) initializing with target: ${this.targetNumber}`);
+
+    if (!this.sock || !this.initialized) {
+      await this.initializeSocket();
+    }
+  }
+
+  /**
+   * Check if service is ready
+   */
+  public isReady(): boolean {
+    return this._isReady;
+  }
+
+  /**
+   * Send offer to WhatsApp
+   */
+  async sendOffer(offer: Offer): Promise<boolean> {
+    await this.initialize();
+
+    const ready = await this.waitForReady();
+    if (!ready) {
+      logger.error('WhatsApp (Baileys) not ready');
+      return false;
+    }
+
+    if (!this.sock) {
+      logger.error('WhatsApp (Baileys) socket not initialized');
+      return false;
+    }
+
+    try {
+      // Validate and format JID using JIDValidator
+      let jid: string;
+      try {
+        jid = JIDValidator.detectAndFormat(this.targetNumber);
+        const isGroup = JIDValidator.isGroupJID(jid);
+        logger.info(`📤 Sending offer to WhatsApp ${isGroup ? 'group' : 'number'}: ${jid}`);
+        logger.debug(`   Offer: ${offer.title.substring(0, 50)}...`);
+      } catch (validationError: any) {
+        const errorMsg = `Invalid target number format: ${this.targetNumber}. Error: ${validationError.message}`;
+        logger.error(`❌ ${errorMsg}`);
+        this.lastError = errorMsg;
+        this.messagesFailed++;
+        return false;
+      }
+
+      const message = this.formatMessage(offer);
+
+      // Send text message with retry
+      try {
+        await RetryHelper.retryMessage(async () => {
+          if (!this.sock) {
+            throw new Error('Socket not initialized');
+          }
+          await this.sock.sendMessage(jid, { text: message });
+        }, `Send message to ${jid}`);
+        logger.debug(`✅ Text message sent successfully`);
+      } catch (messageError: any) {
+        const errorMsg = `Failed to send text message after retries: ${messageError.message}`;
+        logger.error(`❌ ${errorMsg}`);
+        this.lastError = errorMsg;
+        this.messagesFailed++;
+        return false;
+      }
+
+      // Send image if available with retry
+      if (offer.imageUrl) {
+        try {
+          await RetryHelper.retryNetwork(async () => {
+            if (!this.sock) {
+              throw new Error('Socket not initialized');
+            }
+
+            logger.debug(`📷 Downloading image from: ${offer.imageUrl}`);
+            const imageResponse = await axios.get(offer.imageUrl!, {
+              responseType: 'arraybuffer',
+              timeout: 10000, // 10 second timeout
+            });
+            const imageBuffer = Buffer.from(imageResponse.data);
+
+            logger.debug(`📷 Sending image (${imageBuffer.length} bytes)`);
+            await this.sock.sendMessage(jid, {
+              image: imageBuffer,
+              caption: offer.title,
+            });
+          }, `Send image to ${jid}`);
+          logger.debug(`✅ Image sent successfully`);
+        } catch (imageError: any) {
+          // Log warning but don't fail the entire operation
+          logger.warn(`⚠️ Could not send image to WhatsApp (Baileys): ${imageError.message}`);
+          logger.debug(`   Attempting to send image URL as fallback`);
+
+          try {
+            // Send image URL as fallback with retry
+            await RetryHelper.retryMessage(async () => {
+              if (!this.sock) {
+                throw new Error('Socket not initialized');
+              }
+              await this.sock.sendMessage(jid, { text: `📷 Imagem: ${offer.imageUrl}` });
+            }, `Send image URL fallback to ${jid}`);
+            logger.debug(`✅ Image URL sent as fallback`);
+          } catch (fallbackError: any) {
+            logger.warn(`⚠️ Could not send image URL fallback: ${fallbackError.message}`);
+            // Don't fail the entire operation if image fails
+          }
+        }
+      }
+
+      this.messagesSent++;
+      logger.info(`✅ Offer sent successfully to WhatsApp (Baileys): ${offer.title}`);
+      logger.debug(`   Stats: ${this.messagesSent} sent, ${this.messagesFailed} failed`);
+      return true;
+    } catch (error: any) {
+      const errorMsg = error?.message || String(error);
+      logger.error(`❌ Error sending offer to WhatsApp (Baileys): ${errorMsg}`);
+      logger.debug(`   Error details:`, error);
+      this.lastError = errorMsg;
+      this.messagesFailed++;
+      return false;
+    }
+  }
+
+  /**
+   * Format offer message for WhatsApp
+   */
+  private formatMessage(offer: Offer): string {
+    const post = offer.aiGeneratedPost || this.generateDefaultPost(offer);
+    return `${post}\n\n🔗 ${offer.affiliateUrl}`;
+  }
+
+  /**
+   * Generate default post
+   */
+  private generateDefaultPost(offer: Offer): string {
+    return `🔥 *${offer.title}*
+
+💰 De R$ ${offer.originalPrice.toFixed(2)} por R$ ${offer.currentPrice.toFixed(2)}
+🎯 ${offer.discountPercentage.toFixed(0)}% OFF
+
+${offer.rating ? `⭐ ${offer.rating}/5` : ''}
+${offer.reviewsCount ? `📊 ${offer.reviewsCount} avaliações` : ''}`;
+  }
+
+  /**
+   * Send multiple offers
+   */
+  async sendOffers(offers: Offer[]): Promise<number> {
+    let successCount = 0;
+
+    for (const offer of offers) {
+      const success = await this.sendOffer(offer);
+      if (success) {
+        successCount++;
+        await this.delay(3000); // WhatsApp needs longer delays
+      }
+    }
+
+    return successCount;
+  }
+
+  /**
+   * Get current QR code (text)
+   */
+  getQRCode(): string | null {
+    return this.currentQRCode;
+  }
+
+  /**
+   * Get current QR code as Data URL (image)
+   */
+  getQRCodeDataURL(): string | null {
+    return this.currentQRCodeDataURL;
+  }
+
+  /**
+   * Get connection information
+   */
+  getConnectionInfo(): {
+    isReady: boolean;
+    connectionState: string;
+    hasQRCode: boolean;
+    lastError: string | null;
+    hasAuthFiles: boolean;
+    qrCodeTimestamp?: number;
+    qrCodeDataURL?: string;
+    messagesSent: number;
+    messagesFailed: number;
+    targetNumber?: string;
+  } {
+    const authDir = join(process.cwd(), 'auth_info_baileys');
+
+    return {
+      isReady: this._isReady,
+      connectionState: this.connectionState,
+      hasQRCode: !!this.currentQRCode,
+      lastError: this.lastError,
+      hasAuthFiles: existsSync(authDir),
+      qrCodeTimestamp: this.currentQRCode ? this.qrCodeTimestamp : undefined,
+      qrCodeDataURL: this.currentQRCodeDataURL || undefined,
+      messagesSent: this.messagesSent,
+      messagesFailed: this.messagesFailed,
+      targetNumber: this.targetNumber || undefined,
+    };
+  }
+
+  /**
+   * Register callback for QR code generation
+   */
+  onQRCode(callback: (qr: string) => void): void {
+    this.qrCodeCallbacks.push(callback);
+    // If QR code already exists, call immediately
+    if (this.currentQRCode) {
+      callback(this.currentQRCode);
+    }
+  }
+
+  /**
+   * Delay helper
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+}

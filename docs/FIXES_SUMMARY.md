@@ -137,14 +137,14 @@ IA: ✅ Conexão com Groq OK
    - For channels: Forward a message from channel to [@userinfobot](https://t.me/userinfobot)
 4. Enter in Settings:
    - Bot Token: `YOUR_TELEGRAM_BOT_TOKEN_HERE`
-   - Chat ID: `-5038858254`
+   - Chat ID: `YOUR_TELEGRAM_CHAT_ID_HERE`
 
 ### Environment Variables
 Create `.env` file in project root:
 ```env
 # Telegram
 TELEGRAM_BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN_HERE
-TELEGRAM_CHAT_ID=-5038858254
+TELEGRAM_CHAT_ID=YOUR_TELEGRAM_CHAT_ID_HERE
 
 # Backend
 PORT=3000

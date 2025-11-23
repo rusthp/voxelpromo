@@ -15,11 +15,9 @@ const configPath = join(process.cwd(), 'config.json');
  */
 router.get('/auth/url', (req, res) => {
   try {
-    const state = req.query.state as string || crypto.randomBytes(16).toString('hex');
-    
+    const state = (req.query.state as string) || crypto.randomBytes(16).toString('hex');
+
     // Debug: Log credentials status
-    const { readFileSync, existsSync } = require('fs');
-    const { join } = require('path');
     const configPath = join(process.cwd(), 'config.json');
     if (existsSync(configPath)) {
       const config = JSON.parse(readFileSync(configPath, 'utf-8'));
@@ -27,24 +25,24 @@ router.get('/auth/url', (req, res) => {
         hasClientId: !!config.x?.oauth2ClientId,
         clientIdLength: config.x?.oauth2ClientId?.length || 0,
         clientIdPreview: config.x?.oauth2ClientId?.substring(0, 10) || 'none',
-        redirectUri: config.x?.oauth2RedirectUri || 'not set'
+        redirectUri: config.x?.oauth2RedirectUri || 'not set',
       });
     }
-    
+
     const authUrl = xService.getAuthorizationUrl(state);
-    
+
     logger.info('Generated OAuth 2.0 authorization URL');
-    
+
     return res.json({
       success: true,
       authUrl,
-      state
+      state,
     });
   } catch (error: any) {
     logger.error('Error generating X OAuth 2.0 auth URL:', error);
     return res.status(500).json({
       success: false,
-      error: error.message || 'OAuth 2.0 Client ID not configured'
+      error: error.message || 'OAuth 2.0 Client ID not configured',
     });
   }
 });
@@ -86,10 +84,10 @@ router.get('/auth/callback', async (req, res) => {
 
     // Exchange code for token
     const tokens = await xService.exchangeCodeForToken(code as string);
-    
+
     // Save tokens to config.json
     let config: any = {};
-    
+
     if (existsSync(configPath)) {
       config = JSON.parse(readFileSync(configPath, 'utf-8'));
     }
@@ -103,7 +101,7 @@ router.get('/auth/callback', async (req, res) => {
     if (tokens.refresh_token) {
       config.x.oauth2RefreshToken = tokens.refresh_token;
     }
-    config.x.oauth2TokenExpiresAt = Date.now() + (tokens.expires_in * 1000);
+    config.x.oauth2TokenExpiresAt = Date.now() + tokens.expires_in * 1000;
     config.x.oauth2Scope = tokens.scope;
 
     writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
@@ -158,15 +156,15 @@ router.post('/auth/exchange', async (req, res) => {
     if (!code) {
       return res.status(400).json({
         success: false,
-        error: 'Authorization code is required'
+        error: 'Authorization code is required',
       });
     }
 
     const tokens = await xService.exchangeCodeForToken(code);
-    
+
     // Save tokens to config.json
     let config: any = {};
-    
+
     if (existsSync(configPath)) {
       config = JSON.parse(readFileSync(configPath, 'utf-8'));
     }
@@ -179,7 +177,7 @@ router.post('/auth/exchange', async (req, res) => {
     if (tokens.refresh_token) {
       config.x.oauth2RefreshToken = tokens.refresh_token;
     }
-    config.x.oauth2TokenExpiresAt = Date.now() + (tokens.expires_in * 1000);
+    config.x.oauth2TokenExpiresAt = Date.now() + tokens.expires_in * 1000;
     config.x.oauth2Scope = tokens.scope;
 
     writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
@@ -196,47 +194,47 @@ router.post('/auth/exchange', async (req, res) => {
       success: true,
       message: 'Tokens saved successfully',
       expiresIn: tokens.expires_in,
-      scope: tokens.scope
+      scope: tokens.scope,
     });
   } catch (error: any) {
     logger.error('Error exchanging X OAuth 2.0 code for token:', error);
-    
+
     // Handle specific OAuth errors
     if (error.response?.status === 400) {
       const errorData = error.response.data;
       const errorType = errorData?.error || '';
       const errorDescription = errorData?.error_description || '';
-      
+
       if (errorType === 'invalid_grant' || errorDescription.includes('invalid_grant')) {
         return res.status(400).json({
           success: false,
           error: 'Código OAuth expirado ou já usado. Os códigos expiram rapidamente.',
           details: {
             error: 'invalid_grant',
-            error_description: errorDescription
-          }
+            error_description: errorDescription,
+          },
         });
       }
-      
+
       if (errorType === 'invalid_client' || errorDescription.includes('invalid_client')) {
         return res.status(400).json({
           success: false,
           error: 'Client ID ou Client Secret inválidos. Verifique as credenciais.',
-          details: errorData
+          details: errorData,
         });
       }
-      
+
       return res.status(400).json({
         success: false,
         error: errorDescription || error.message || 'Erro ao trocar código por token',
-        details: errorData
+        details: errorData,
       });
     }
-    
+
     return res.status(500).json({
       success: false,
       error: error.message || 'Erro desconhecido',
-      details: error.response?.data
+      details: error.response?.data,
     });
   }
 });
@@ -248,7 +246,7 @@ router.post('/auth/exchange', async (req, res) => {
 router.post('/auth/refresh', async (_req, res) => {
   try {
     let config: any = {};
-    
+
     if (existsSync(configPath)) {
       config = JSON.parse(readFileSync(configPath, 'utf-8'));
     }
@@ -258,7 +256,7 @@ router.post('/auth/refresh', async (_req, res) => {
     if (!refreshToken) {
       return res.status(400).json({
         success: false,
-        error: 'Refresh token not found. Please re-authenticate.'
+        error: 'Refresh token not found. Please re-authenticate.',
       });
     }
 
@@ -271,7 +269,7 @@ router.post('/auth/refresh', async (_req, res) => {
 
     config.x.oauth2AccessToken = tokens.access_token;
     config.x.oauth2RefreshToken = tokens.refresh_token;
-    config.x.oauth2TokenExpiresAt = Date.now() + (tokens.expires_in * 1000);
+    config.x.oauth2TokenExpiresAt = Date.now() + tokens.expires_in * 1000;
     config.x.oauth2Scope = tokens.scope;
 
     writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
@@ -286,16 +284,15 @@ router.post('/auth/refresh', async (_req, res) => {
       success: true,
       message: 'Token refreshed successfully',
       expiresIn: tokens.expires_in,
-      scope: tokens.scope
+      scope: tokens.scope,
     });
   } catch (error: any) {
     logger.error('Error refreshing X OAuth 2.0 token:', error);
     return res.status(500).json({
       success: false,
-      error: error.message || 'Erro ao atualizar token'
+      error: error.message || 'Erro ao atualizar token',
     });
   }
 });
 
 export { router as xRoutes };
-

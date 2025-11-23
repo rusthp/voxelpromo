@@ -12,7 +12,7 @@ export class TelegramService {
     // Don't initialize bot on startup - lazy initialization
     this.chatId = process.env.TELEGRAM_CHAT_ID || '';
     const token = process.env.TELEGRAM_BOT_TOKEN;
-    
+
     if (token && this.chatId) {
       logger.info('✅ Telegram configured - will initialize on first use');
     } else {
@@ -73,12 +73,12 @@ export class TelegramService {
         logger.debug(`📷 Sending offer with image: ${offer.imageUrl}`);
         await this.bot.sendPhoto(this.chatId, offer.imageUrl, {
           caption: message,
-          parse_mode: 'HTML'
+          parse_mode: 'HTML',
         });
       } else {
         logger.debug('📝 Sending offer without image');
         await this.bot.sendMessage(this.chatId, message, {
-          parse_mode: 'HTML'
+          parse_mode: 'HTML',
         });
       }
 
@@ -95,7 +95,7 @@ export class TelegramService {
    * Format offer message for Telegram
    */
   private async formatMessage(offer: Offer): Promise<string> {
-    let post = offer.aiGeneratedPost || await this.generateDefaultPost(offer);
+    let post = offer.aiGeneratedPost || (await this.generateDefaultPost(offer));
 
     // Convert Markdown to HTML if needed (IA might return Markdown)
     post = this.convertMarkdownToHtml(post);
@@ -128,11 +128,11 @@ export class TelegramService {
       .replace(/<br\s*\/?>/gi, '\n') // Replace <br> with newline
       .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>') // **bold** to <b>bold</b>
       .replace(/\*([^*]+)\*/g, '<b>$1</b>'); // *bold* to <b>bold</b>
-    
+
     // Preserve spacing - don't collapse too many newlines (keep at least 2 for spacing)
     // But limit to max 3 consecutive newlines to avoid excessive spacing
     cleaned = cleaned.replace(/\n{4,}/g, '\n\n\n'); // Max 3 newlines
-    
+
     return cleaned;
   }
 
@@ -148,7 +148,7 @@ export class TelegramService {
         this.getAIService().generateImpactPhrase(offer),
         new Promise<string>((resolve) => {
           setTimeout(() => resolve(''), 2000); // 2 second timeout
-        })
+        }),
       ]);
 
       if (aiPhrase && aiPhrase.length > 0) {
@@ -178,7 +178,7 @@ export class TelegramService {
         'OPORTUNIDADE ÚNICA',
         'PREÇO IMBATÍVEL',
         'OFERTA DO ANO',
-        'NÃO VAI TER OUTRA CHANCE'
+        'NÃO VAI TER OUTRA CHANCE',
       ];
       return phrases[Math.floor(Math.random() * phrases.length)];
     }
@@ -192,7 +192,7 @@ export class TelegramService {
         'PROMOÇÃO RELÂMPAGO',
         'OPORTUNIDADE RARA',
         'PREÇO BOM DEMAIS',
-        'NÃO PERCA ESSA'
+        'NÃO PERCA ESSA',
       ];
       return phrases[Math.floor(Math.random() * phrases.length)];
     }
@@ -205,19 +205,14 @@ export class TelegramService {
         'DESCONTO BOM',
         'VALE A PENA',
         'OPORTUNIDADE',
-        'PREÇO EM CONTA'
+        'PREÇO EM CONTA',
       ];
       return phrases[Math.floor(Math.random() * phrases.length)];
     }
 
     // Low discount (5-14%)
     if (discount >= 5) {
-      const phrases = [
-        'EM PROMOÇÃO',
-        'COM DESCONTO',
-        'OFERTA DISPONÍVEL',
-        'PREÇO ESPECIAL'
-      ];
+      const phrases = ['EM PROMOÇÃO', 'COM DESCONTO', 'OFERTA DISPONÍVEL', 'PREÇO ESPECIAL'];
       return phrases[Math.floor(Math.random() * phrases.length)];
     }
 
@@ -241,7 +236,7 @@ export class TelegramService {
       pets: '🐾',
       food: '🍔',
       health: '💊',
-      other: '📦'
+      other: '📦',
     };
     return categoryEmojis[category.toLowerCase()] || '🔥';
   }
@@ -254,7 +249,7 @@ export class TelegramService {
   private async generateDefaultPost(offer: Offer): Promise<string> {
     const impactPhrase = await this.getImpactPhrase(offer);
     const categoryEmoji = this.getCategoryEmoji(offer.category || '');
-    
+
     // Format price
     const priceFormatted = offer.currentPrice.toFixed(2).replace('.', ',');
     const hasDiscount = offer.discountPercentage >= 5 && offer.originalPrice > offer.currentPrice;
@@ -403,7 +398,7 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
 
       logger.info(`📤 Sending test message to Telegram chat ${this.chatId}...`);
       await this.bot.sendMessage(this.chatId, testMessage, {
-        parse_mode: 'HTML'
+        parse_mode: 'HTML',
       });
 
       logger.info('✅ Test message sent successfully to Telegram');
@@ -418,6 +413,6 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
    * Delay helper
    */
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

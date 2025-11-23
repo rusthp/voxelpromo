@@ -28,14 +28,14 @@ function HomeContent() {
       setLoading(true)
       const [statsData, offersData] = await Promise.all([
         api.get('/stats'),
-        api.get('/offers') // Removed limit to show all offers
+        api.get('/offers?limit=100') // Load only 100 offers for better performance
       ])
       setStats(statsData.data)
       setOffers(offersData.data)
       console.log(`[Frontend] Loaded ${offersData.data.length} offers (Total stats: ${statsData.data.total})`)
     } catch (error: any) {
       console.error('Error loading data:', error)
-      
+
       // Show user-friendly error messages
       if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
         console.error('❌ Backend não está acessível. Verifique se está rodando na porta 3000.')
@@ -122,14 +122,29 @@ function HomeContent() {
               </span>
             )}
           </div>
-          
+
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mb-4"></div>
               <p className="text-gray-600 font-medium">Carregando ofertas...</p>
             </div>
           ) : (
-            <OffersListWithFilters offers={offers} onUpdate={loadData} />
+            <>
+              <OffersListWithFilters offers={offers} onUpdate={loadData} />
+              {stats && offers.length < stats.total && (
+                <div className="mt-6 text-center">
+                  <p className="text-gray-600 mb-4">
+                    Mostrando {offers.length} de {stats.total} ofertas
+                  </p>
+                  <button
+                    onClick={() => window.location.href = '/'}
+                    className="px-8 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl hover:from-purple-600 hover:to-purple-700 font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200"
+                  >
+                    Recarregar para Ver Mais
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

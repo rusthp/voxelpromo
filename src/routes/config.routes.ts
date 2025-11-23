@@ -17,59 +17,75 @@ router.get('/', (_req, res) => {
       // Don't send sensitive data
       const safeConfig = {
         ...config,
-        amazon: config.amazon ? {
-          accessKey: config.amazon.accessKey ? '***' : '',
-          secretKey: config.amazon.secretKey ? '***' : '',
-          associateTag: config.amazon.associateTag || '',
-          region: config.amazon.region || 'BR'
-        } : {},
-        aliexpress: config.aliexpress ? {
-          appKey: config.aliexpress.appKey ? '***' : '',
-          appSecret: config.aliexpress.appSecret ? '***' : '',
-          trackingId: config.aliexpress.trackingId || ''
-        } : {},
-        mercadolivre: config.mercadolivre ? {
-          clientId: config.mercadolivre.clientId || '',
-          clientSecret: config.mercadolivre.clientSecret ? '***' : '',
-          redirectUri: config.mercadolivre.redirectUri || '',
-          affiliateCode: config.mercadolivre.affiliateCode || '',
-          accessToken: config.mercadolivre.accessToken ? '***' : '',
-          refreshToken: config.mercadolivre.refreshToken ? '***' : '',
-          tokenExpiresAt: config.mercadolivre.tokenExpiresAt || null
-        } : {},
-        telegram: config.telegram ? {
-          botToken: config.telegram.botToken ? '***' : '',
-          chatId: config.telegram.chatId || ''
-        } : {},
-        whatsapp: config.whatsapp ? {
-          enabled: config.whatsapp.enabled || false,
-          targetNumber: config.whatsapp.targetNumber || ''
-        } : {},
-        x: config.x ? {
-          bearerToken: config.x.bearerToken ? '***' : '',
-          apiKey: config.x.apiKey ? '***' : '',
-          apiKeySecret: config.x.apiKeySecret ? '***' : '',
-          accessToken: config.x.accessToken ? '***' : '',
-          accessTokenSecret: config.x.accessTokenSecret ? '***' : '',
-          oauth2ClientId: config.x.oauth2ClientId ? '***' : '',
-          oauth2ClientSecret: config.x.oauth2ClientSecret ? '***' : '',
-          oauth2RedirectUri: config.x.oauth2RedirectUri || 'http://localhost:3000/api/x/auth/callback',
-          oauth2AccessToken: config.x.oauth2AccessToken ? '***' : '',
-          oauth2RefreshToken: config.x.oauth2RefreshToken ? '***' : '',
-          oauth2TokenExpiresAt: config.x.oauth2TokenExpiresAt || null,
-          oauth2Scope: config.x.oauth2Scope || ''
-        } : {},
-        ai: config.ai ? {
-          provider: config.ai.provider || 'groq',
-          groqApiKey: config.ai.groqApiKey ? '***' : '',
-          openaiApiKey: config.ai.openaiApiKey ? '***' : ''
-        } : {},
+        amazon: config.amazon
+          ? {
+              accessKey: config.amazon.accessKey ? '***' : '',
+              secretKey: config.amazon.secretKey ? '***' : '',
+              associateTag: config.amazon.associateTag || '',
+              region: config.amazon.region || 'BR',
+            }
+          : {},
+        aliexpress: config.aliexpress
+          ? {
+              appKey: config.aliexpress.appKey ? '***' : '',
+              appSecret: config.aliexpress.appSecret ? '***' : '',
+              trackingId: config.aliexpress.trackingId || '',
+            }
+          : {},
+        mercadolivre: config.mercadolivre
+          ? {
+              clientId: config.mercadolivre.clientId || '',
+              clientSecret: config.mercadolivre.clientSecret ? '***' : '',
+              redirectUri: config.mercadolivre.redirectUri || '',
+              affiliateCode: config.mercadolivre.affiliateCode || '',
+              accessToken: config.mercadolivre.accessToken ? '***' : '',
+              refreshToken: config.mercadolivre.refreshToken ? '***' : '',
+              tokenExpiresAt: config.mercadolivre.tokenExpiresAt || null,
+            }
+          : {},
+        telegram: config.telegram
+          ? {
+              botToken: config.telegram.botToken ? '***' : '',
+              chatId: config.telegram.chatId || '',
+            }
+          : {},
+        whatsapp: config.whatsapp
+          ? {
+              enabled: config.whatsapp.enabled || false,
+              targetNumber: config.whatsapp.targetNumber || '',
+              library: config.whatsapp.library || 'whatsapp-web.js',
+            }
+          : {},
+        x: config.x
+          ? {
+              bearerToken: config.x.bearerToken ? '***' : '',
+              apiKey: config.x.apiKey ? '***' : '',
+              apiKeySecret: config.x.apiKeySecret ? '***' : '',
+              accessToken: config.x.accessToken ? '***' : '',
+              accessTokenSecret: config.x.accessTokenSecret ? '***' : '',
+              oauth2ClientId: config.x.oauth2ClientId ? '***' : '',
+              oauth2ClientSecret: config.x.oauth2ClientSecret ? '***' : '',
+              oauth2RedirectUri:
+                config.x.oauth2RedirectUri || 'http://localhost:3000/api/x/auth/callback',
+              oauth2AccessToken: config.x.oauth2AccessToken ? '***' : '',
+              oauth2RefreshToken: config.x.oauth2RefreshToken ? '***' : '',
+              oauth2TokenExpiresAt: config.x.oauth2TokenExpiresAt || null,
+              oauth2Scope: config.x.oauth2Scope || '',
+            }
+          : {},
+        ai: config.ai
+          ? {
+              provider: config.ai.provider || 'groq',
+              groqApiKey: config.ai.groqApiKey ? '***' : '',
+              openaiApiKey: config.ai.openaiApiKey ? '***' : '',
+            }
+          : {},
         rss: config.rss || [],
         collection: config.collection || {
           enabled: true,
           schedule: '0 */6 * * *',
-          sources: ['amazon', 'aliexpress', 'rss']
-        }
+          sources: ['amazon', 'aliexpress', 'rss'],
+        },
       };
       return res.json(safeConfig);
     } else {
@@ -78,14 +94,14 @@ router.get('/', (_req, res) => {
         aliexpress: {},
         mercadolivre: {},
         telegram: {},
-        whatsapp: { enabled: false },
+        whatsapp: { enabled: false, library: 'whatsapp-web.js' },
         ai: { provider: 'groq' },
         rss: [],
         collection: {
           enabled: true,
           schedule: '0 */6 * * *',
-          sources: ['amazon', 'aliexpress', 'mercadolivre', 'rss']
-        }
+          sources: ['amazon', 'aliexpress', 'mercadolivre', 'rss'],
+        },
       });
     }
   } catch (error: any) {
@@ -104,22 +120,22 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: 'Request body is required' });
     }
     const config = req.body;
-    
+
     // Log received values (for debugging)
     logger.info('Received config:', {
       telegram: {
         hasBotToken: !!config.telegram?.botToken,
         botTokenLength: config.telegram?.botToken?.length || 0,
         botTokenPreview: config.telegram?.botToken?.substring(0, 10) || 'empty',
-        chatId: config.telegram?.chatId
+        chatId: config.telegram?.chatId,
       },
       ai: {
         hasGroqKey: !!config.ai?.groqApiKey,
         groqKeyLength: config.ai?.groqApiKey?.length || 0,
-        groqKeyPreview: config.ai?.groqApiKey?.substring(0, 10) || 'empty'
-      }
+        groqKeyPreview: config.ai?.groqApiKey?.substring(0, 10) || 'empty',
+      },
     });
-    
+
     // Load existing config to preserve sensitive data
     let existingConfig: any = {};
     if (existsSync(configPath)) {
@@ -127,12 +143,12 @@ router.post('/', (req, res) => {
       logger.info('Existing config loaded:', {
         telegram: {
           hasBotToken: !!existingConfig.telegram?.botToken,
-          botTokenLength: existingConfig.telegram?.botToken?.length || 0
+          botTokenLength: existingConfig.telegram?.botToken?.length || 0,
         },
         ai: {
           hasGroqKey: !!existingConfig.ai?.groqApiKey,
-          groqKeyLength: existingConfig.ai?.groqApiKey?.length || 0
-        }
+          groqKeyLength: existingConfig.ai?.groqApiKey?.length || 0,
+        },
       });
     }
 
@@ -143,125 +159,153 @@ router.post('/', (req, res) => {
         ...existingConfig.amazon,
         ...config.amazon,
         // Only update keys if they're not masked
-        accessKey: config.amazon?.accessKey && config.amazon.accessKey !== '***' 
-          ? config.amazon.accessKey 
-          : existingConfig.amazon?.accessKey || '',
-        secretKey: config.amazon?.secretKey && config.amazon.secretKey !== '***' 
-          ? config.amazon.secretKey 
-          : existingConfig.amazon?.secretKey || ''
+        accessKey:
+          config.amazon?.accessKey && config.amazon.accessKey !== '***'
+            ? config.amazon.accessKey
+            : existingConfig.amazon?.accessKey || '',
+        secretKey:
+          config.amazon?.secretKey && config.amazon.secretKey !== '***'
+            ? config.amazon.secretKey
+            : existingConfig.amazon?.secretKey || '',
       },
       aliexpress: {
         ...existingConfig.aliexpress,
         ...config.aliexpress,
-        appKey: config.aliexpress?.appKey && config.aliexpress.appKey !== '***' 
-          ? config.aliexpress.appKey 
-          : existingConfig.aliexpress?.appKey || '',
-        appSecret: config.aliexpress?.appSecret && config.aliexpress.appSecret !== '***' 
-          ? config.aliexpress.appSecret 
-          : existingConfig.aliexpress?.appSecret || ''
+        appKey:
+          config.aliexpress?.appKey && config.aliexpress.appKey !== '***'
+            ? config.aliexpress.appKey
+            : existingConfig.aliexpress?.appKey || '',
+        appSecret:
+          config.aliexpress?.appSecret && config.aliexpress.appSecret !== '***'
+            ? config.aliexpress.appSecret
+            : existingConfig.aliexpress?.appSecret || '',
       },
       mercadolivre: {
         ...existingConfig.mercadolivre,
         ...config.mercadolivre,
-        clientId: config.mercadolivre?.clientId !== undefined
-          ? (config.mercadolivre.clientId || '')
-          : (existingConfig.mercadolivre?.clientId || ''),
-        clientSecret: config.mercadolivre?.clientSecret !== undefined
-          ? (config.mercadolivre.clientSecret !== '***' && 
-             config.mercadolivre.clientSecret.trim().length > 0
+        clientId:
+          config.mercadolivre?.clientId !== undefined
+            ? config.mercadolivre.clientId || ''
+            : existingConfig.mercadolivre?.clientId || '',
+        clientSecret:
+          config.mercadolivre?.clientSecret !== undefined
+            ? config.mercadolivre.clientSecret !== '***' &&
+              config.mercadolivre.clientSecret.trim().length > 0
               ? config.mercadolivre.clientSecret.trim()
-              : '')
-          : (existingConfig.mercadolivre?.clientSecret || ''),
-        redirectUri: config.mercadolivre?.redirectUri !== undefined
-          ? (config.mercadolivre.redirectUri || '')
-          : (existingConfig.mercadolivre?.redirectUri || ''),
-        affiliateCode: config.mercadolivre?.affiliateCode !== undefined
-          ? (config.mercadolivre.affiliateCode || '')
-          : (existingConfig.mercadolivre?.affiliateCode || ''),
+              : ''
+            : existingConfig.mercadolivre?.clientSecret || '',
+        redirectUri:
+          config.mercadolivre?.redirectUri !== undefined
+            ? config.mercadolivre.redirectUri || ''
+            : existingConfig.mercadolivre?.redirectUri || '',
+        affiliateCode:
+          config.mercadolivre?.affiliateCode !== undefined
+            ? config.mercadolivre.affiliateCode || ''
+            : existingConfig.mercadolivre?.affiliateCode || '',
         // Preserve tokens - they should only be updated via OAuth endpoints
-        accessToken: config.mercadolivre?.accessToken !== undefined && config.mercadolivre.accessToken !== '***'
-          ? config.mercadolivre.accessToken
-          : (existingConfig.mercadolivre?.accessToken || ''),
-        refreshToken: config.mercadolivre?.refreshToken !== undefined && config.mercadolivre.refreshToken !== '***'
-          ? config.mercadolivre.refreshToken
-          : (existingConfig.mercadolivre?.refreshToken || ''),
-        tokenExpiresAt: config.mercadolivre?.tokenExpiresAt !== undefined
-          ? config.mercadolivre.tokenExpiresAt
-          : (existingConfig.mercadolivre?.tokenExpiresAt || null)
+        accessToken:
+          config.mercadolivre?.accessToken !== undefined &&
+          config.mercadolivre.accessToken !== '***'
+            ? config.mercadolivre.accessToken
+            : existingConfig.mercadolivre?.accessToken || '',
+        refreshToken:
+          config.mercadolivre?.refreshToken !== undefined &&
+          config.mercadolivre.refreshToken !== '***'
+            ? config.mercadolivre.refreshToken
+            : existingConfig.mercadolivre?.refreshToken || '',
+        tokenExpiresAt:
+          config.mercadolivre?.tokenExpiresAt !== undefined
+            ? config.mercadolivre.tokenExpiresAt
+            : existingConfig.mercadolivre?.tokenExpiresAt || null,
       },
       telegram: {
         ...existingConfig.telegram,
         ...config.telegram,
-        // Handle botToken: 
+        // Handle botToken:
         // - If provided and valid (not masked, not empty after trim), use it
         // - If masked as '***', preserve existing value
         // - If explicitly set to empty string, clear it
         // - If undefined, preserve existing value
-        botToken: config.telegram?.botToken !== undefined
-          ? (config.telegram.botToken === '***'
-              ? (existingConfig.telegram?.botToken || '') // Preserve if masked
-              : (config.telegram.botToken.trim().length > 0
-                  ? config.telegram.botToken.trim()
-                  : '')) // Clear if empty
-          : (existingConfig.telegram?.botToken || ''), // Preserve if undefined
-        chatId: config.telegram?.chatId !== undefined
-          ? (config.telegram.chatId || '')
-          : (existingConfig.telegram?.chatId || '')
+        botToken:
+          config.telegram?.botToken !== undefined
+            ? config.telegram.botToken === '***'
+              ? existingConfig.telegram?.botToken || '' // Preserve if masked
+              : config.telegram.botToken.trim().length > 0
+                ? config.telegram.botToken.trim()
+                : '' // Clear if empty
+            : existingConfig.telegram?.botToken || '', // Preserve if undefined
+        chatId:
+          config.telegram?.chatId !== undefined
+            ? config.telegram.chatId || ''
+            : existingConfig.telegram?.chatId || '',
       },
       whatsapp: {
         ...existingConfig.whatsapp,
-        ...config.whatsapp
+        ...config.whatsapp,
       },
       x: {
         ...existingConfig.x,
         ...config.x,
         // Handle X credentials - preserve if masked
-        bearerToken: config.x?.bearerToken !== undefined
-          ? (config.x.bearerToken !== '***' && config.x.bearerToken.trim().length > 0
+        bearerToken:
+          config.x?.bearerToken !== undefined
+            ? config.x.bearerToken !== '***' && config.x.bearerToken.trim().length > 0
               ? config.x.bearerToken.trim()
-              : '')
-          : (existingConfig.x?.bearerToken || ''),
-        apiKey: config.x?.apiKey !== undefined
-          ? (config.x.apiKey !== '***' && config.x.apiKey.trim().length > 0
+              : ''
+            : existingConfig.x?.bearerToken || '',
+        apiKey:
+          config.x?.apiKey !== undefined
+            ? config.x.apiKey !== '***' && config.x.apiKey.trim().length > 0
               ? config.x.apiKey.trim()
-              : '')
-          : (existingConfig.x?.apiKey || ''),
-        apiKeySecret: config.x?.apiKeySecret !== undefined
-          ? (config.x.apiKeySecret !== '***' && config.x.apiKeySecret.trim().length > 0
+              : ''
+            : existingConfig.x?.apiKey || '',
+        apiKeySecret:
+          config.x?.apiKeySecret !== undefined
+            ? config.x.apiKeySecret !== '***' && config.x.apiKeySecret.trim().length > 0
               ? config.x.apiKeySecret.trim()
-              : '')
-          : (existingConfig.x?.apiKeySecret || ''),
-        accessToken: config.x?.accessToken !== undefined
-          ? (config.x.accessToken !== '***' && config.x.accessToken.trim().length > 0
+              : ''
+            : existingConfig.x?.apiKeySecret || '',
+        accessToken:
+          config.x?.accessToken !== undefined
+            ? config.x.accessToken !== '***' && config.x.accessToken.trim().length > 0
               ? config.x.accessToken.trim()
-              : '')
-          : (existingConfig.x?.accessToken || ''),
-        accessTokenSecret: config.x?.accessTokenSecret !== undefined
-          ? (config.x.accessTokenSecret !== '***' && config.x.accessTokenSecret.trim().length > 0
+              : ''
+            : existingConfig.x?.accessToken || '',
+        accessTokenSecret:
+          config.x?.accessTokenSecret !== undefined
+            ? config.x.accessTokenSecret !== '***' && config.x.accessTokenSecret.trim().length > 0
               ? config.x.accessTokenSecret.trim()
-              : '')
-          : (existingConfig.x?.accessTokenSecret || ''),
+              : ''
+            : existingConfig.x?.accessTokenSecret || '',
         // OAuth 2.0 credentials
-        oauth2ClientId: config.x?.oauth2ClientId !== undefined
-          ? (config.x.oauth2ClientId !== '***' && config.x.oauth2ClientId.trim().length > 0
+        oauth2ClientId:
+          config.x?.oauth2ClientId !== undefined
+            ? config.x.oauth2ClientId !== '***' && config.x.oauth2ClientId.trim().length > 0
               ? config.x.oauth2ClientId.trim()
-              : '')
-          : (existingConfig.x?.oauth2ClientId || ''),
-        oauth2ClientSecret: config.x?.oauth2ClientSecret !== undefined
-          ? (config.x.oauth2ClientSecret !== '***' && config.x.oauth2ClientSecret.trim().length > 0
+              : ''
+            : existingConfig.x?.oauth2ClientId || '',
+        oauth2ClientSecret:
+          config.x?.oauth2ClientSecret !== undefined
+            ? config.x.oauth2ClientSecret !== '***' && config.x.oauth2ClientSecret.trim().length > 0
               ? config.x.oauth2ClientSecret.trim()
-              : '')
-          : (existingConfig.x?.oauth2ClientSecret || ''),
-        oauth2RedirectUri: config.x?.oauth2RedirectUri || existingConfig.x?.oauth2RedirectUri || 'http://localhost:3000/api/x/auth/callback',
+              : ''
+            : existingConfig.x?.oauth2ClientSecret || '',
+        oauth2RedirectUri:
+          config.x?.oauth2RedirectUri ||
+          existingConfig.x?.oauth2RedirectUri ||
+          'http://localhost:3000/api/x/auth/callback',
         // OAuth 2.0 tokens (preserve if they exist, don't overwrite with empty)
-        oauth2AccessToken: config.x?.oauth2AccessToken !== undefined && config.x.oauth2AccessToken !== '***'
-          ? config.x.oauth2AccessToken
-          : (existingConfig.x?.oauth2AccessToken || ''),
-        oauth2RefreshToken: config.x?.oauth2RefreshToken !== undefined && config.x.oauth2RefreshToken !== '***'
-          ? config.x.oauth2RefreshToken
-          : (existingConfig.x?.oauth2RefreshToken || ''),
-        oauth2TokenExpiresAt: config.x?.oauth2TokenExpiresAt || existingConfig.x?.oauth2TokenExpiresAt || null,
-        oauth2Scope: config.x?.oauth2Scope || existingConfig.x?.oauth2Scope || ''
+        oauth2AccessToken:
+          config.x?.oauth2AccessToken !== undefined && config.x.oauth2AccessToken !== '***'
+            ? config.x.oauth2AccessToken
+            : existingConfig.x?.oauth2AccessToken || '',
+        oauth2RefreshToken:
+          config.x?.oauth2RefreshToken !== undefined && config.x.oauth2RefreshToken !== '***'
+            ? config.x.oauth2RefreshToken
+            : existingConfig.x?.oauth2RefreshToken || '',
+        oauth2TokenExpiresAt:
+          config.x?.oauth2TokenExpiresAt || existingConfig.x?.oauth2TokenExpiresAt || null,
+        oauth2Scope: config.x?.oauth2Scope || existingConfig.x?.oauth2Scope || '',
       },
       ai: {
         ...existingConfig.ai,
@@ -270,37 +314,37 @@ router.post('/', (req, res) => {
         // - If provided and valid (not masked, not empty after trim), use it
         // - If explicitly set to empty string, clear it
         // - If undefined, preserve existing value
-        groqApiKey: config.ai?.groqApiKey !== undefined
-          ? (config.ai.groqApiKey !== '***' && 
-             config.ai.groqApiKey.trim().length > 0
+        groqApiKey:
+          config.ai?.groqApiKey !== undefined
+            ? config.ai.groqApiKey !== '***' && config.ai.groqApiKey.trim().length > 0
               ? config.ai.groqApiKey.trim()
-              : '') // Clear if empty or masked
-          : (existingConfig.ai?.groqApiKey || ''), // Preserve if undefined
-        openaiApiKey: config.ai?.openaiApiKey !== undefined
-          ? (config.ai.openaiApiKey !== '***' && 
-             config.ai.openaiApiKey.trim().length > 0
+              : '' // Clear if empty or masked
+            : existingConfig.ai?.groqApiKey || '', // Preserve if undefined
+        openaiApiKey:
+          config.ai?.openaiApiKey !== undefined
+            ? config.ai.openaiApiKey !== '***' && config.ai.openaiApiKey.trim().length > 0
               ? config.ai.openaiApiKey.trim()
-              : '') // Clear if empty or masked
-          : (existingConfig.ai?.openaiApiKey || '') // Preserve if undefined
+              : '' // Clear if empty or masked
+            : existingConfig.ai?.openaiApiKey || '', // Preserve if undefined
       },
       rss: config.rss || existingConfig.rss || [],
       collection: {
         ...existingConfig.collection,
-        ...config.collection
-      }
+        ...config.collection,
+      },
     };
 
     // Save config to file
     writeFileSync(configPath, JSON.stringify(mergedConfig, null, 2));
     logger.info('Configuration saved to config.json');
     logger.info('File path:', configPath.toString());
-    
+
     // Log actual lengths (for debugging)
     const botTokenLength = mergedConfig.telegram?.botToken?.length || 0;
     const groqKeyLength = mergedConfig.ai?.groqApiKey?.length || 0;
     logger.info(`Telegram botToken length: ${botTokenLength}`);
     logger.info(`Groq API key length: ${groqKeyLength}`);
-    
+
     // Log if values are empty (to help debug)
     if (botTokenLength === 0) {
       logger.warn('⚠️  Telegram botToken is empty!');
@@ -308,16 +352,16 @@ router.post('/', (req, res) => {
     if (groqKeyLength === 0) {
       logger.warn('⚠️  Groq API key is empty!');
     }
-    
+
     // Verify the file was written correctly
     if (existsSync(configPath)) {
       const verifyConfig = JSON.parse(readFileSync(configPath, 'utf-8'));
       logger.info('Verified saved config:', {
         telegramTokenLength: verifyConfig.telegram?.botToken?.length || 0,
-        groqKeyLength: verifyConfig.ai?.groqApiKey?.length || 0
+        groqKeyLength: verifyConfig.ai?.groqApiKey?.length || 0,
       });
     }
-    
+
     // Update environment variables (for current session)
     if (mergedConfig.amazon?.accessKey) {
       process.env.AMAZON_ACCESS_KEY = mergedConfig.amazon.accessKey;
@@ -340,6 +384,7 @@ router.post('/', (req, res) => {
     if (mergedConfig.whatsapp?.enabled) {
       process.env.WHATSAPP_ENABLED = mergedConfig.whatsapp.enabled.toString();
       process.env.WHATSAPP_TARGET_NUMBER = mergedConfig.whatsapp.targetNumber;
+      process.env.WHATSAPP_LIBRARY = mergedConfig.whatsapp.library || 'whatsapp-web.js';
     }
 
     if (mergedConfig.x?.bearerToken) {
@@ -356,7 +401,8 @@ router.post('/', (req, res) => {
     if (mergedConfig.x?.oauth2ClientId) {
       process.env.X_OAUTH2_CLIENT_ID = mergedConfig.x.oauth2ClientId;
       process.env.X_OAUTH2_CLIENT_SECRET = mergedConfig.x.oauth2ClientSecret || '';
-      process.env.X_OAUTH2_REDIRECT_URI = mergedConfig.x.oauth2RedirectUri || 'http://localhost:3000/api/x/auth/callback';
+      process.env.X_OAUTH2_REDIRECT_URI =
+        mergedConfig.x.oauth2RedirectUri || 'http://localhost:3000/api/x/auth/callback';
     }
 
     if (mergedConfig.x?.oauth2AccessToken) {
@@ -378,36 +424,36 @@ router.post('/', (req, res) => {
 
     logger.info('Configuration saved successfully');
     logger.info('Saved config sections:', Object.keys(mergedConfig));
-    
+
     // Send response BEFORE any potential nodemon restart
-    const response = res.json({ 
-      success: true, 
+    const response = res.json({
+      success: true,
       message: 'Configuração salva com sucesso!',
       saved: {
         telegram: {
           hasToken: !!mergedConfig.telegram?.botToken,
-          tokenLength: mergedConfig.telegram?.botToken?.length || 0
+          tokenLength: mergedConfig.telegram?.botToken?.length || 0,
         },
         ai: {
           hasGroqKey: !!mergedConfig.ai?.groqApiKey,
-          groqKeyLength: mergedConfig.ai?.groqApiKey?.length || 0
-        }
-      }
+          groqKeyLength: mergedConfig.ai?.groqApiKey?.length || 0,
+        },
+      },
     });
-    
+
     // Small delay to ensure response is sent (nodemon may restart after this)
     setTimeout(() => {
       logger.info('Response sent, config saved successfully');
     }, 100);
-    
+
     return response;
   } catch (error: any) {
     logger.error('Error saving config:', error);
     const errorMessage = error.message || 'Erro desconhecido ao salvar configuração';
-    return res.status(500).json({ 
+    return res.status(500).json({
       success: false,
       error: errorMessage,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
     });
   }
 });
@@ -429,13 +475,13 @@ router.post('/test', async (req, res) => {
 
     // Temporarily set environment variables from config for testing
     const originalEnv: any = {};
-    
+
     if (testConfig.amazon?.accessKey) {
       originalEnv.AMAZON_ACCESS_KEY = process.env.AMAZON_ACCESS_KEY;
       originalEnv.AMAZON_SECRET_KEY = process.env.AMAZON_SECRET_KEY;
       originalEnv.AMAZON_ASSOCIATE_TAG = process.env.AMAZON_ASSOCIATE_TAG;
       originalEnv.AMAZON_REGION = process.env.AMAZON_REGION;
-      
+
       process.env.AMAZON_ACCESS_KEY = testConfig.amazon.accessKey;
       process.env.AMAZON_SECRET_KEY = testConfig.amazon.secretKey;
       process.env.AMAZON_ASSOCIATE_TAG = testConfig.amazon.associateTag;
@@ -445,7 +491,7 @@ router.post('/test', async (req, res) => {
     if (testConfig.telegram?.botToken) {
       originalEnv.TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
       originalEnv.TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-      
+
       process.env.TELEGRAM_BOT_TOKEN = testConfig.telegram.botToken;
       process.env.TELEGRAM_CHAT_ID = testConfig.telegram.chatId;
     }
@@ -475,7 +521,7 @@ router.post('/test', async (req, res) => {
       originalEnv.X_API_KEY_SECRET = process.env.X_API_KEY_SECRET;
       originalEnv.X_ACCESS_TOKEN = process.env.X_ACCESS_TOKEN;
       originalEnv.X_ACCESS_TOKEN_SECRET = process.env.X_ACCESS_TOKEN_SECRET;
-      
+
       process.env.X_API_KEY = testConfig.x.apiKey;
       process.env.X_API_KEY_SECRET = testConfig.x.apiKeySecret || '';
       process.env.X_ACCESS_TOKEN = testConfig.x.accessToken || '';
@@ -513,7 +559,12 @@ router.post('/test', async (req, res) => {
       if (service === 'x' || service === 'twitter' || !service) {
         try {
           // Check if we have OAuth 1.0a credentials (preferred)
-          if (testConfig.x?.apiKey && testConfig.x?.apiKeySecret && testConfig.x?.accessToken && testConfig.x?.accessTokenSecret) {
+          if (
+            testConfig.x?.apiKey &&
+            testConfig.x?.apiKeySecret &&
+            testConfig.x?.accessToken &&
+            testConfig.x?.accessTokenSecret
+          ) {
             const { TwitterApi } = await import('twitter-api-v2');
             const client = new TwitterApi({
               appKey: testConfig.x.apiKey,
@@ -521,47 +572,49 @@ router.post('/test', async (req, res) => {
               accessToken: testConfig.x.accessToken,
               accessSecret: testConfig.x.accessTokenSecret,
             });
-            
+
             // Step 1: Verify authentication by getting user info
             const user = await client.v2.me();
             const username = user.data.username || user.data.name || 'usuário';
-            
+
             // Step 2: Test if we can actually POST (most important test)
             try {
               const testTweetText = `🧪 Teste do VoxelPromo - ${new Date().toLocaleString('pt-BR')} - Este tweet será deletado automaticamente.`;
-              
+
               // Create a test tweet
               const tweet = await client.v2.tweet({
-                text: testTweetText
+                text: testTweetText,
               });
-              
+
               const tweetId = tweet.data.id;
-              
+
               // Immediately delete the test tweet
               try {
                 await client.v2.deleteTweet(tweetId);
                 logger.info(`✅ Test tweet created and deleted successfully (ID: ${tweetId})`);
               } catch (deleteError: any) {
                 // Tweet was created but couldn't delete - still a success for posting
-                logger.warn(`⚠️ Test tweet created (ID: ${tweetId}) but couldn't delete: ${deleteError.message}`);
+                logger.warn(
+                  `⚠️ Test tweet created (ID: ${tweetId}) but couldn't delete: ${deleteError.message}`
+                );
               }
-              
-              results.x = { 
-                success: true, 
-                message: `✅ X (Twitter) OAuth 1.0a configurado e testado! Usuário: @${username} - Postagem funcionando perfeitamente!` 
+
+              results.x = {
+                success: true,
+                message: `✅ X (Twitter) OAuth 1.0a configurado e testado! Usuário: @${username} - Postagem funcionando perfeitamente!`,
               };
             } catch (postError: any) {
               // Authentication works but posting doesn't
               const postErrorMsg = postError.message || '';
               if (postErrorMsg.includes('403') || postErrorMsg.includes('Forbidden')) {
-                results.x = { 
-                  success: false, 
-                  message: `⚠️ Autenticação OK (@${username}), mas sem permissão para postar. Verifique as permissões do app no Twitter Developer Portal.` 
+                results.x = {
+                  success: false,
+                  message: `⚠️ Autenticação OK (@${username}), mas sem permissão para postar. Verifique as permissões do app no Twitter Developer Portal.`,
                 };
               } else {
-                results.x = { 
-                  success: false, 
-                  message: `⚠️ Autenticação OK (@${username}), mas erro ao testar postagem: ${postErrorMsg}` 
+                results.x = {
+                  success: false,
+                  message: `⚠️ Autenticação OK (@${username}), mas erro ao testar postagem: ${postErrorMsg}`,
                 };
               }
             }
@@ -569,86 +622,91 @@ router.post('/test', async (req, res) => {
             // Fallback to Bearer Token
             const { TwitterApi } = await import('twitter-api-v2');
             const client = new TwitterApi(testConfig.x.bearerToken);
-            
+
             // Try to get user info (may fail if Bearer Token is read-only)
             try {
               const user = await client.v2.me();
               const username = user.data.username || user.data.name || 'usuário';
-              
+
               // Try to test posting (will likely fail with Bearer Token)
               try {
                 const testTweetText = `🧪 Teste do VoxelPromo - ${new Date().toLocaleString('pt-BR')}`;
                 await client.v2.tweet({ text: testTweetText });
-                results.x = { 
-                  success: true, 
-                  message: `✅ X (Twitter) Bearer Token configurado! Usuário: @${username} - Postagem funcionando!` 
+                results.x = {
+                  success: true,
+                  message: `✅ X (Twitter) Bearer Token configurado! Usuário: @${username} - Postagem funcionando!`,
                 };
               } catch (postError: any) {
                 // Bearer Token usually can't post
-                results.x = { 
-                  success: false, 
-                  message: `⚠️ X (Twitter) Bearer Token configurado (@${username}), mas não consegue postar. Use OAuth 1.0a para acesso completo.` 
+                results.x = {
+                  success: false,
+                  message: `⚠️ X (Twitter) Bearer Token configurado (@${username}), mas não consegue postar. Use OAuth 1.0a para acesso completo.`,
                 };
               }
             } catch (bearerError: any) {
               // Bearer Token might be read-only, but it's still valid
-              results.x = { 
-                success: false, 
-                message: `⚠️ X (Twitter) Bearer Token configurado, mas não consegue autenticar ou postar. Use OAuth 1.0a para acesso completo.` 
+              results.x = {
+                success: false,
+                message: `⚠️ X (Twitter) Bearer Token configurado, mas não consegue autenticar ou postar. Use OAuth 1.0a para acesso completo.`,
               };
             }
           } else if (testConfig.x?.oauth2AccessToken) {
             // Test OAuth 2.0 Access Token
             const { TwitterApi } = await import('twitter-api-v2');
             const client = new TwitterApi(testConfig.x.oauth2AccessToken);
-            
+
             try {
               const user = await client.v2.me();
               const username = user.data.username || user.data.name || 'usuário';
-              
+
               // Test posting
               try {
                 const testTweetText = `🧪 Teste do VoxelPromo - ${new Date().toLocaleString('pt-BR')} - Este tweet será deletado automaticamente.`;
                 const tweet = await client.v2.tweet({ text: testTweetText });
                 const tweetId = tweet.data.id;
-                
+
                 // Try to delete
                 try {
                   await client.v2.deleteTweet(tweetId);
-                  logger.info(`✅ OAuth 2.0 test tweet created and deleted successfully (ID: ${tweetId})`);
+                  logger.info(
+                    `✅ OAuth 2.0 test tweet created and deleted successfully (ID: ${tweetId})`
+                  );
                 } catch (deleteError: any) {
-                  logger.warn(`⚠️ OAuth 2.0 test tweet created (ID: ${tweetId}) but couldn't delete: ${deleteError.message}`);
+                  logger.warn(
+                    `⚠️ OAuth 2.0 test tweet created (ID: ${tweetId}) but couldn't delete: ${deleteError.message}`
+                  );
                 }
-                
-                results.x = { 
-                  success: true, 
-                  message: `✅ X (Twitter) OAuth 2.0 configurado e testado! Usuário: @${username} - Postagem funcionando perfeitamente!` 
+
+                results.x = {
+                  success: true,
+                  message: `✅ X (Twitter) OAuth 2.0 configurado e testado! Usuário: @${username} - Postagem funcionando perfeitamente!`,
                 };
               } catch (postError: any) {
                 const postErrorMsg = postError.message || '';
                 if (postErrorMsg.includes('403') || postErrorMsg.includes('Forbidden')) {
-                  results.x = { 
-                    success: false, 
-                    message: `⚠️ Autenticação OK (@${username}), mas sem permissão para postar. Verifique as permissões do app no Twitter Developer Portal.` 
+                  results.x = {
+                    success: false,
+                    message: `⚠️ Autenticação OK (@${username}), mas sem permissão para postar. Verifique as permissões do app no Twitter Developer Portal.`,
                   };
                 } else {
-                  results.x = { 
-                    success: false, 
-                    message: `⚠️ Autenticação OK (@${username}), mas erro ao testar postagem: ${postErrorMsg}` 
+                  results.x = {
+                    success: false,
+                    message: `⚠️ Autenticação OK (@${username}), mas erro ao testar postagem: ${postErrorMsg}`,
                   };
                 }
               }
             } catch (authError: any) {
-              results.x = { 
-                success: false, 
-                message: `⚠️ Erro ao autenticar com OAuth 2.0: ${authError.message}. Verifique se o token não expirou.` 
+              results.x = {
+                success: false,
+                message: `⚠️ Erro ao autenticar com OAuth 2.0: ${authError.message}. Verifique se o token não expirou.`,
               };
             }
           } else if (testConfig.x?.oauth2ClientId && testConfig.x?.oauth2ClientSecret) {
             // OAuth 2.0 Client ID/Secret configured but no access token yet
-            results.x = { 
-              success: false, 
-              message: 'OAuth 2.0 Client ID/Secret configurados, mas ainda não autenticado. Clique em "Conectar com X" para autorizar.' 
+            results.x = {
+              success: false,
+              message:
+                'OAuth 2.0 Client ID/Secret configurados, mas ainda não autenticado. Clique em "Conectar com X" para autorizar.',
             };
           } else {
             results.x = { success: false, message: 'Credenciais do X (Twitter) não configuradas' };
@@ -679,7 +737,7 @@ router.post('/test', async (req, res) => {
           } else {
             const TelegramBot = (await import('node-telegram-bot-api')).default;
             const bot = new TelegramBot(botToken, { polling: false });
-            
+
             // Test by getting bot info (real API call)
             const botInfo = await bot.getMe();
             if (botInfo && botInfo.username) {
@@ -695,40 +753,47 @@ router.post('/test', async (req, res) => {
 🔗 Sistema: VoxelPromo - Monitoramento de Ofertas
 
 Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
-                  
+
                   logger.info(`Sending test message to Telegram chat ${chatId}`);
                   await bot.sendMessage(chatId, testMessage, { parse_mode: 'HTML' });
-                  
-                  results.telegram = { 
-                    success: true, 
-                    message: `✅ Bot "@${botInfo.username}" configurado e mensagem de teste enviada! Verifique seu Telegram/grupo.` 
+
+                  results.telegram = {
+                    success: true,
+                    message: `✅ Bot "@${botInfo.username}" configurado e mensagem de teste enviada! Verifique seu Telegram/grupo.`,
                   };
                   logger.info('Test message sent successfully to Telegram');
                 } catch (sendError: any) {
                   // Bot is valid but couldn't send message
                   const sendErrorMsg = sendError.message || '';
-                  if (sendErrorMsg.includes('chat not found') || sendErrorMsg.includes('Forbidden') || sendErrorMsg.includes('bot was blocked')) {
-                    results.telegram = { 
-                      success: false, 
-                      message: `⚠️ Bot válido, mas não conseguiu enviar mensagem. Verifique se o Chat ID está correto e se o bot foi adicionado ao grupo/canal.` 
+                  if (
+                    sendErrorMsg.includes('chat not found') ||
+                    sendErrorMsg.includes('Forbidden') ||
+                    sendErrorMsg.includes('bot was blocked')
+                  ) {
+                    results.telegram = {
+                      success: false,
+                      message: `⚠️ Bot válido, mas não conseguiu enviar mensagem. Verifique se o Chat ID está correto e se o bot foi adicionado ao grupo/canal.`,
                     };
                     logger.warn(`Telegram bot valid but cannot send: ${sendErrorMsg}`);
                   } else {
-                    results.telegram = { 
-                      success: true, 
-                      message: `✅ Bot "@${botInfo.username}" configurado. Chat ID: ${chatId} (erro ao enviar teste: ${sendErrorMsg})` 
+                    results.telegram = {
+                      success: true,
+                      message: `✅ Bot "@${botInfo.username}" configurado. Chat ID: ${chatId} (erro ao enviar teste: ${sendErrorMsg})`,
                     };
                     logger.warn(`Telegram bot configured but test send failed: ${sendErrorMsg}`);
                   }
                 }
               } else {
-                results.telegram = { 
-                  success: true, 
-                  message: `✅ Bot "@${botInfo.username}" configurado, mas Chat ID não definido` 
+                results.telegram = {
+                  success: true,
+                  message: `✅ Bot "@${botInfo.username}" configurado, mas Chat ID não definido`,
                 };
               }
             } else {
-              results.telegram = { success: false, message: 'Não foi possível obter informações do bot' };
+              results.telegram = {
+                success: false,
+                message: 'Não foi possível obter informações do bot',
+              };
             }
           }
         } catch (error: any) {
@@ -748,12 +813,13 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
       if (service === 'ai' || !service) {
         try {
           const provider = testConfig.ai?.provider || 'groq';
-          const apiKey = provider === 'groq' ? testConfig.ai?.groqApiKey : testConfig.ai?.openaiApiKey;
-          
+          const apiKey =
+            provider === 'groq' ? testConfig.ai?.groqApiKey : testConfig.ai?.openaiApiKey;
+
           if (!apiKey) {
-            results.ai = { 
-              success: false, 
-              message: `${provider === 'groq' ? 'Groq' : 'OpenAI'} API Key não configurada` 
+            results.ai = {
+              success: false,
+              message: `${provider === 'groq' ? 'Groq' : 'OpenAI'} API Key não configurada`,
             };
           } else {
             if (provider === 'groq') {
@@ -763,7 +829,7 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
               await groq.chat.completions.create({
                 messages: [{ role: 'user', content: 'test' }],
                 model: 'llama-3.3-70b-versatile',
-                max_tokens: 5
+                max_tokens: 5,
               });
               results.ai = { success: true, message: '✅ Conexão com Groq OK' };
             } else {
@@ -773,7 +839,7 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
               await openai.chat.completions.create({
                 messages: [{ role: 'user', content: 'test' }],
                 model: 'gpt-3.5-turbo',
-                max_tokens: 5
+                max_tokens: 5,
               });
               results.ai = { success: true, message: '✅ Conexão com OpenAI OK' };
             }
@@ -796,14 +862,16 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
       if (service === 'mercadolivre' || !service) {
         try {
           if (!testConfig.mercadolivre?.clientId || !testConfig.mercadolivre?.clientSecret) {
-            results.mercadolivre = { 
-              success: false, 
-              message: 'Client ID ou Client Secret não configurados' 
+            results.mercadolivre = {
+              success: false,
+              message: 'Client ID ou Client Secret não configurados',
             };
           } else {
-            const { MercadoLivreService } = await import('../services/mercadolivre/MercadoLivreService');
+            const { MercadoLivreService } = await import(
+              '../services/mercadolivre/MercadoLivreService'
+            );
             const mercadoLivre = new MercadoLivreService();
-            
+
             // Test by checking authentication status
             const config = mercadoLivre.getConfig();
             if (config.accessToken) {
@@ -812,28 +880,28 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
                 const axios = (await import('axios')).default;
                 const response = await axios.get('https://api.mercadolibre.com/users/me', {
                   headers: {
-                    'Authorization': `Bearer ${config.accessToken}`,
-                    'Accept': 'application/json'
+                    Authorization: `Bearer ${config.accessToken}`,
+                    Accept: 'application/json',
                   },
-                  timeout: 10000
+                  timeout: 10000,
                 });
-                
+
                 if (response.data && response.data.id) {
-                  results.mercadolivre = { 
-                    success: true, 
-                    message: `✅ Autenticado como ${response.data.nickname || response.data.id}` 
+                  results.mercadolivre = {
+                    success: true,
+                    message: `✅ Autenticado como ${response.data.nickname || response.data.id}`,
                   };
                 } else {
-                  results.mercadolivre = { 
-                    success: false, 
-                    message: 'Token inválido ou expirado' 
+                  results.mercadolivre = {
+                    success: false,
+                    message: 'Token inválido ou expirado',
                   };
                 }
               } catch (authError: any) {
                 if (authError.response?.status === 401) {
-                  results.mercadolivre = { 
-                    success: false, 
-                    message: 'Token expirado - use "Renovar Token" na página de configurações' 
+                  results.mercadolivre = {
+                    success: false,
+                    message: 'Token expirado - use "Renovar Token" na página de configurações',
                   };
                 } else {
                   throw authError;
@@ -844,11 +912,12 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
               const axios = (await import('axios')).default;
               await axios.get('https://api.mercadolibre.com/sites/MLB/search', {
                 params: { q: 'test', limit: 1 },
-                timeout: 10000
+                timeout: 10000,
               });
-              results.mercadolivre = { 
-                success: true, 
-                message: '✅ API acessível (não autenticado - configure OAuth para usar recursos autenticados)' 
+              results.mercadolivre = {
+                success: true,
+                message:
+                  '✅ API acessível (não autenticado - configure OAuth para usar recursos autenticados)',
               };
             }
           }
@@ -859,7 +928,11 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
             friendlyMsg = 'Token inválido ou expirado';
           } else if (errorMsg.includes('403') || errorMsg.includes('Forbidden')) {
             friendlyMsg = 'Acesso negado - verifique permissões';
-          } else if (errorMsg.includes('network') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('timeout')) {
+          } else if (
+            errorMsg.includes('network') ||
+            errorMsg.includes('ECONNREFUSED') ||
+            errorMsg.includes('timeout')
+          ) {
             friendlyMsg = 'Erro de conexão - verifique internet';
           }
           logger.error(`Mercado Livre test failed: ${errorMsg}`);
@@ -868,7 +941,7 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
       }
     } finally {
       // Restore original environment variables
-      Object.keys(originalEnv).forEach(key => {
+      Object.keys(originalEnv).forEach((key) => {
         if (originalEnv[key] !== undefined) {
           process.env[key] = originalEnv[key];
         } else {

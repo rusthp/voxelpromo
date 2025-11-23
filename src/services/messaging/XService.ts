@@ -4,6 +4,8 @@ import { logger } from '../../utils/logger';
 import { AIService } from '../ai/AIService';
 import axios from 'axios';
 import crypto from 'crypto';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
 
 export class XService {
   private client: TwitterApi | null = null;
@@ -24,13 +26,12 @@ export class XService {
     // OAuth 2.0 credentials - load from environment or config
     this.oauth2ClientId = process.env.X_OAUTH2_CLIENT_ID || null;
     this.oauth2ClientSecret = process.env.X_OAUTH2_CLIENT_SECRET || null;
-    this.oauth2RedirectUri = process.env.X_OAUTH2_REDIRECT_URI || 'http://localhost:3000/api/x/auth/callback';
+    this.oauth2RedirectUri =
+      process.env.X_OAUTH2_REDIRECT_URI || 'http://localhost:3000/api/x/auth/callback';
 
     // Try to load from config.json if not in environment
     if (!this.oauth2ClientId || !this.oauth2ClientSecret) {
       try {
-        const { readFileSync, existsSync } = require('fs');
-        const { join } = require('path');
         const configPath = join(process.cwd(), 'config.json');
         if (existsSync(configPath)) {
           const config = JSON.parse(readFileSync(configPath, 'utf-8'));
@@ -49,7 +50,12 @@ export class XService {
       }
     }
 
-    if (bearerToken || (apiKey && apiSecret && accessToken && accessSecret) || oauth2AccessToken || (this.oauth2ClientId && this.oauth2ClientSecret)) {
+    if (
+      bearerToken ||
+      (apiKey && apiSecret && accessToken && accessSecret) ||
+      oauth2AccessToken ||
+      (this.oauth2ClientId && this.oauth2ClientSecret)
+    ) {
       logger.info('✅ X (Twitter) configured - will initialize on first use');
     } else {
       logger.warn('⚠️ X (Twitter) credentials not configured');
@@ -81,7 +87,9 @@ export class XService {
     const accessToken = process.env.X_ACCESS_TOKEN;
     const accessSecret = process.env.X_ACCESS_TOKEN_SECRET;
 
-    logger.debug(`X (Twitter) credentials check: apiKey=${!!apiKey}, apiSecret=${!!apiSecret}, accessToken=${!!accessToken}, accessSecret=${!!accessSecret}`);
+    logger.debug(
+      `X (Twitter) credentials check: apiKey=${!!apiKey}, apiSecret=${!!apiSecret}, accessToken=${!!accessToken}, accessSecret=${!!accessSecret}`
+    );
 
     if (apiKey && apiSecret && accessToken && accessSecret) {
       this.client = new TwitterApi({
@@ -108,11 +116,15 @@ export class XService {
       // Decode URL-encoded bearer token if needed
       const decodedToken = decodeURIComponent(bearerToken);
       this.client = new TwitterApi(decodedToken);
-      logger.info('✅ X (Twitter) client initialized with Bearer Token (may have limited permissions)');
+      logger.info(
+        '✅ X (Twitter) client initialized with Bearer Token (may have limited permissions)'
+      );
       return;
     }
 
-    logger.warn('⚠️ X (Twitter) credentials not configured - check config.json or environment variables');
+    logger.warn(
+      '⚠️ X (Twitter) credentials not configured - check config.json or environment variables'
+    );
   }
 
   /**
@@ -124,8 +136,6 @@ export class XService {
     }
 
     try {
-      const { readFileSync, existsSync } = require('fs');
-      const { join } = require('path');
       const configPath = join(process.cwd(), 'config.json');
       if (existsSync(configPath)) {
         const config = JSON.parse(readFileSync(configPath, 'utf-8'));
@@ -163,7 +173,7 @@ export class XService {
 
     const redirectUri = this.oauth2RedirectUri || 'http://localhost:3000/api/x/auth/callback';
     const stateParam = state || crypto.randomBytes(16).toString('hex');
-    
+
     // Build URL according to X API documentation
     // Note: X API OAuth 2.0 does NOT require PKCE for web applications
     const params = new URLSearchParams();
@@ -188,7 +198,10 @@ export class XService {
    * @param codeVerifier Code verifier (for PKCE, optional)
    * @returns Access token and refresh token
    */
-  async exchangeCodeForToken(code: string, codeVerifier?: string): Promise<{
+  async exchangeCodeForToken(
+    code: string,
+    codeVerifier?: string
+  ): Promise<{
     access_token: string;
     refresh_token?: string;
     expires_in: number;
@@ -223,8 +236,8 @@ export class XService {
         {
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': `Basic ${Buffer.from(`${this.oauth2ClientId}:${this.oauth2ClientSecret}`).toString('base64')}`
-          }
+            Authorization: `Basic ${Buffer.from(`${this.oauth2ClientId}:${this.oauth2ClientSecret}`).toString('base64')}`,
+          },
         }
       );
 
@@ -235,15 +248,17 @@ export class XService {
         refresh_token: response.data.refresh_token,
         expires_in: response.data.expires_in || 7200, // Default 2 hours
         token_type: response.data.token_type || 'bearer',
-        scope: response.data.scope || ''
+        scope: response.data.scope || '',
       };
     } catch (error: any) {
       logger.error('Error exchanging OAuth 2.0 code for token:', {
         status: error.response?.status,
         data: error.response?.data,
-        message: error.message
+        message: error.message,
       });
-      throw new Error(`Failed to exchange code for token: ${error.response?.data?.error_description || error.message}`);
+      throw new Error(
+        `Failed to exchange code for token: ${error.response?.data?.error_description || error.message}`
+      );
     }
   }
 
@@ -272,13 +287,13 @@ export class XService {
         new URLSearchParams({
           refresh_token: refreshToken,
           grant_type: 'refresh_token',
-          client_id: this.oauth2ClientId
+          client_id: this.oauth2ClientId,
         }),
         {
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': `Basic ${Buffer.from(`${this.oauth2ClientId}:${this.oauth2ClientSecret}`).toString('base64')}`
-          }
+            Authorization: `Basic ${Buffer.from(`${this.oauth2ClientId}:${this.oauth2ClientSecret}`).toString('base64')}`,
+          },
         }
       );
 
@@ -289,15 +304,17 @@ export class XService {
         refresh_token: response.data.refresh_token,
         expires_in: response.data.expires_in || 7200,
         token_type: response.data.token_type || 'bearer',
-        scope: response.data.scope || ''
+        scope: response.data.scope || '',
       };
     } catch (error: any) {
       logger.error('Error refreshing OAuth 2.0 access token:', {
         status: error.response?.status,
         data: error.response?.data,
-        message: error.message
+        message: error.message,
       });
-      throw new Error(`Failed to refresh token: ${error.response?.data?.error_description || error.message}`);
+      throw new Error(
+        `Failed to refresh token: ${error.response?.data?.error_description || error.message}`
+      );
     }
   }
 
@@ -314,50 +331,54 @@ export class XService {
       logger.debug(`  X_API_KEY: ${process.env.X_API_KEY ? 'SET' : 'NOT SET'}`);
       logger.debug(`  X_API_KEY_SECRET: ${process.env.X_API_KEY_SECRET ? 'SET' : 'NOT SET'}`);
       logger.debug(`  X_ACCESS_TOKEN: ${process.env.X_ACCESS_TOKEN ? 'SET' : 'NOT SET'}`);
-      logger.debug(`  X_ACCESS_TOKEN_SECRET: ${process.env.X_ACCESS_TOKEN_SECRET ? 'SET' : 'NOT SET'}`);
+      logger.debug(
+        `  X_ACCESS_TOKEN_SECRET: ${process.env.X_ACCESS_TOKEN_SECRET ? 'SET' : 'NOT SET'}`
+      );
       logger.debug(`  X_BEARER_TOKEN: ${process.env.X_BEARER_TOKEN ? 'SET' : 'NOT SET'}`);
       return false;
     }
 
     try {
       logger.info(`📤 Sending offer to X (Twitter) - Title: ${offer.title}`);
-      
+
       // Format message for X (Twitter has 280 char limit, but we'll try to keep it concise)
       const message = await this.formatMessage(offer);
 
       // X/Twitter API v2 - create tweet
       // Use readWrite client if available (OAuth 1.0a), otherwise use regular client
       const rwClient = this.client.readWrite || this.client;
-      
+
       // Note: For images, we need to upload media first, then attach to tweet
       if (offer.imageUrl) {
         logger.debug(`📷 Sending offer with image: ${offer.imageUrl}`);
-        
+
         // Download image and upload to Twitter
         try {
           const axios = (await import('axios')).default;
           const imageResponse = await axios.get(offer.imageUrl, {
             responseType: 'arraybuffer',
-            timeout: 10000
+            timeout: 10000,
           });
 
           const imageBuffer = Buffer.from(imageResponse.data);
-          
+
           // Upload media (requires OAuth 1.0a, not Bearer Token)
           if (this.client.readWrite) {
             const mediaId = await this.client.readWrite.v1.uploadMedia(imageBuffer, {
-              mimeType: imageResponse.headers['content-type'] || 'image/jpeg'
+              mimeType: imageResponse.headers['content-type'] || 'image/jpeg',
             });
 
             // Create tweet with media
             const tweet = await this.client.readWrite.v2.tweet({
               text: message,
               media: {
-                media_ids: [mediaId]
-              }
+                media_ids: [mediaId],
+              },
             });
 
-            logger.info(`✅ Offer sent successfully to X (Twitter): ${offer.title} (Tweet ID: ${tweet.data.id})`);
+            logger.info(
+              `✅ Offer sent successfully to X (Twitter): ${offer.title} (Tweet ID: ${tweet.data.id})`
+            );
             return true;
           } else {
             // Bearer Token doesn't support media upload, send text with URL
@@ -367,19 +388,23 @@ export class XService {
           logger.warn(`⚠️ Could not upload image to X, sending text only: ${imageError.message}`);
           // Fallback to text-only tweet
           const tweet = await rwClient.v2.tweet({
-            text: `${message}\n\n📷 ${offer.imageUrl}`
+            text: `${message}\n\n📷 ${offer.imageUrl}`,
           });
-          logger.info(`✅ Offer sent successfully to X (Twitter) (text only): ${offer.title} (Tweet ID: ${tweet.data.id})`);
+          logger.info(
+            `✅ Offer sent successfully to X (Twitter) (text only): ${offer.title} (Tweet ID: ${tweet.data.id})`
+          );
           return true;
         }
       } else {
         // Text-only tweet
         logger.debug('📝 Sending offer without image');
         const tweet = await rwClient.v2.tweet({
-          text: message
+          text: message,
         });
 
-        logger.info(`✅ Offer sent successfully to X (Twitter): ${offer.title} (Tweet ID: ${tweet.data.id})`);
+        logger.info(
+          `✅ Offer sent successfully to X (Twitter): ${offer.title} (Tweet ID: ${tweet.data.id})`
+        );
         return true;
       }
     } catch (error: any) {
@@ -396,7 +421,7 @@ export class XService {
   private async formatMessage(offer: Offer): Promise<string> {
     const impactPhrase = await this.getImpactPhrase(offer);
     const categoryEmoji = this.getCategoryEmoji(offer.category || '');
-    
+
     // Format price
     const priceFormatted = offer.currentPrice.toFixed(2).replace('.', ',');
     const hasDiscount = offer.discountPercentage >= 5 && offer.originalPrice > offer.currentPrice;
@@ -431,10 +456,10 @@ export class XService {
     // Hashtags (limit to fit in 280 chars)
     const hashtags = this.generateHashtags(offer);
     const hashtagString = hashtags.join(' ');
-    
+
     // Build full message
     let message = parts.join('\n\n');
-    
+
     // Add hashtags if we have space (280 char limit)
     const messageWithHashtags = message + '\n\n' + hashtagString;
     if (messageWithHashtags.length <= 280) {
@@ -445,9 +470,7 @@ export class XService {
       if (availableSpace > 20) {
         // Add most important hashtags
         const importantHashtags = ['#oferta', '#promocao', '#desconto'];
-        const hashtagsToAdd = importantHashtags.filter(h => 
-          (message + '\n\n' + h).length <= 280
-        );
+        const hashtagsToAdd = importantHashtags.filter((h) => (message + '\n\n' + h).length <= 280);
         if (hashtagsToAdd.length > 0) {
           message += '\n\n' + hashtagsToAdd.join(' ');
         }
@@ -467,7 +490,7 @@ export class XService {
         this.getAIService().generateImpactPhrase(offer),
         new Promise<string>((resolve) => {
           setTimeout(() => resolve(''), 2000); // 2 second timeout
-        })
+        }),
       ]);
 
       if (aiPhrase && aiPhrase.length > 0) {
@@ -493,17 +516,13 @@ export class XService {
         'NUNCA VI TÃO BARATO',
         'PROMOÇÃO IMPERDÍVEL',
         'DESCONTO INSANO',
-        'OPORTUNIDADE ÚNICA'
+        'OPORTUNIDADE ÚNICA',
       ];
       return phrases[Math.floor(Math.random() * phrases.length)];
     }
 
     if (discount >= 30) {
-      const phrases = [
-        'SUPER PROMOÇÃO',
-        'OFERTA ESPECIAL',
-        'DESCONTO IMPERDÍVEL'
-      ];
+      const phrases = ['SUPER PROMOÇÃO', 'OFERTA ESPECIAL', 'DESCONTO IMPERDÍVEL'];
       return phrases[Math.floor(Math.random() * phrases.length)];
     }
 
@@ -534,7 +553,7 @@ export class XService {
       pets: '🐾',
       food: '🍔',
       health: '💊',
-      other: '📦'
+      other: '📦',
     };
     return categoryEmojis[category.toLowerCase()] || '🔥';
   }
@@ -605,7 +624,6 @@ export class XService {
    * Delay helper
    */
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
-

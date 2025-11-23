@@ -1,21 +1,59 @@
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, statSync } from 'fs';
 import { join } from 'path';
 import { logger } from './logger';
 
 const configPath = join(process.cwd(), 'config.json');
 
+// Cache para evitar carregar config repetidamente
+let configCache: { mtime: number; data: any } | null = null;
+const CACHE_TTL = 1000; // 1 segundo de cache
+
 /**
  * Load configuration from config.json and set environment variables
+ * Uses cache to avoid repeated file reads
  */
-export function loadConfigFromFile(): void {
+export function loadConfigFromFile(force = false): void {
   try {
     if (!existsSync(configPath)) {
+      if (!force && configCache) {
+        return; // Use cached data if file doesn't exist
+      }
       logger.info('No config.json found, using environment variables');
       return;
     }
 
+    // Track if we actually loaded from file (not cache) - check BEFORE loading
+    const hadCache = !!configCache;
+
+    // Check if we can use cache
+    if (!force && configCache) {
+      try {
+        const stats = statSync(configPath);
+        const mtime = stats.mtimeMs;
+
+        // Use cache if file hasn't changed and cache is still fresh
+        if (mtime === configCache.mtime && Date.now() - mtime < CACHE_TTL) {
+          return; // Use cached config - no logging needed
+        }
+      } catch (error) {
+        // If stat fails, reload config
+      }
+    }
+
+    // Actually loading from file (not using cache)
     const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-    logger.info('Loading configuration from config.json...');
+    const stats = statSync(configPath);
+
+    // Update cache
+    configCache = {
+      mtime: stats.mtimeMs,
+      data: config,
+    };
+
+    // Only log if actually loading from file (not using cache) - reduces log spam
+    if (!hadCache || force) {
+      logger.debug('Loading configuration from config.json...');
+    }
 
     // Amazon
     if (config.amazon?.accessKey) {
@@ -43,6 +81,13 @@ export function loadConfigFromFile(): void {
     if (config.whatsapp?.enabled) {
       process.env.WHATSAPP_ENABLED = config.whatsapp.enabled.toString();
       process.env.WHATSAPP_TARGET_NUMBER = config.whatsapp.targetNumber;
+      process.env.WHATSAPP_LIBRARY = config.whatsapp.library || 'whatsapp-web.js';
+      // Only log when actually loading from file (not using cache) to reduce log spam
+      if (force || !configCache) {
+        logger.debug(
+          `WhatsApp config loaded (library: ${config.whatsapp.library || 'whatsapp-web.js'})`
+        );
+      }
     }
 
     // AI Service
@@ -77,7 +122,8 @@ export function loadConfigFromFile(): void {
     if (config.x?.oauth2ClientId) {
       process.env.X_OAUTH2_CLIENT_ID = config.x.oauth2ClientId;
       process.env.X_OAUTH2_CLIENT_SECRET = config.x.oauth2ClientSecret || '';
-      process.env.X_OAUTH2_REDIRECT_URI = config.x.oauth2RedirectUri || 'http://localhost:3000/api/x/auth/callback';
+      process.env.X_OAUTH2_REDIRECT_URI =
+        config.x.oauth2RedirectUri || 'http://localhost:3000/api/x/auth/callback';
       logger.info(`✅ X (Twitter) OAuth 2.0 Client credentials loaded`);
     }
 
@@ -89,9 +135,20 @@ export function loadConfigFromFile(): void {
       logger.info(`✅ X (Twitter) OAuth 2.0 Access Token loaded`);
     }
 
-    logger.info('✅ Configuration loaded from config.json');
+    // Only log if we actually loaded from file (not using cache)
+    // This prevents log spam when config is loaded repeatedly but using cache
+    if (!hadCache || force) {
+      logger.debug('✅ Configuration loaded from config.json');
+    }
   } catch (error: any) {
     logger.error('Error loading config.json:', error.message);
+    configCache = null; // Clear cache on error
   }
 }
 
+/**
+ * Clear config cache (useful when config is updated)
+ */
+export function clearConfigCache(): void {
+  configCache = null;
+}

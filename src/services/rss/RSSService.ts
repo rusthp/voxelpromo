@@ -14,8 +14,8 @@ export class RSSService {
   constructor() {
     this.parser = new Parser({
       customFields: {
-        item: ['price', 'originalPrice', 'discount', 'image']
-      }
+        item: ['price', 'originalPrice', 'discount', 'image'],
+      },
     });
   }
 
@@ -49,7 +49,11 @@ export class RSSService {
       return offers;
     } catch (error: any) {
       // Don't log as error if it's a network/timeout issue - just warn
-      if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || error.code === 'ENOTFOUND') {
+      if (
+        error.code === 'ECONNREFUSED' ||
+        error.code === 'ETIMEDOUT' ||
+        error.code === 'ENOTFOUND'
+      ) {
         logger.warn(`⚠️ Could not connect to RSS feed ${feedUrl}: ${error.message}`);
       } else {
         logger.error(`❌ Error parsing RSS feed ${feedUrl}:`, error.message);
@@ -64,11 +68,13 @@ export class RSSService {
   private parseItem(item: any, source: string): Offer | null {
     try {
       // Try to extract price information from title or content
-      const priceMatch = item.contentSnippet?.match(/R\$\s*([\d,]+\.?\d*)/i) ||
-                        item.title?.match(/R\$\s*([\d,]+\.?\d*)/i);
-      
-      const originalPriceMatch = item.contentSnippet?.match(/de\s*R\$\s*([\d,]+\.?\d*)/i) ||
-                                 item.title?.match(/de\s*R\$\s*([\d,]+\.?\d*)/i);
+      const priceMatch =
+        item.contentSnippet?.match(/R\$\s*([\d,]+\.?\d*)/i) ||
+        item.title?.match(/R\$\s*([\d,]+\.?\d*)/i);
+
+      const originalPriceMatch =
+        item.contentSnippet?.match(/de\s*R\$\s*([\d,]+\.?\d*)/i) ||
+        item.title?.match(/de\s*R\$\s*([\d,]+\.?\d*)/i);
 
       if (!priceMatch) {
         return null; // Skip items without price
@@ -107,7 +113,7 @@ export class RSSService {
         isActive: true,
         isPosted: false,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       };
     } catch (error) {
       logger.error('Error parsing RSS item:', error);
@@ -126,16 +132,16 @@ export class RSSService {
 
     // Try to extract from content
     const content = (item.contentSnippet || item.title || '').toLowerCase();
-    
+
     const categoryKeywords: Record<string, string[]> = {
       electronics: ['celular', 'smartphone', 'notebook', 'tablet', 'fone', 'headphone'],
       fashion: ['roupa', 'calçado', 'sapato', 'camiseta', 'vestido'],
       home: ['casa', 'decoração', 'móvel', 'eletrodoméstico'],
-      beauty: ['perfume', 'cosmético', 'maquiagem', 'skincare']
+      beauty: ['perfume', 'cosmético', 'maquiagem', 'skincare'],
     };
 
     for (const [category, keywords] of Object.entries(categoryKeywords)) {
-      if (keywords.some(keyword => content.includes(keyword))) {
+      if (keywords.some((keyword) => content.includes(keyword))) {
         return category;
       }
     }
@@ -161,4 +167,3 @@ export class RSSService {
     return allOffers;
   }
 }
-

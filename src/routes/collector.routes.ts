@@ -88,4 +88,3 @@ router.post('/run-all', async (_req, res) => {
 });
 
 export { router as collectorRoutes };
-

@@ -3,8 +3,340 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '@/lib/api'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
-import { Settings, Save, TestTube, CheckCircle2, XCircle, Loader, ArrowLeft } from 'lucide-react'
+import { Settings, Save, TestTube, CheckCircle2, XCircle, Loader, ArrowLeft, QrCode } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+
+// WhatsApp QR Code Component
+function WhatsAppQRCode() {
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [qrCodeDataURL, setQrCodeDataURL] = useState<string | null>(null); // QR code as Data URL (base64 image)
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<any>(null);
+  const [lastQRCode, setLastQRCode] = useState<string | null>(null);
+  const [lastTimestamp, setLastTimestamp] = useState<number>(0);
+
+  const loadQRCode = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/whatsapp/qr');
+      if (response.data.success && response.data.qrCode) {
+        const newQR = response.data.qrCode;
+        const newDataURL = response.data.qrCodeDataURL;
+        const qrHash = response.data.qrCodeHash || 'unknown';
+        const qrTimestamp = response.data.qrCodeTimestamp || Date.now();
+
+        // Log for debugging
+        console.log('📱 QR Code recebido do backend:', {
+          length: newQR.length,
+          hash: qrHash,
+          timestamp: qrTimestamp,
+          hasDataURL: !!newDataURL,
+          isNew: newQR !== lastQRCode
+        });
+
+        // Only update if QR code actually changed
+        if (newQR !== lastQRCode) {
+          console.log('🔄 Atualizando QR code no frontend (novo QR code detectado)');
+          setQrCode(newQR);
+          setQrCodeDataURL(newDataURL || null);
+          setLastQRCode(newQR);
+          setLastTimestamp(qrTimestamp);
+        } else {
+          console.log('✅ QR code não mudou, mantendo atual');
+        }
+      } else {
+        console.log('⚠️ Nenhum QR code disponível no backend');
+        setQrCode(null);
+        setQrCodeDataURL(null);
+        setLastQRCode(null);
+      }
+    } catch (error) {
+      console.error('❌ Error loading QR code:', error);
+      setQrCode(null);
+      setQrCodeDataURL(null);
+      setLastQRCode(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadStatus = async () => {
+    try {
+      const response = await api.get('/whatsapp/status');
+      setStatus(response.data);
+
+      // Always check for QR code updates, even if status says ready
+      // This handles cases where QR code expires and new one is generated
+      const currentTimestamp = response.data.timestamp || Date.now();
+      const qrCodeTimestamp = response.data.qrCodeTimestamp || 0;
+
+      if (response.data.qrCode) {
+        const newQR = response.data.qrCode;
+        const newDataURL = response.data.qrCodeDataURL;
+        const qrHash = response.data.qrCodeHash || 'unknown';
+
+        // Update if QR code changed OR QR code timestamp changed (indicates new QR code generation)
+        const qrChanged = newQR !== lastQRCode;
+        const qrTimestampChanged = qrCodeTimestamp > lastTimestamp && qrCodeTimestamp > 0;
+
+        // Debug logging
+        console.log('📱 Status check - QR Code:', {
+          hasQR: !!newQR,
+          length: newQR?.length,
+          hash: qrHash,
+          timestamp: qrCodeTimestamp,
+          hasDataURL: !!newDataURL,
+          changed: qrChanged,
+          timestampChanged: qrTimestampChanged
+        });
+
+        // Update QR code if it changed or timestamp changed
+        if (qrChanged || qrTimestampChanged) {
+          if (qrChanged) {
+            console.log('🔄 QR Code atualizado (novo QR code detectado)');
+          } else if (qrTimestampChanged) {
+            console.log('🔄 QR Code atualizado (timestamp do QR code mudou, forçando atualização)');
+          }
+          setQrCode(newQR);
+          setQrCodeDataURL(newDataURL || null);
+          setLastQRCode(newQR);
+          setLastTimestamp(qrCodeTimestamp || currentTimestamp);
+        }
+        // Also update if we don't have a QR code displayed but backend has one
+        else if (!qrCode && newQR) {
+          console.log('📱 QR Code restaurado do backend');
+          setQrCode(newQR);
+          setQrCodeDataURL(newDataURL || null);
+          setLastQRCode(newQR);
+          setLastTimestamp(qrCodeTimestamp || currentTimestamp);
+        }
+        // QR code hasn't changed
+        else {
+          console.log('✅ QR code não mudou, mantendo atual');
+        }
+      } else if (response.data.isReady) {
+        // Clear QR code only if truly connected
+        if (qrCode) {
+          console.log('✅ WhatsApp conectado, limpando QR code');
+          setQrCode(null);
+          setQrCodeDataURL(null);
+          setLastQRCode(null);
+          setLastTimestamp(0);
+        }
+      } else if (!response.data.hasQRCode && qrCode) {
+        // QR code expired but not ready - clear it and wait for new one
+        console.log('⏳ QR Code expirado, aguardando novo...');
+        setQrCode(null);
+        setQrCodeDataURL(null);
+        setLastQRCode(null);
+        setLastTimestamp(0);
+      }
+    } catch (error) {
+      console.error('Error loading status:', error);
+    }
+  };
+
+  const initializeWhatsApp = async () => {
+    try {
+      setLoading(true);
+      setQrCode(null); // Clear previous QR code
+      setQrCodeDataURL(null); // Clear Data URL
+      setLastQRCode(null);
+      await api.post('/whatsapp/initialize');
+      // Wait a bit and then check for QR code
+      setTimeout(() => {
+        loadQRCode();
+      }, 2000);
+    } catch (error) {
+      console.error('Error initializing WhatsApp:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearAuth = async () => {
+    try {
+      setLoading(true);
+      const response = await api.delete('/whatsapp/auth');
+      if (response.data.success) {
+        setQrCode(null);
+        setQrCodeDataURL(null);
+        setLastQRCode(null);
+        setStatus({ message: response.data.message || 'Sessão limpa. Gere um novo QR code.' });
+        // Auto-generate new QR code after clearing
+        setTimeout(() => {
+          initializeWhatsApp();
+        }, 1000);
+      }
+    } catch (error: any) {
+      console.error('Error clearing auth:', error);
+      setStatus({ message: error.response?.data?.error || 'Erro ao limpar sessão' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (status?.isReady) {
+      setQrCode(null); // Clear QR code if connected
+      setQrCodeDataURL(null); // Clear Data URL
+      setLastQRCode(null);
+    }
+  }, [status?.isReady]);
+
+  useEffect(() => {
+    loadStatus();
+
+    // Poll for status updates every 5 seconds (reduced from 1s for better performance)
+    const interval = setInterval(() => {
+      loadStatus();
+    }, 5000); // 5 seconds
+
+    return () => clearInterval(interval);
+  }, []); // Only run once on mount
+
+  if (status?.isReady) {
+    return (
+      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="w-5 h-5 text-green-600" />
+          <p className="text-sm text-green-700 font-medium">
+            ✅ WhatsApp conectado e pronto!
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t pt-4 mt-4">
+      <h3 className="text-lg font-semibold text-gray-800 mb-3">Conexão WhatsApp</h3>
+
+      {qrCode ? (
+        <div className="space-y-3">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-sm text-blue-800 mb-3">
+              <strong>📱 Escaneie o QR Code abaixo com seu WhatsApp:</strong>
+            </p>
+            <div className="flex justify-center bg-white p-4 rounded-lg">
+              {qrCodeDataURL ? (
+                // Use Data URL from backend (preferred - consistent with terminal)
+                <img
+                  src={qrCodeDataURL}
+                  alt="WhatsApp QR Code"
+                  className="max-w-full h-auto"
+                  onError={(e) => {
+                    console.error('❌ Erro ao carregar Data URL do QR code');
+                    console.log('⚠️ Tentando fallback para API externa...');
+                    // Fallback to external API if Data URL fails
+                    if (qrCode) {
+                      (e.target as HTMLImageElement).src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCode)}`;
+                    }
+                  }}
+                  onLoad={() => {
+                    console.log('✅ QR code Data URL carregado com sucesso');
+                  }}
+                />
+              ) : (
+                // Fallback to external API if Data URL not available
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCode)}`}
+                  alt="WhatsApp QR Code"
+                  className="max-w-full h-auto"
+                  onError={(e) => {
+                    console.error('❌ Erro ao carregar imagem do QR code:', e);
+                  }}
+                  onLoad={() => {
+                    console.log('⚠️ QR code carregado via API externa (Data URL não disponível)');
+                  }}
+                />
+              )}
+            </div>
+            {/* Debug info - remove in production */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="mt-2 text-xs text-gray-500 text-center">
+                QR Code length: {qrCode.length} chars
+                <br />
+                Hash: {qrCode.substring(0, 20)}...{qrCode.substring(qrCode.length - 20)}
+                <br />
+                Using: {qrCodeDataURL ? 'Data URL (backend)' : 'External API (fallback)'}
+              </div>
+            )}
+            <p className="text-xs text-blue-600 mt-3 text-center">
+              Abra o WhatsApp → Menu (3 pontos) → Dispositivos conectados → Conectar um dispositivo
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={loadQRCode}
+              disabled={loading}
+              className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              <QrCode className="w-4 h-4" />
+              {loading ? 'Atualizando...' : 'Atualizar QR Code'}
+            </button>
+            <button
+              onClick={clearAuth}
+              disabled={loading}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 flex items-center justify-center gap-2"
+              title="Limpar sessão e gerar novo QR code"
+            >
+              🔄
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <p className="text-sm text-gray-700 mb-3">
+              {status?.message || 'Clique no botão abaixo para gerar o QR Code'}
+            </p>
+            {status?.hasAuthFiles && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-3">
+                <p className="text-xs text-yellow-800">
+                  ⚠️ Arquivos de autenticação encontrados, mas não conectado.
+                  Clique em "Limpar Sessão" para gerar um novo QR code.
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={initializeWhatsApp}
+              disabled={loading}
+              className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Inicializando...
+                </>
+              ) : (
+                <>
+                  <QrCode className="w-4 h-4" />
+                  Gerar QR Code
+                </>
+              )}
+            </button>
+            {status?.hasAuthFiles && (
+              <button
+                onClick={clearAuth}
+                disabled={loading}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 flex items-center justify-center gap-2"
+                title="Limpar sessão antiga"
+              >
+                🗑️ Limpar Sessão
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 text-center">
+            O QR Code também aparecerá no terminal do backend
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SettingsContent() {
   const router = useRouter()
@@ -18,7 +350,7 @@ function SettingsContent() {
     aliexpress: {},
     mercadolivre: {},
     telegram: {},
-    whatsapp: { enabled: false },
+    whatsapp: { enabled: false, library: 'whatsapp-web.js' },
     x: {},
     ai: { provider: 'groq' },
     rss: [],
@@ -42,43 +374,34 @@ function SettingsContent() {
     try {
       setLoading(true)
       const response = await api.get('/config')
-      // When loading, preserve existing user input if they're typing
-      setConfig((prev: any) => {
-        const loaded = response.data;
-        // Only update if we actually got new data
-        if (!loaded || Object.keys(loaded).length === 0) {
-          return prev
-        }
-        return {
+      const loaded = response.data
+
+      // Always load from backend, but handle masked values
+      if (loaded && Object.keys(loaded).length > 0) {
+        setConfig({
           ...loaded,
-          // Only overwrite with *** if user hasn't typed anything new
+          // Convert *** to empty string for better UX
           telegram: {
             ...loaded.telegram,
-            botToken: prev.telegram?.botToken && 
-                      prev.telegram.botToken !== '***' && 
-                      prev.telegram.botToken.length > 10
-              ? prev.telegram.botToken // Keep user input
-              : (loaded.telegram?.botToken === '***' ? '' : loaded.telegram?.botToken || '') // Clear if masked
+            botToken: loaded.telegram?.botToken === '***' ? '' : loaded.telegram?.botToken || '',
+            chatId: loaded.telegram?.chatId || ''
           },
           ai: {
             ...loaded.ai,
-            groqApiKey: prev.ai?.groqApiKey && 
-                        prev.ai.groqApiKey !== '***' && 
-                        prev.ai.groqApiKey.length > 20
-              ? prev.ai.groqApiKey // Keep user input
-              : (loaded.ai?.groqApiKey === '***' ? '' : loaded.ai?.groqApiKey || '') // Clear if masked
+            groqApiKey: loaded.ai?.groqApiKey === '***' ? '' : loaded.ai?.groqApiKey || '',
+            provider: loaded.ai?.provider || 'groq'
           }
-        };
-      });
+        })
+      }
+
       console.log('Config loaded:', {
         telegram: {
-          hasToken: !!response.data.telegram?.botToken,
-          tokenLength: response.data.telegram?.botToken?.length || 0,
-          chatId: response.data.telegram?.chatId
+          hasToken: !!loaded.telegram?.botToken && loaded.telegram?.botToken !== '***',
+          chatId: loaded.telegram?.chatId
         },
         ai: {
-          hasGroqKey: !!response.data.ai?.groqApiKey,
-          groqKeyLength: response.data.ai?.groqApiKey?.length || 0
+          hasGroqKey: !!loaded.ai?.groqApiKey && loaded.ai?.groqApiKey !== '***',
+          provider: loaded.ai?.provider
         }
       })
     } catch (error) {
@@ -93,15 +416,15 @@ function SettingsContent() {
     if (e) {
       e.preventDefault()
     }
-    
+
     try {
       setSaving(true)
-      
+
       // Get current input values directly from state
       const currentTelegramToken = config.telegram?.botToken || ''
       const currentTelegramChatId = config.telegram?.chatId || ''
       const currentGroqKey = config.ai?.groqApiKey || ''
-      
+
       console.log('Saving config:', {
         telegram: {
           botToken: currentTelegramToken ? currentTelegramToken.substring(0, 10) + '...' : 'empty',
@@ -113,7 +436,7 @@ function SettingsContent() {
           groqKeyLength: currentGroqKey.length
         }
       })
-      
+
       // Prepare values to save - always send all fields, even if empty
       // Backend will handle preserving existing values if new ones are invalid
       const valuesToSave = {
@@ -122,9 +445,9 @@ function SettingsContent() {
           ...config.telegram,
           // Send botToken if it's not the masked value and has reasonable length
           // Telegram bot tokens are typically 45+ characters, but we'll accept anything > 10
-          botToken: currentTelegramToken && 
-                    currentTelegramToken !== '***' && 
-                    currentTelegramToken.trim().length > 0
+          botToken: currentTelegramToken &&
+            currentTelegramToken !== '***' &&
+            currentTelegramToken.trim().length > 0
             ? currentTelegramToken.trim()
             : (currentTelegramToken === '' ? '' : undefined), // Send empty string to clear, undefined to preserve
           chatId: currentTelegramChatId || ''
@@ -133,14 +456,14 @@ function SettingsContent() {
           ...config.ai,
           // Send groqApiKey if it's not the masked value and has reasonable length
           // Groq API keys start with "gsk_" and are typically 50+ characters
-          groqApiKey: currentGroqKey && 
-                      currentGroqKey !== '***' && 
-                      currentGroqKey.trim().length > 0
+          groqApiKey: currentGroqKey &&
+            currentGroqKey !== '***' &&
+            currentGroqKey.trim().length > 0
             ? currentGroqKey.trim()
             : (currentGroqKey === '' ? '' : undefined) // Send empty string to clear, undefined to preserve
         }
       };
-      
+
       console.log('Sending config to backend:', {
         telegram: {
           hasToken: !!valuesToSave.telegram?.botToken,
@@ -153,9 +476,9 @@ function SettingsContent() {
           isUndefined: valuesToSave.ai?.groqApiKey === undefined
         }
       });
-      
+
       const response = await api.post('/config', valuesToSave)
-      
+
       if (response.data && response.data.success !== false) {
         // Success - preserve user input values in state
         setConfig((prev: any) => ({
@@ -163,22 +486,22 @@ function SettingsContent() {
           telegram: {
             ...prev.telegram,
             // Keep the values user just typed
-            botToken: currentTelegramToken && currentTelegramToken !== '***' 
-              ? currentTelegramToken 
+            botToken: currentTelegramToken && currentTelegramToken !== '***'
+              ? currentTelegramToken
               : prev.telegram?.botToken || '',
             chatId: currentTelegramChatId || prev.telegram?.chatId || ''
           },
           ai: {
             ...prev.ai,
-            groqApiKey: currentGroqKey && currentGroqKey !== '***' 
-              ? currentGroqKey 
+            groqApiKey: currentGroqKey && currentGroqKey !== '***'
+              ? currentGroqKey
               : prev.ai?.groqApiKey || ''
           }
         }));
-        
+
         const message = response.data?.message || 'Configuração salva com sucesso!'
         alert('✅ ' + message)
-        
+
         // Log success details
         console.log('Save successful:', {
           telegram: {
@@ -198,7 +521,7 @@ function SettingsContent() {
     } catch (error: any) {
       console.error('Save error:', error)
       let errorMessage = 'Erro desconhecido'
-      
+
       if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
         errorMessage = 'Erro de conexão. Verifique se o backend está rodando em http://localhost:3000'
       } else if (error.response?.data?.error) {
@@ -208,7 +531,7 @@ function SettingsContent() {
       } else if (error.message) {
         errorMessage = error.message
       }
-      
+
       alert('❌ Erro ao salvar: ' + errorMessage)
       console.error('Full error:', error)
     } finally {
@@ -220,16 +543,16 @@ function SettingsContent() {
     try {
       setTesting(service || 'all')
       setTestResults({}) // Clear previous results
-      
+
       const response = await api.post('/config/test', { service })
-      
+
       if (response.data) {
         setTestResults(response.data)
-        
+
         // Show alert with results
         const results = response.data
         let message = '📊 Resultados dos testes:\n\n'
-        
+
         if (results.amazon) {
           message += `Amazon: ${results.amazon.success ? '✅' : '❌'} ${results.amazon.message || ''}\n`
         }
@@ -252,13 +575,13 @@ function SettingsContent() {
         if (results.error) {
           message += `\n❌ Erro: ${results.error}`
         }
-        
+
         alert(message)
       }
     } catch (error: any) {
       console.error('Test error:', error)
       let errorMessage = 'Erro desconhecido'
-      
+
       if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
         errorMessage = 'Erro de conexão. Verifique se o backend está rodando em http://localhost:3000'
       } else if (error.response?.data?.error) {
@@ -266,7 +589,7 @@ function SettingsContent() {
       } else if (error.message) {
         errorMessage = error.message
       }
-      
+
       setTestResults({ error: errorMessage })
       alert('❌ Erro ao testar: ' + errorMessage)
     } finally {
@@ -377,9 +700,8 @@ function SettingsContent() {
               {testing === 'amazon' ? 'Testando...' : 'Testar Conexão'}
             </button>
             {testResults.amazon && (
-              <div className={`p-3 rounded-lg flex items-center gap-2 ${
-                testResults.amazon.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-              }`}>
+              <div className={`p-3 rounded-lg flex items-center gap-2 ${testResults.amazon.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                }`}>
                 {testResults.amazon.success ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
                 <span>{testResults.amazon.message}</span>
               </div>
@@ -436,11 +758,11 @@ function SettingsContent() {
           <div className="space-y-4">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
               <p className="text-sm text-blue-800">
-                <strong>ℹ️ Informação:</strong> O Mercado Livre usa OAuth 2.0 para autenticação. 
+                <strong>ℹ️ Informação:</strong> O Mercado Livre usa OAuth 2.0 para autenticação.
                 Configure as credenciais abaixo e depois autorize o aplicativo.
               </p>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Client ID (App ID)
@@ -459,7 +781,7 @@ function SettingsContent() {
                 </a>
               </p>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Client Secret (Secret Key)
@@ -478,7 +800,7 @@ function SettingsContent() {
                 placeholder="Sua Secret Key"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Redirect URI
@@ -494,7 +816,7 @@ function SettingsContent() {
                 URL de redirecionamento configurada no aplicativo (deve ser exatamente igual)
               </p>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Código de Afiliado ou Link do Hub
@@ -521,14 +843,14 @@ function SettingsContent() {
 
             <div className="border-t pt-4 mt-4">
               <h3 className="text-lg font-semibold text-gray-800 mb-3">Autenticação OAuth</h3>
-              
+
               <div className="space-y-3">
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div>
                     <p className="text-sm font-medium text-gray-700">Status da Autenticação</p>
                     <p className="text-xs text-gray-500">
-                      {config.mercadolivre?.accessToken 
-                        ? '✅ Autenticado (Token válido)' 
+                      {config.mercadolivre?.accessToken
+                        ? '✅ Autenticado (Token válido)'
                         : '❌ Não autenticado'}
                     </p>
                   </div>
@@ -537,7 +859,7 @@ function SettingsContent() {
                       try {
                         const response = await api.get('/mercadolivre/auth/status');
                         if (response.data.authenticated) {
-                          alert('✅ Autenticado!\n\nToken válido até: ' + 
+                          alert('✅ Autenticado!\n\nToken válido até: ' +
                             (response.data.expiresAt ? new Date(response.data.expiresAt).toLocaleString('pt-BR') : 'N/A'));
                         } else {
                           alert('❌ Não autenticado.\n\nConfigure as credenciais e autorize o aplicativo.');
@@ -572,7 +894,7 @@ function SettingsContent() {
                   >
                     🔗 Obter URL de Autorização
                   </button>
-                  
+
                   <button
                     onClick={async () => {
                       // Validate clientSecret is configured
@@ -583,10 +905,10 @@ function SettingsContent() {
 
                       const code = prompt('Cole o código de autorização da URL de redirecionamento:\n\n⚠️ IMPORTANTE: Códigos OAuth expiram em 10 minutos!\nUse o código imediatamente após obter.');
                       if (!code) return;
-                      
+
                       // Clean code (remove URL parameters if user pasted full URL)
                       const cleanCode = code.trim().split('?code=').pop()?.split('&')[0] || code.trim();
-                      
+
                       try {
                         setTesting('mercadolivre');
                         const response = await api.post('/mercadolivre/auth/exchange', { code: cleanCode });
@@ -606,7 +928,7 @@ function SettingsContent() {
                         }
                       } catch (error: any) {
                         let errorMessage = 'Erro desconhecido';
-                        
+
                         if (error.response?.status === 400) {
                           const errorData = error.response.data;
                           if (errorData?.details?.error === 'invalid_grant') {
@@ -621,7 +943,7 @@ function SettingsContent() {
                         } else {
                           errorMessage = '❌ Erro: ' + (error.response?.data?.error || error.message || 'Falha na comunicação');
                         }
-                        
+
                         alert(errorMessage);
                       } finally {
                         setTesting(null);
@@ -676,9 +998,8 @@ function SettingsContent() {
               {testing === 'mercadolivre' ? 'Testando...' : 'Testar Conexão'}
             </button>
             {testResults.mercadolivre && (
-              <div className={`p-3 rounded-lg flex items-center gap-2 ${
-                testResults.mercadolivre.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-              }`}>
+              <div className={`p-3 rounded-lg flex items-center gap-2 ${testResults.mercadolivre.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                }`}>
                 {testResults.mercadolivre.success ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
                 <span>{testResults.mercadolivre.message}</span>
               </div>
@@ -739,9 +1060,8 @@ function SettingsContent() {
               {testing === 'telegram' ? 'Testando...' : 'Testar Bot'}
             </button>
             {testResults.telegram && (
-              <div className={`p-3 rounded-lg flex items-center gap-2 ${
-                testResults.telegram.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-              }`}>
+              <div className={`p-3 rounded-lg flex items-center gap-2 ${testResults.telegram.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                }`}>
                 {testResults.telegram.success ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
                 <span>{testResults.telegram.message}</span>
               </div>
@@ -763,21 +1083,52 @@ function SettingsContent() {
               <span className="text-sm font-medium text-gray-700">Habilitar WhatsApp</span>
             </label>
             {config.whatsapp?.enabled && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Número de Destino (com código do país)
-                </label>
-                <input
-                  type="text"
-                  value={config.whatsapp?.targetNumber || ''}
-                  onChange={(e) => updateConfig('whatsapp', 'targetNumber', e.target.value)}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
-                  placeholder="5511999999999"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Formato: código do país + DDD + número (ex: 5511999999999)
-                </p>
-              </div>
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Biblioteca WhatsApp
+                  </label>
+                  <select
+                    value={config.whatsapp?.library || 'whatsapp-web.js'}
+                    onChange={(e) => updateConfig('whatsapp', 'library', e.target.value)}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                    title="Biblioteca WhatsApp"
+                    aria-label="Biblioteca WhatsApp"
+                  >
+                    <option value="whatsapp-web.js">whatsapp-web.js (Padrão - Estável)</option>
+                    <option value="baileys">Baileys (Recomendado - Mais leve e rápido)</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Baileys é mais leve e menos detectável. whatsapp-web.js é mais estável.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Número de Destino ou ID do Grupo
+                  </label>
+                  <input
+                    type="text"
+                    value={config.whatsapp?.targetNumber || ''}
+                    onChange={(e) => updateConfig('whatsapp', 'targetNumber', e.target.value)}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                    placeholder="5511999999999 ou 120363123456789012@g.us"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    <strong>Número individual:</strong> código do país + DDD + número (ex: 5511999999999)
+                    <br />
+                    <strong>Grupo:</strong> ID do grupo (ex: 120363123456789012@g.us)
+                    <br />
+                    <span className="text-blue-600">💡 Dica:</span> Para obter o ID do grupo, envie uma mensagem no grupo e verifique os logs do backend
+                  </p>
+                </div>
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-sm text-yellow-800">
+                    <strong>⚠️ Aviso:</strong> APIs não oficiais podem resultar em banimento se detectado uso anormal.
+                    Use com cuidado e apenas para uso pessoal/pequeno negócio. Mantenha delays entre mensagens.
+                  </p>
+                </div>
+                <WhatsAppQRCode />
+              </>
             )}
           </div>
         </div>
@@ -789,7 +1140,7 @@ function SettingsContent() {
             <p className="text-sm text-gray-600 mb-4">
               Configure as credenciais do X para publicar ofertas automaticamente.
             </p>
-            
+
             {/* OAuth 1.0a (Recomendado) */}
             <div className="border-t pt-4">
               <h3 className="text-lg font-semibold mb-3 text-gray-700">OAuth 1.0a (Recomendado - Full Access)</h3>
@@ -948,9 +1299,8 @@ function SettingsContent() {
               {testing === 'x' ? 'Testando...' : 'Testar X (Twitter)'}
             </button>
             {testResults.x && (
-              <div className={`p-3 rounded-lg flex items-center gap-2 ${
-                testResults.x.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-              }`}>
+              <div className={`p-3 rounded-lg flex items-center gap-2 ${testResults.x.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                }`}>
                 {testResults.x.success ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
                 <span>{testResults.x.message}</span>
               </div>
@@ -1030,9 +1380,8 @@ function SettingsContent() {
               {testing === 'ai' ? 'Testando...' : 'Testar Serviço'}
             </button>
             {testResults.ai && (
-              <div className={`p-3 rounded-lg flex items-center gap-2 ${
-                testResults.ai.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-              }`}>
+              <div className={`p-3 rounded-lg flex items-center gap-2 ${testResults.ai.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                }`}>
                 {testResults.ai.success ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
                 <span>{testResults.ai.message}</span>
               </div>

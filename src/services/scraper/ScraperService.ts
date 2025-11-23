@@ -27,9 +27,9 @@ export class ScraperService {
       const response = await axios.get(config.url, {
         headers: {
           'User-Agent': this.userAgent,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         },
-        timeout: 10000
+        timeout: 10000,
       });
 
       const $ = cheerio.load(response.data);
@@ -40,7 +40,9 @@ export class ScraperService {
         ? $(config.selectors.originalPrice).first().text().trim()
         : null;
       const imageUrl = config.selectors.image
-        ? $(config.selectors.image).first().attr('src') || $(config.selectors.image).first().attr('data-src') || ''
+        ? $(config.selectors.image).first().attr('src') ||
+          $(config.selectors.image).first().attr('data-src') ||
+          ''
         : '';
       const description = config.selectors.description
         ? $(config.selectors.description).first().text().trim()
@@ -51,9 +53,7 @@ export class ScraperService {
       }
 
       const currentPrice = this.extractPrice(priceText);
-      const originalPrice = originalPriceText
-        ? this.extractPrice(originalPriceText)
-        : currentPrice;
+      const originalPrice = originalPriceText ? this.extractPrice(originalPriceText) : currentPrice;
 
       const discount = originalPrice - currentPrice;
       const discountPercentage = originalPrice > 0 ? (discount / originalPrice) * 100 : 0;
@@ -80,7 +80,7 @@ export class ScraperService {
         isActive: true,
         isPosted: false,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       };
     } catch (error) {
       logger.error(`Error scraping ${config.url}:`, error);
@@ -124,7 +124,6 @@ export class ScraperService {
    * Delay helper
    */
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
-

@@ -33,13 +33,13 @@ export class AmazonService {
       accessKey: process.env.AMAZON_ACCESS_KEY || '',
       secretKey: process.env.AMAZON_SECRET_KEY || '',
       associateTag: process.env.AMAZON_ASSOCIATE_TAG || '',
-      region: process.env.AMAZON_REGION || 'BR'
+      region: process.env.AMAZON_REGION || 'BR',
     };
 
     const endpoints: Record<string, string> = {
       BR: 'webservices.amazon.com.br',
       US: 'webservices.amazon.com',
-      UK: 'webservices.amazon.co.uk'
+      UK: 'webservices.amazon.co.uk',
     };
 
     this.endpoint = endpoints[this.config.region] || endpoints.BR;
@@ -55,6 +55,7 @@ export class AmazonService {
     payload: string
   ): string {
     const algorithm = 'AWS4-HMAC-SHA256';
+    // eslint-disable-next-line no-useless-escape
     const timestamp = new Date().toISOString().replace(/[:\-]|\.\d{3}/g, '');
     const date = timestamp.substr(0, 8);
 
@@ -65,10 +66,7 @@ export class AmazonService {
 
     const kRegion = crypto.createHmac('sha256', kDate).update(this.config.region).digest();
     const kService = crypto.createHmac('sha256', kRegion).update('ProductAdvertisingAPI').digest();
-    const kSigning = crypto
-      .createHmac('sha256', kService)
-      .update('aws4_request')
-      .digest();
+    const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest();
 
     const canonicalRequest = [
       method,
@@ -78,20 +76,17 @@ export class AmazonService {
       `x-amz-date:${timestamp}`,
       '',
       'host;x-amz-date',
-      crypto.createHash('sha256').update(payload).digest('hex')
+      crypto.createHash('sha256').update(payload).digest('hex'),
     ].join('\n');
 
     const stringToSign = [
       algorithm,
       timestamp,
       `${date}/${this.config.region}/ProductAdvertisingAPI/aws4_request`,
-      crypto.createHash('sha256').update(canonicalRequest).digest('hex')
+      crypto.createHash('sha256').update(canonicalRequest).digest('hex'),
     ].join('\n');
 
-    const signature = crypto
-      .createHmac('sha256', kSigning)
-      .update(stringToSign)
-      .digest('hex');
+    const signature = crypto.createHmac('sha256', kSigning).update(stringToSign).digest('hex');
 
     return signature;
   }
@@ -112,8 +107,8 @@ export class AmazonService {
           'ItemInfo.Title',
           'Offers.Listings.Price',
           'CustomerReviews.StarRating',
-          'ItemInfo.ExternalIds'
-        ]
+          'ItemInfo.ExternalIds',
+        ],
       });
 
       const timestamp = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
@@ -126,8 +121,8 @@ export class AmazonService {
       const response = await axios.post(url, payload, {
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
-          'X-Amz-Date': timestamp
-        }
+          'X-Amz-Date': timestamp,
+        },
       });
 
       if (response.data.SearchResult?.Items) {
@@ -155,8 +150,8 @@ export class AmazonService {
           'ItemInfo.ProductInfo',
           'ItemInfo.Title',
           'Offers.Listings.Price',
-          'CustomerReviews.StarRating'
-        ]
+          'CustomerReviews.StarRating',
+        ],
       });
 
       const timestamp = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
@@ -169,8 +164,8 @@ export class AmazonService {
       const response = await axios.post(url, payload, {
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
-          'X-Amz-Date': timestamp
-        }
+          'X-Amz-Date': timestamp,
+        },
       });
 
       if (response.data.ItemsResult?.Items?.[0]) {
@@ -190,8 +185,7 @@ export class AmazonService {
   convertToOffer(product: AmazonProduct, category: string = 'electronics'): Offer | null {
     try {
       const listPrice = product.ListPrice?.Amount || 0;
-      const currentPrice =
-        product.OfferSummary?.LowestNewPrice?.Amount || listPrice;
+      const currentPrice = product.OfferSummary?.LowestNewPrice?.Amount || listPrice;
       const discount = listPrice - currentPrice;
       const discountPercentage = listPrice > 0 ? (discount / listPrice) * 100 : 0;
 
@@ -226,7 +220,7 @@ export class AmazonService {
         isActive: true,
         isPosted: false,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       };
     } catch (error) {
       logger.error('Error converting Amazon product to offer:', error);
@@ -234,4 +228,3 @@ export class AmazonService {
     }
   }
 }
-
