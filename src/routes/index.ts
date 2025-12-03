@@ -9,6 +9,16 @@ import { xRoutes } from './x.routes';
 import whatsappRoutes from './whatsapp.routes';
 import { authenticate } from '../middleware/auth';
 import { adminRoutes } from './admin.routes';
+import fixRoutes from './fix.routes';
+import { postsRoutes } from './posts.routes';
+import { healthRoutes } from './health.routes';
+import { automationRoutes } from './automation.routes';
+import { templatesRoutes } from './templates.routes';
+import {
+  collectionLimiter,
+  configLimiter,
+  apiLimiter,
+} from '../middleware/rate-limit';
 
 export function setupRoutes(app: Express): void {
   // Root callback route for X OAuth (Twitter accepts root domain as callback)
@@ -43,16 +53,21 @@ export function setupRoutes(app: Express): void {
     return res.redirect(process.env.FRONTEND_URL || 'http://localhost:3001');
   });
 
-  // Public routes
-  app.use('/api/auth', authRoutes);
+  // Public routes with specific rate limiting
+  app.use('/api/auth', authRoutes); // Auth routes have internal rate limiting
   app.use('/api/mercadolivre', mercadoLivreRoutes); // OAuth callback needs to be public
   app.use('/api/x', xRoutes); // OAuth callback needs to be public
   app.use('/api/whatsapp', whatsappRoutes); // WhatsApp QR code needs to be accessible
+  app.use('/api/health', healthRoutes); // Health check endpoints
 
-  // Protected routes (require authentication)
-  app.use('/api/offers', authenticate, offerRoutes);
-  app.use('/api/collector', authenticate, collectorRoutes);
-  app.use('/api/stats', authenticate, statsRoutes);
-  app.use('/api/config', authenticate, configRoutes);
-  app.use('/api/admin', authenticate, adminRoutes);
+  // Protected routes (require authentication) with rate limiting
+  app.use('/api/offers', authenticate, apiLimiter, offerRoutes);
+  app.use('/api/collector', authenticate, collectionLimiter, collectorRoutes);
+  app.use('/api/stats', authenticate, apiLimiter, statsRoutes);
+  app.use('/api/config', authenticate, configLimiter, configRoutes);
+  app.use('/api/admin', authenticate, apiLimiter, adminRoutes);
+  app.use('/api/posts', authenticate, apiLimiter, postsRoutes); // Post history
+  app.use('/api/automation', authenticate, apiLimiter, automationRoutes); // Automation system
+  app.use('/api/templates', authenticate, apiLimiter, templatesRoutes); // Message templates
+  app.use('/api/fix', authenticate, fixRoutes); // Temporary fix endpoints
 }

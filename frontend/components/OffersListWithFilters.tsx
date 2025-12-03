@@ -3,7 +3,10 @@
 import { useState, useMemo } from 'react'
 import { api } from '@/lib/api'
 import { format } from 'date-fns'
-import { Sparkles, Send, ExternalLink, Image as ImageIcon, Package, Trash2, CheckSquare, Square, Search, Filter, X } from 'lucide-react'
+import { Sparkles, Send, ExternalLink, Image as ImageIcon, Package, Trash2, CheckSquare, Square, Search, Filter, X, Calendar } from 'lucide-react'
+import { ScheduleModal } from './ScheduleModal'
+import { PostPreviewModal } from './PostPreviewModal'
+import { showSuccess, showError, showWarning } from '@/lib/toast'
 
 interface Offer {
   _id: string
@@ -19,6 +22,7 @@ interface Offer {
   affiliateUrl?: string
   rating?: number
   reviewsCount?: number
+  scheduledAt?: string
 }
 
 interface OffersListProps {
@@ -31,6 +35,14 @@ export function OffersListWithFilters({ offers, onUpdate }: OffersListProps) {
   const [deleting, setDeleting] = useState<string | null>(null)
   const [selectedOffers, setSelectedOffers] = useState<Set<string>>(new Set())
   const [deletingMultiple, setDeletingMultiple] = useState(false)
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
+  const [offerToSchedule, setOfferToSchedule] = useState<Offer | null>(null)
+
+  // Preview modal states
+  const [previewModalOpen, setPreviewModalOpen] = useState(false)
+  const [previewOffer, setPreviewOffer] = useState<Offer | null>(null)
+  const [generatedPost, setGeneratedPost] = useState<string | null>(null)
+  const [previewPlatform, setPreviewPlatform] = useState<'telegram' | 'whatsapp' | 'x' | null>(null)
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('')
@@ -99,37 +111,59 @@ export function OffersListWithFilters({ offers, onUpdate }: OffersListProps) {
       })
       return grouped
     }
-
-    return { 'all': filtered }
+    return { 'all': filtered } // Fallback
   }, [offers, searchQuery, selectedSource, selectedCategory, groupBy])
-
-  const handlePost = async (offerId: string) => {
-    try {
-      setPosting(offerId)
-      await api.post(`/offers/${offerId}/post`, { channels: ['telegram', 'x'] })
-      onUpdate()
-    } catch (error) {
-      console.error('Error posting offer:', error)
-      alert('Erro ao publicar oferta')
-    } finally {
-      setPosting(null)
-    }
-  }
 
   const handleGeneratePost = async (offerId: string) => {
     try {
       setPosting(offerId)
-      await api.post(`/offers/${offerId}/generate-post`, { tone: 'viral' })
-      onUpdate()
-    } catch (error) {
+      const response = await api.post(`/offers/${offerId}/generate-post`, { tone: 'sales' })
+      if (response.data.post) {
+        setGeneratedPost(response.data.post)
+        setPreviewOffer(offers.find(o => o._id === offerId) || null)
+        setPreviewModalOpen(true)
+      }
+    } catch (error: any) {
       console.error('Error generating post:', error)
-      alert('Erro ao gerar post')
+      showError('Erro ao gerar post: ' + (error.response?.data?.error || error.message))
     } finally {
       setPosting(null)
     }
   }
 
-  const handleDelete = async (offerId: string, permanent: boolean = true) => {
+  const handlePost = async (offerId: string) => {
+    try {
+      setPosting(offerId)
+      await api.post(`/offers/${offerId}/post`, { channels: ['telegram'] })
+      onUpdate()
+      showSuccess('✅ Oferta publicada com sucesso!')
+    } catch (error: any) {
+      console.error('Error posting offer:', error)
+      showError('❌ Erro ao publicar oferta: ' + (error.response?.data?.error || error.message))
+    } finally {
+      setPosting(null)
+    }
+  }
+
+  const handleSchedule = (offer: Offer) => {
+    setOfferToSchedule(offer)
+    setScheduleModalOpen(true)
+  }
+
+  const confirmSchedule = async (date: Date) => {
+    if (!offerToSchedule) return
+
+    try {
+      await api.post(`/offers/${offerToSchedule._id}/schedule`, { date })
+      onUpdate()
+      showSuccess(`✅ Oferta agendada para ${format(date, "dd/MM/yyyy 'às' HH:mm")}`)
+    } catch (error) {
+      console.error('Error scheduling offer:', error)
+      showError('❌ Erro ao agendar oferta')
+    }
+  }
+
+  const handleDelete = async (offerId: string, permanent: boolean = false) => {
     if (!confirm(permanent
       ? 'Tem certeza que deseja excluir permanentemente esta oferta? Esta ação não pode ser desfeita.'
       : 'Tem certeza que deseja excluir esta oferta?')) {
@@ -147,7 +181,7 @@ export function OffersListWithFilters({ offers, onUpdate }: OffersListProps) {
       onUpdate()
     } catch (error) {
       console.error('Error deleting offer:', error)
-      alert('Erro ao excluir oferta')
+      showError('❌ Erro ao excluir oferta')
     } finally {
       setDeleting(null)
     }
@@ -178,9 +212,9 @@ export function OffersListWithFilters({ offers, onUpdate }: OffersListProps) {
     }
   }
 
-  const handleDeleteSelected = async (permanent: boolean = true) => {
+  const handleDeleteSelected = async (permanent: boolean = false) => {
     if (selectedOffers.size === 0) {
-      alert('Nenhuma oferta selecionada')
+      showWarning('⚠️ Nenhuma oferta selecionada')
       return
     }
 
@@ -205,11 +239,11 @@ export function OffersListWithFilters({ offers, onUpdate }: OffersListProps) {
       setSelectedOffers(new Set())
       onUpdate()
 
-      alert(`✅ ${response.data.deletedCount || offerIds.length} ofertas excluídas com sucesso!`)
+      showSuccess(`✅ ${response.data.deletedCount || offerIds.length} ofertas excluídas com sucesso!`)
     } catch (error: any) {
       console.error('Error deleting offers:', error)
       console.error('Error response:', error.response?.data)
-      alert(`❌ Erro ao excluir ofertas: ${error.response?.data?.error || error.message}`)
+      showError(`❌ Erro ao excluir ofertas: ${error.response?.data?.error || error.message}`)
     } finally {
       setDeletingMultiple(false)
     }
@@ -461,6 +495,12 @@ export function OffersListWithFilters({ offers, onUpdate }: OffersListProps) {
                           Publicado
                         </span>
                       )}
+                      {offer.scheduledAt && !offer.isPosted && (
+                        <span className="flex-shrink-0 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          Agendado: {format(new Date(offer.scheduledAt), "dd/MM HH:mm")}
+                        </span>
+                      )}
                     </div>
 
                     {/* Meta Info */}
@@ -521,6 +561,14 @@ export function OffersListWithFilters({ offers, onUpdate }: OffersListProps) {
                             ? 'Já Publicado'
                             : 'Publicar'}
                       </button>
+                      <button
+                        onClick={() => handleSchedule(offer)}
+                        disabled={offer.isPosted}
+                        className="px-5 py-2.5 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg hover:from-purple-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center gap-2"
+                      >
+                        <Calendar className="w-4 h-4" />
+                        {offer.scheduledAt ? 'Reagendar' : 'Agendar'}
+                      </button>
                       {offer.affiliateUrl && (
                         <a
                           href={offer.affiliateUrl}
@@ -548,9 +596,50 @@ export function OffersListWithFilters({ offers, onUpdate }: OffersListProps) {
           )}
         </div>
       ))}
+
+      <ScheduleModal
+        isOpen={scheduleModalOpen}
+        onClose={() => {
+          setScheduleModalOpen(false)
+          setOfferToSchedule(null)
+        }}
+        onConfirm={confirmSchedule}
+        title={offerToSchedule?.title || ''}
+      />
+
+      <PostPreviewModal
+        isOpen={previewModalOpen}
+        onClose={() => {
+          setPreviewModalOpen(false)
+          setPreviewOffer(null)
+          setGeneratedPost(null)
+          setPreviewPlatform(null)
+        }}
+        offer={previewOffer}
+        generatedPost={generatedPost}
+        platform={previewPlatform || 'telegram'}
+        onConfirm={async (editedPost) => {
+          if (previewOffer) {
+            try {
+              setPosting(previewOffer._id)
+              await api.post(`/offers/${previewOffer._id}/post`, {
+                channels: [previewPlatform || 'telegram'],
+                customPost: editedPost
+              })
+              onUpdate()
+              showSuccess(`✅ Oferta publicada no ${previewPlatform || 'telegram'} com sucesso!`)
+              setPreviewModalOpen(false)
+            } catch (error: any) {
+              console.error(`Error posting to ${previewPlatform}:`, error)
+              showError(`❌ Erro ao publicar: ` + (error.response?.data?.error || error.message))
+            } finally {
+              setPosting(null)
+            }
+          }
+        }}
+      />
     </div>
   )
 }
 
-
-
+export default OffersListWithFilters

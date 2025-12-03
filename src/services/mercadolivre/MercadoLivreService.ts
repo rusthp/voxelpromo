@@ -1,9 +1,9 @@
 import axios from 'axios';
-import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import * as cheerio from 'cheerio';
+import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { logger } from '../../utils/logger';
 import { Offer } from '../../types';
+import crypto from 'crypto';
 
 interface MercadoLivreConfig {
   clientId: string;
@@ -13,19 +13,15 @@ interface MercadoLivreConfig {
   refreshToken?: string;
   tokenExpiresAt?: number;
   affiliateCode?: string;
+  codeVerifier?: string;
 }
 
-interface MercadoLivreProduct {
+export interface MercadoLivreProduct {
   id: string;
   title: string;
   price: number;
   currency_id: string;
-  /**
-   * Available quantity - NOTE: Returns reference values, not exact quantities
-   * RANGO_1_50 = 1, RANGO_51_100 = 50, RANGO_101_150 = 100, etc.
-   * See: https://developers.mercadolivre.com.br/pt_br/itens-e-buscas
-   */
-  available_quantity: number | string; // Can be number or range string like "RANGO_1_50"
+  available_quantity: number | string;
   condition: string;
   permalink: string;
   thumbnail: string;
@@ -38,14 +34,12 @@ interface MercadoLivreProduct {
     percent: number;
   };
   original_price?: number;
-  // Additional fields from detailed product endpoint
   seller_id?: number;
   seller?: {
     id: number;
     nickname: string;
     reputation?: {
       level_id?: string;
-      power_seller_status?: string;
       transactions?: {
         completed: number;
         canceled: number;
@@ -53,16 +47,11 @@ interface MercadoLivreProduct {
       };
     };
   };
-  descriptions?: Array<{ id: string }>;
   attributes?: Array<{
     id: string;
     name: string;
     value_name: string;
   }>;
-  video_id?: string;
-  warranty?: string;
-  category_id?: string;
-  listing_type_id?: string;
   sale_price?: number;
   base_price?: number;
 }
@@ -76,18 +65,34 @@ interface CacheEntry<T> {
 export class MercadoLivreService {
   private baseUrl = 'https://api.mercadolibre.com';
   private authUrl = 'https://auth.mercadolivre.com.br';
+  private scraper: any = null;
 
   // Cache em memória para resultados de busca
   private searchCache = new Map<string, CacheEntry<MercadoLivreProduct[]>>();
   private cacheDuration = 10 * 60 * 1000; // 10 minutos
 
-  // Controle de rate limiting - última requisição
+  // Controle de rate limiting
   private lastRequestTime = 0;
   private minRequestDelay = 250; // 250ms entre requisições
 
-  /**
-   * Get current config from environment variables or config.json
-   */
+  // Helper for PKCE
+  private base64URLEncode(str: Buffer): string {
+    return str.toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
+  }
+
+  private sha256(buffer: Buffer): Buffer {
+    return crypto.createHash('sha256').update(buffer).digest();
+  }
+
+  private generatePKCE() {
+    const codeVerifier = this.base64URLEncode(crypto.randomBytes(32));
+    const codeChallenge = this.base64URLEncode(this.sha256(Buffer.from(codeVerifier)));
+    return { codeVerifier, codeChallenge };
+  }
+
   getConfig(): MercadoLivreConfig {
     // Try to load from config.json first
     try {
@@ -103,6 +108,8 @@ export class MercadoLivreService {
             accessToken: config.mercadolivre.accessToken,
             refreshToken: config.mercadolivre.refreshToken,
             tokenExpiresAt: config.mercadolivre.tokenExpiresAt,
+            affiliateCode: process.env.MERCADOLIVRE_AFFILIATE_CODE || config.mercadolivre.affiliateCode,
+            codeVerifier: config.mercadolivre.codeVerifier, // Read stored verifier
           };
         }
       }
@@ -110,7 +117,6 @@ export class MercadoLivreService {
       // Fall back to environment variables
     }
 
-    // Fall back to environment variables
     return {
       clientId: process.env.MERCADOLIVRE_CLIENT_ID || '',
       clientSecret: process.env.MERCADOLIVRE_CLIENT_SECRET || '',
@@ -120,30 +126,33 @@ export class MercadoLivreService {
       tokenExpiresAt: process.env.MERCADOLIVRE_TOKEN_EXPIRES_AT
         ? parseInt(process.env.MERCADOLIVRE_TOKEN_EXPIRES_AT)
         : undefined,
+      affiliateCode: process.env.MERCADOLIVRE_AFFILIATE_CODE,
+      codeVerifier: process.env.MERCADOLIVRE_CODE_VERIFIER,
     };
   }
 
-  /**
-   * Get authorization URL for OAuth flow
-   */
-  getAuthorizationUrl(state?: string): string {
+  getAuthorizationUrl(state?: string): { url: string; codeVerifier: string } {
     const config = this.getConfig();
+    const { codeVerifier, codeChallenge } = this.generatePKCE();
+
     const params = new URLSearchParams({
       response_type: 'code',
       client_id: config.clientId,
       redirect_uri: config.redirectUri,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
     });
 
     if (state) {
       params.append('state', state);
     }
 
-    return `${this.authUrl}/authorization?${params.toString()}`;
+    return {
+      url: `${this.authUrl}/authorization?${params.toString()}`,
+      codeVerifier
+    };
   }
 
-  /**
-   * Exchange authorization code for access token
-   */
   async exchangeCodeForToken(code: string): Promise<{
     access_token: string;
     refresh_token: string;
@@ -157,16 +166,23 @@ export class MercadoLivreService {
       throw new Error('Mercado Livre Client ID or Client Secret not configured');
     }
 
+    // PKCE requires code_verifier if it was sent during auth
+    const params = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+      code: code,
+      redirect_uri: config.redirectUri,
+    });
+
+    if (config.codeVerifier) {
+      params.append('code_verifier', config.codeVerifier);
+    }
+
     try {
       const response = await axios.post(
         `${this.baseUrl}/oauth/token`,
-        new URLSearchParams({
-          grant_type: 'authorization_code',
-          client_id: config.clientId,
-          client_secret: config.clientSecret,
-          code: code,
-          redirect_uri: config.redirectUri,
-        }),
+        params,
         {
           headers: {
             accept: 'application/json',
@@ -196,9 +212,6 @@ export class MercadoLivreService {
     }
   }
 
-  /**
-   * Refresh access token using refresh token
-   */
   async refreshAccessToken(): Promise<{
     access_token: string;
     refresh_token: string;
@@ -250,42 +263,30 @@ export class MercadoLivreService {
     }
   }
 
-  /**
-   * Retry request with exponential backoff
-   * Handles rate limiting (403, 429) automatically
-   */
   private async retryRequest<T>(
     requestFn: () => Promise<T>,
-    maxRetries: number = 5,
+    maxRetries: number = 3,
     attempt: number = 1
   ): Promise<T> {
     try {
       return await requestFn();
     } catch (error: any) {
       const status = error.response?.status;
-      const isRateLimit = status === 403 || status === 429;
+      const isRateLimit = status === 429;
+      const isPolicyAgent = status === 403 && error.response?.data?.blocked_by === 'PolicyAgent';
 
-      if (isRateLimit && attempt < maxRetries) {
-        // Exponential backoff: 500ms, 1000ms, 2000ms, 4000ms, 8000ms
-        const waitTime = Math.min(500 * Math.pow(2, attempt - 1), 10000);
-
+      if ((isRateLimit || isPolicyAgent) && attempt < maxRetries) {
+        const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
         logger.warn(
-          `Rate limit atingido (${status}). Tentando novamente em ${waitTime}ms... (tentativa ${attempt}/${maxRetries})`
+          `Rate limit or PolicyAgent block (${status}). Retrying in ${waitTime}ms... (attempt ${attempt}/${maxRetries})`
         );
-
         await new Promise((resolve) => setTimeout(resolve, waitTime));
         return this.retryRequest(requestFn, maxRetries, attempt + 1);
       }
-
-      // Se não for rate limit ou excedeu tentativas, lança o erro
       throw error;
     }
   }
 
-  /**
-   * Throttle requests to avoid rate limiting
-   * Ensures minimum delay between requests
-   */
   private async throttleRequest(): Promise<void> {
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequestTime;
@@ -298,27 +299,17 @@ export class MercadoLivreService {
     this.lastRequestTime = Date.now();
   }
 
-  /**
-   * Generate cache key from search parameters
-   */
   private getCacheKey(keyword: string, limit: number, options?: any): string {
     const optionsStr = JSON.stringify(options || {});
     return `search:${keyword}:${limit}:${optionsStr}`;
   }
 
-  /**
-   * Get cached search results if available and valid
-   */
   private getCachedResults(cacheKey: string): MercadoLivreProduct[] | null {
     const cached = this.searchCache.get(cacheKey);
-
-    if (!cached) {
-      return null;
-    }
+    if (!cached) return null;
 
     const now = Date.now();
     if (now > cached.expiresAt) {
-      // Cache expirado, remove
       this.searchCache.delete(cacheKey);
       return null;
     }
@@ -327,9 +318,6 @@ export class MercadoLivreService {
     return cached.data;
   }
 
-  /**
-   * Cache search results
-   */
   private cacheResults(cacheKey: string, data: MercadoLivreProduct[]): void {
     const now = Date.now();
     this.searchCache.set(cacheKey, {
@@ -338,7 +326,6 @@ export class MercadoLivreService {
       expiresAt: now + this.cacheDuration,
     });
 
-    // Limpar cache antigo (manter apenas últimos 1000 itens)
     if (this.searchCache.size > 1000) {
       const entries = Array.from(this.searchCache.entries());
       entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
@@ -348,880 +335,446 @@ export class MercadoLivreService {
   }
 
   /**
-   * Search products by keyword
-   * Reference: https://developers.mercadolivre.com.br/pt_br/itens-e-buscas
-   * Note: Public search endpoint doesn't require authentication
-   *
-   * Features:
-   * - Automatic retry with exponential backoff for rate limits
-   * - Request throttling (250ms minimum delay)
-   * - Result caching (10 minutes)
-   *
-   * @param keyword - Search keyword
-   * @param limit - Maximum results (default: 20, max: 100)
-   * @param options - Additional search options
-   * @returns Array of products
+   * Save tokens to config.json
    */
-  async searchProducts(
-    keyword: string = 'eletrônicos',
-    limit: number = 20,
-    options?: {
-      sort?: string; // e.g., 'price_asc', 'price_desc', 'relevance'
-      condition?: 'new' | 'used' | 'not_specified';
-      category?: string; // Category ID
-      shippingCost?: 'free' | 'paid';
-      sellerId?: string; // Search by seller ID
-      nickname?: string; // Search by seller nickname
-    }
-  ): Promise<MercadoLivreProduct[]> {
+  private saveTokensToConfig(accessToken: string, refreshToken: string, expiresIn: number): void {
     try {
-      logger.info(`Searching Mercado Livre products with keyword: "${keyword}"`);
+      const configPath = join(process.cwd(), 'config.json');
+      let config: any = {};
 
-      // Validate limit (max 100 per API documentation)
-      const validLimit = Math.min(Math.max(limit, 1), 100);
-
-      // Build search parameters
-      const params: Record<string, any> = {
-        q: keyword,
-        limit: validLimit,
-      };
-
-      // Add sort (default: price_asc to find deals)
-      params.sort = options?.sort || 'price_asc';
-
-      // Add condition filter
-      if (options?.condition) {
-        params.condition = options.condition;
-      } else {
-        params.condition = 'new'; // Default to new products
+      if (existsSync(configPath)) {
+        config = JSON.parse(readFileSync(configPath, 'utf-8'));
       }
 
-      // Add category filter
-      if (options?.category) {
-        params.category = options.category;
+      if (!config.mercadolivre) {
+        config.mercadolivre = {};
       }
 
-      // Add shipping cost filter (free shipping)
-      if (options?.shippingCost === 'free') {
-        params.shipping_cost = 'free';
-      }
+      config.mercadolivre.accessToken = accessToken;
+      config.mercadolivre.refreshToken = refreshToken;
+      config.mercadolivre.tokenExpiresAt = Date.now() + expiresIn * 1000;
 
-      // Add seller filter (by ID or nickname)
-      if (options?.sellerId) {
-        params.seller_id = options.sellerId;
-      } else if (options?.nickname) {
-        params.nickname = options.nickname;
-      }
-
-      // Check cache first
-      const cacheKey = this.getCacheKey(keyword, validLimit, options);
-      const cached = this.getCachedResults(cacheKey);
-      if (cached) {
-        logger.info(`✅ Found ${cached.length} products from cache`, { keyword });
-        return cached;
-      }
-
-      // Throttle request to avoid rate limiting
-      await this.throttleRequest();
-
-      // Make request with retry logic
-      const response = await this.retryRequest(async () => {
-        return await axios.get(`${this.baseUrl}/sites/MLB/search`, {
-          params,
-          headers: {
-            Accept: 'application/json',
-          },
-          timeout: 30000,
-        });
-      });
-
-      if (response.data.results && Array.isArray(response.data.results)) {
-        logger.info(`✅ Found ${response.data.results.length} products from Mercado Livre`, {
-          keyword,
-          limit: validLimit,
-          totalResults: response.data.paging?.total || 0,
-          hasOriginalPrice: response.data.results.filter((p: any) => p.original_price).length,
-          hasDiscounts: response.data.results.filter((p: any) => p.discounts).length,
-        });
-
-        // Log first product structure for debugging
-        if (response.data.results.length > 0) {
-          const firstProduct = response.data.results[0];
-          logger.debug('📦 First product structure:', {
-            id: firstProduct.id,
-            title: firstProduct.title?.substring(0, 50),
-            price: firstProduct.price,
-            original_price: firstProduct.original_price,
-            hasDiscounts: !!firstProduct.discounts,
-            condition: firstProduct.condition,
-            free_shipping: firstProduct.shipping?.free_shipping,
-          });
-        }
-
-        // Cache results
-        this.cacheResults(cacheKey, response.data.results);
-
-        // Note: available_quantity returns reference values, not exact quantities
-        // RANGO_1_50 = 1, RANGO_51_100 = 50, etc.
-
-        return response.data.results;
-      }
-
-      logger.warn('No products found in response', {
-        keyword,
-        responseKeys: Object.keys(response.data || {}),
-        hasResults: !!response.data.results,
-      });
-      return [];
-    } catch (error: any) {
-      logger.error('Error searching Mercado Livre products:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-      });
-      return [];
+      writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+      logger.info('💾 Tokens saved to config.json');
+    } catch (error) {
+      logger.error('❌ Failed to save tokens to config:', error);
     }
   }
 
   /**
-   * Get hot deals / promotions
-   * Uses public search endpoint (no authentication required)
-   * Optimized for finding products with discounts and free shipping
-   *
-   * Improvements:
-   * - Reduced search terms (2 instead of 5) to avoid rate limiting
-   * - Increased limit per search to get more results
-   * - Automatic delay between searches
-   * - Uses cached results when available
+   * Check if token is expired and auto-refresh if needed
    */
-  async getHotDeals(limit: number = 20): Promise<MercadoLivreProduct[]> {
-    try {
-      logger.info('Fetching hot deals from Mercado Livre...');
+  private async ensureValidToken(): Promise<string> {
+    const config = this.getConfig();
 
-      const allDeals: MercadoLivreProduct[] = [];
+    if (!config.accessToken) {
+      throw new Error('Access token not configured. Please authenticate first.');
+    }
 
-      // Reduced search terms to avoid rate limiting
-      // Using only 2 most effective terms instead of 5
-      const searchTerms = ['promoção', 'desconto'];
+    // Check if token is expired (or will expire in next 5 minutes)
+    if (config.tokenExpiresAt) {
+      const now = Date.now();
+      const expiresAt = config.tokenExpiresAt;
+      const fiveMinutes = 5 * 60 * 1000;
 
-      // Calculate how many products to fetch per term
-      const productsPerTerm = Math.ceil(limit / searchTerms.length);
-
-      for (const term of searchTerms) {
+      if (now >= expiresAt - fiveMinutes) {
+        logger.info('🔄 Token expired or expiring soon, refreshing...');
         try {
-          // Search with higher limit per term to get more results
-          const deals = await this.searchProducts(term, Math.min(productsPerTerm * 2, 50), {
-            sort: 'price_asc',
-            condition: 'new',
-            // Removed shippingCost: 'free' to get more results
-          });
+          const refreshed = await this.refreshAccessToken();
 
-          logger.debug(`Found ${deals.length} products for term "${term}"`);
+          // Save the refreshed tokens automatically
+          this.saveTokensToConfig(
+            refreshed.access_token,
+            refreshed.refresh_token,
+            refreshed.expires_in
+          );
 
-          // Add all products (we'll filter by discount later when we have details)
-          for (const product of deals) {
-            if (!allDeals.find((d: any) => d.id === product.id)) {
-              allDeals.push(product);
-            }
-          }
+          logger.info('✅ Token auto-refreshed and saved successfully');
+          return refreshed.access_token;
+        } catch (error) {
+          logger.error('❌ Failed to auto-refresh token:', error);
+          throw error;
+        }
+      }
+    }
 
-          // Stop if we have enough products
-          if (allDeals.length >= limit) {
-            break;
-          }
+    return config.accessToken;
+  }
 
-          // Delay between searches to avoid rate limiting
-          // Only delay if not the last term
-          if (searchTerms.indexOf(term) < searchTerms.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, 500));
+  /**
+   * Get trending products (Hot Items) from Mercado Livre
+   * Uses public API to avoid 403 errors
+   */
+  async getTrendingProducts(limit: number = 20): Promise<MercadoLivreProduct[]> {
+    try {
+      logger.info('🔥 Fetching trending products from Mercado Livre...');
+
+      // Use authenticated endpoint 
+      const accessToken = await this.ensureValidToken();
+
+      const response = await this.retryRequest(async () => {
+        return await axios.get(`${this.baseUrl}/trends/MLB`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+          timeout: 10000,
+        });
+      });
+
+      const trends = response.data || [];
+      logger.info(`✅ Found ${trends.length} trending products`);
+
+      // Trends API returns keywords/search terms, not product IDs directly
+      const trendKeywords = trends
+        .slice(0, Math.min(limit, trends.length))
+        .map((trend: any) => trend.keyword || trend.url || trend)
+        .filter((keyword: any) => typeof keyword === 'string');
+
+      logger.info(`📊 Searching for ${trendKeywords.length} trending keywords...`);
+
+      // Search for products using trending keywords
+      const allProducts: MercadoLivreProduct[] = [];
+
+      for (const keyword of trendKeywords.slice(0, 5)) { // Limit to 5 keywords to avoid rate limiting
+        try {
+          // Use the main search method which now includes Fallback to HTML Scraping
+          const validProducts = await this.searchProducts(keyword, 4);
+          allProducts.push(...validProducts);
+
+          if (validProducts.length > 0) {
+            logger.debug(`  ✓ "${keyword}": found ${validProducts.length} products`);
+          } else {
+            logger.debug(`  - "${keyword}": no products found`);
           }
         } catch (error: any) {
-          logger.debug(`Search term "${term}" failed: ${error.message}`);
-          // Continue with next term even if one fails
+          logger.warn(`  ✗ Failed to search for "${keyword}": ${error.message}`);
         }
       }
 
-      logger.info(`🔥 Found ${allDeals.length} potential deals from Mercado Livre`);
+      logger.info(`✅ Retrieved ${allProducts.length} trending products with prices`);
+      return allProducts.slice(0, limit);
 
-      // Return all products - we'll filter by discount when converting to offers
-      // This allows us to fetch product details first to get accurate original_price
-      return allDeals.slice(0, limit);
     } catch (error: any) {
-      logger.error('Error fetching hot deals:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-      });
+      logger.error('❌ Error fetching trending products:', error.message);
+      if (error.response) {
+        logger.error(`Response Data: ${JSON.stringify(error.response.data)}`);
+      }
       return [];
     }
   }
 
   /**
-   * Get detailed product information by item ID
-   * Reference: https://developers.mercadolivre.com.br/pt_br/itens-e-buscas
-   *
-   * @param itemId - Mercado Livre item ID (e.g., "MLB123456789")
-   * @returns Detailed product information
+   * Alias for getTrendingProducts to satisfy CollectorService
    */
-  async getProductDetails(itemId: string): Promise<MercadoLivreProduct | null> {
-    try {
-      logger.info(`Fetching product details for item: ${itemId}`);
+  async getHotDeals(limit: number = 20): Promise<MercadoLivreProduct[]> {
+    return this.getTrendingProducts(limit);
+  }
 
-      // Throttle request
+  /**
+   * Search products using PUBLIC Search API (no authentication needed, returns prices directly)
+   */
+  async searchProducts(keyword: string, limit: number = 50, options?: any): Promise<MercadoLivreProduct[]> {
+    try {
+      const cacheKey = this.getCacheKey(keyword, limit, options);
+      const cached = this.getCachedResults(cacheKey);
+      if (cached) return cached;
+
       await this.throttleRequest();
 
-      // Public endpoint - no authentication required
+      const validLimit = Math.min(Math.max(limit, 1), 50);
+
+      logger.info(`🔍 Searching Mercado Livre for "${keyword}"...`);
+
+      // ⚠️ Auth failed with 403 (PolicyAgent), so we try Public API with enhanced headers
+      // to mimic a real browser and bypass WAF
+      const searchResponse = await this.retryRequest(async () => {
+        return await axios.get(`${this.baseUrl}/sites/MLB/search`, {
+          params: {
+            q: keyword,
+            limit: validLimit,
+            sort: options?.sort || 'relevance',
+            condition: options?.condition || 'new',
+          },
+          headers: {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Cache-Control': 'max-age=0',
+            'Sec-Ch-Ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          },
+          timeout: 10000,
+        });
+      });
+
+      const results = searchResponse.data.results || [];
+      logger.info(`✅ Found ${results.length} products from search`);
+
+      // Filter products with valid prices
+      const validProducts = results.filter((p: any) => p.price && p.price > 0);
+      logger.info(`✅ ${validProducts.length} products have valid prices`);
+
+      this.cacheResults(cacheKey, validProducts);
+      return validProducts;
+
+    } catch (error: any) {
+      logger.error('Error searching Mercado Livre products via API:', error.message);
+      if (error.response) {
+        logger.error(`Response Data: ${JSON.stringify(error.response.data)}`);
+      }
+
+      // Fallback to HTML Scraping
+      logger.warn('⚠️ API failed, attempting HTML scraping fallback...');
+      const scrapedProducts = await this.scrapeSearchProducts(keyword, limit);
+
+      if (scrapedProducts.length > 0) {
+        const cacheKey = this.getCacheKey(keyword, limit, options);
+        this.cacheResults(cacheKey, scrapedProducts);
+        return scrapedProducts;
+      }
+
+      return [];
+    }
+  }
+
+  async getProductDetails(itemId: string): Promise<MercadoLivreProduct | null> {
+    try {
+      await this.throttleRequest();
+      // Use public endpoint
       const response = await this.retryRequest(async () => {
         return await axios.get(`${this.baseUrl}/items/${itemId}`, {
           headers: {
             Accept: 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           },
-          timeout: 30000,
+          timeout: 10000,
         });
       });
-
-      if (response.data && response.data.id) {
-        logger.info(`✅ Retrieved details for product: ${response.data.title.substring(0, 50)}...`);
-        return response.data;
-      }
-
-      logger.warn(`No product details found for item: ${itemId}`);
-      return null;
+      return response.data;
     } catch (error: any) {
-      logger.error('Error fetching product details:', {
-        itemId,
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-      });
+      logger.warn(`Failed to fetch details for ${itemId}: ${error.message}`);
       return null;
     }
   }
 
-  /**
-   * Get multiple products by IDs (Multiget)
-   * Reference: https://developers.mercadolivre.com.br/pt_br/itens-e-buscas
-   * Maximum 20 items per request
-   *
-   * @param itemIds - Array of item IDs (max 20)
-   * @param attributes - Optional: specific attributes to return
-   * @returns Array of products with status codes
-   */
-  async getMultipleProducts(
-    itemIds: string[],
-    _attributes?: string[]
-  ): Promise<Array<{ code: number; body?: MercadoLivreProduct; error?: any }>> {
+  async getCategoryPrediction(title: string): Promise<string | null> {
     try {
-      // Limit to 20 items per API documentation
-      const ids = itemIds.slice(0, 20).join(',');
-
-      const params: Record<string, any> = {
-        ids,
-      };
-
-      // Note: Mercado Livre API doesn't support attributes filter in multiget
-      // The attributes parameter is ignored here but kept for API compatibility
-
-      logger.info(`Fetching ${itemIds.length} products via multiget (limited to 20)`);
-
-      // Throttle request
-      await this.throttleRequest();
-
+      // Use public endpoint
       const response = await this.retryRequest(async () => {
-        return await axios.get(`${this.baseUrl}/items`, {
-          params,
+        return await axios.get(`${this.baseUrl}/sites/MLB/domain_discovery/search`, {
+          params: { q: title, limit: 1 },
           headers: {
-            Accept: 'application/json',
+            // No Authorization header
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           },
-          timeout: 30000,
+          timeout: 5000,
         });
       });
 
-      if (Array.isArray(response.data)) {
-        logger.info(`✅ Retrieved ${response.data.length} products via multiget`);
-        // Mercado Livre returns array of objects, each can be:
-        // - {code: 200, body: {...}} for successful requests
-        // - {code: 404, error: ...} for failed requests
-        return response.data;
+      if (response.data && response.data.length > 0) {
+        return response.data[0].category_name;
       }
-
-      logger.warn('Multiget response is not an array');
-      return [];
-    } catch (error: any) {
-      logger.error('Error fetching multiple products:', {
-        itemIds: itemIds.slice(0, 5),
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-      });
-      return [];
-    }
-  }
-
-  /**
-   * Search products by seller (for affiliate programs)
-   * Reference: https://developers.mercadolivre.com.br/pt_br/itens-e-buscas
-   *
-   * @param sellerId - Seller ID
-   * @param nickname - Seller nickname (alternative to sellerId)
-   * @param limit - Maximum results
-   * @param options - Additional search options
-   * @returns Array of products from seller
-   */
-  async searchBySeller(
-    sellerId?: string,
-    nickname?: string,
-    limit: number = 20,
-    options?: {
-      category?: string;
-      sort?: string;
-      shippingCost?: 'free' | 'paid';
-    }
-  ): Promise<MercadoLivreProduct[]> {
-    try {
-      if (!sellerId && !nickname) {
-        throw new Error('Either sellerId or nickname must be provided');
-      }
-
-      logger.info(`Searching products by seller: ${sellerId || nickname}`);
-
-      return await this.searchProducts('', limit, {
-        sellerId,
-        nickname,
-        category: options?.category,
-        sort: options?.sort || 'price_asc',
-        shippingCost: options?.shippingCost,
-        condition: 'new',
-      });
-    } catch (error: any) {
-      logger.error('Error searching by seller:', {
-        sellerId,
-        nickname,
-        message: error.message,
-      });
-      return [];
-    }
-  }
-
-  /**
-   * Get product prices (original and sale price)
-   * Reference: https://developers.mercadolivre.com.br/pt_br/itens-e-buscas
-   *
-   * @param itemId - Mercado Livre item ID
-   * @returns Price information
-   */
-  async getProductPrices(itemId: string): Promise<{ original: number; sale: number } | null> {
-    try {
-      // Throttle request
-      await this.throttleRequest();
-
-      const response = await this.retryRequest(async () => {
-        return await axios.get(`${this.baseUrl}/items/${itemId}/prices`, {
-          headers: {
-            Accept: 'application/json',
-          },
-          timeout: 30000,
-        });
-      });
-
-      if (response.data) {
-        return {
-          original: response.data.original_price || response.data.price || 0,
-          sale: response.data.sale_price || response.data.price || 0,
-        };
-      }
-
       return null;
-    } catch (error: any) {
-      logger.error('Error fetching product prices:', {
-        itemId,
-        message: error.message,
-      });
+    } catch (error) {
+      logger.warn(`Failed to predict category for "${title}":`, error);
       return null;
     }
   }
 
-  /**
-   * Build affiliate link for Mercado Livre product
-   *
-   * Supported formats:
-   * 1. Simple affiliate code: https://produto.mercadolivre.com.br/MLB-123456?a=SEU_CODIGO
-   * 2. Hub de Afiliados: https://www.mercadolivre.com.br/afiliados/hub?u=PRODUCT_URL
-   * 3. Direct permalink (if no affiliate code): PRODUCT_PERMALINK
-   *
-   * @param productUrl - Product permalink or URL
-   * @param itemId - Mercado Livre item ID
-   * @returns Affiliate link
-   */
-  buildAffiliateLink(productUrl: string, itemId: string): string {
+
+
+  private buildAffiliateLink(productUrl: string, _itemId: string): string {
     const config = this.getConfig();
     const affiliateCode = config.affiliateCode;
 
-    // If no affiliate code, return original URL
     if (!affiliateCode || affiliateCode.trim() === '') {
-      logger.debug('No affiliate code configured, using direct product URL');
       return productUrl;
     }
 
     try {
-      // Check if affiliate code looks like a hub URL or tracking ID
-      // Hub format: https://www.mercadolivre.com.br/afiliados/hub#... or with query params
+      // If affiliateCode is a URL (e.g. Social Link), extract params and append to product URL
       if (affiliateCode.startsWith('http://') || affiliateCode.startsWith('https://')) {
-        // If it's a full URL (hub de afiliados), append product URL as parameter
-        const hubUrl = new URL(affiliateCode);
+        const affiliateUrlObj = new URL(affiliateCode);
+        const productUrlObj = new URL(productUrl);
 
-        // Preserve hash fragment if present
-        const hash = hubUrl.hash;
-        hubUrl.hash = ''; // Remove hash temporarily to add query param
+        logger.debug(`🔗 Parsing Affiliate URL: ${affiliateCode}`);
+        logger.debug(`   Params found: ${Array.from(affiliateUrlObj.searchParams.keys()).join(', ')}`);
 
-        // Add product URL as parameter
-        hubUrl.searchParams.set('u', productUrl);
+        // Copy relevant params from affiliate URL to product URL
+        affiliateUrlObj.searchParams.forEach((value, key) => {
+          // Skip 'ref' as it likely contains the specific product link from the example
+          if (key !== 'ref') {
+            productUrlObj.searchParams.set(key, value);
+          }
+        });
 
-        // Restore hash fragment if it existed
-        if (hash) {
-          hubUrl.hash = hash;
-        }
-
-        logger.debug(`Built affiliate link using hub format for item ${itemId}`);
-        return hubUrl.toString();
+        const finalUrl = productUrlObj.toString();
+        logger.debug(`   Final URL: ${finalUrl}`);
+        return finalUrl;
       }
 
-      // Method 1: Simple affiliate code (most common)
-      // Format: https://produto.mercadolivre.com.br/MLB-123456?a=SEU_CODIGO
+      // If it's just a code, append as 'a' param (legacy/standard behavior)
       const url = new URL(productUrl);
-
-      // Add affiliate code as query parameter
       url.searchParams.set('a', affiliateCode);
-
-      logger.debug(`Built affiliate link for item ${itemId} with code ${affiliateCode}`);
       return url.toString();
     } catch (error) {
-      // If URL parsing fails, try simple concatenation
-      logger.warn('Failed to parse product URL, using simple concatenation');
+      logger.error('Error building affiliate link:', error);
+      // Fallback for malformed URLs
       const separator = productUrl.includes('?') ? '&' : '?';
       return `${productUrl}${separator}a=${affiliateCode}`;
     }
   }
 
-  /**
-   * Convert Mercado Livre product to Offer format
-   * Uses detailed product information when available
-   */
   convertToOffer(product: MercadoLivreProduct, category: string = 'electronics'): Offer | null {
     try {
-      // Get prices - prioritize detailed product data
       const currentPrice = product.sale_price || product.price || 0;
-      const originalPrice =
-        product.original_price || product.base_price || product.price || currentPrice;
+      const originalPrice = product.original_price || product.base_price || product.price || currentPrice;
+      const discountPercentage = originalPrice > currentPrice
+        ? Math.round(((originalPrice - currentPrice) / originalPrice) * 100)
+        : 0;
 
-      // Calculate discount
-      const discount = originalPrice - currentPrice;
-      const discountPercentage = originalPrice > 0 ? (discount / originalPrice) * 100 : 0;
+      if (currentPrice <= 0) return null;
 
-      // Filter by minimum discount (3% minimum - reduced to get more products)
-      // Only filter if we have a valid original price and discount
-      if (originalPrice > currentPrice && discountPercentage < 3) {
-        logger.debug('Product filtered: discount too low', {
-          productId: product.id,
-          discountPercentage: discountPercentage.toFixed(2),
-          currentPrice,
-          originalPrice,
-        });
-        return null;
-      }
+      const affiliateLink = this.buildAffiliateLink(product.permalink, product.id);
 
-      // If no discount but product has discounts field, accept it
-      // (some products may have discounts that aren't reflected in original_price)
-      if (discountPercentage === 0 && !product.discounts && originalPrice === currentPrice) {
-        logger.debug('Product filtered: no discount detected', {
-          productId: product.id,
-          hasDiscountsField: !!product.discounts,
-        });
-        // Still accept products without discount if they're new and have good rating
-        // This allows more products to appear
-      }
-
-      // Get image URL - prioritize high-quality images
-      let imageUrl = '';
-      if (product.pictures && product.pictures.length > 0) {
-        // Get the first high-quality image
-        imageUrl = product.pictures[0].url || product.thumbnail || '';
-      } else {
-        imageUrl = product.thumbnail || '';
-      }
-
-      // Build product URL
-      const productUrl =
-        product.permalink || `https://produto.mercadolivre.com.br/MLB-${product.id}`;
-
-      // Build affiliate link
-      const affiliateUrl = this.buildAffiliateLink(productUrl, product.id);
-
-      // Extract brand from attributes if available
-      let brand = '';
-      if (product.attributes && Array.isArray(product.attributes)) {
-        const brandAttr = product.attributes.find(
-          (attr) => attr.id === 'BRAND' || attr.name?.toLowerCase().includes('marca')
-        );
-        if (brandAttr) {
-          brand = brandAttr.value_name || '';
-        }
-      }
-
-      // Get seller reputation/rating if available
-      let rating = 0;
-      let reviewsCount = 0;
-      if (product.seller?.reputation?.transactions) {
-        reviewsCount = product.seller.reputation.transactions.completed || 0;
-        // Mercado Livre doesn't provide explicit rating, but we can use seller level
-        const levelId = product.seller.reputation.level_id;
-        if (levelId) {
-          // Map level_id to approximate rating (1-5 scale)
-          // Level IDs: 5_green (best), 4_light_green, 3_yellow, 2_orange, 1_red
-          const levelMap: { [key: string]: number } = {
-            '5_green': 5,
-            '4_light_green': 4,
-            '3_yellow': 3,
-            '2_orange': 2,
-            '1_red': 1,
-          };
-          rating = levelMap[levelId] || 0;
-        }
-      }
-
-      // Build tags from product attributes
-      const tags: string[] = [];
-      if (product.condition) {
-        tags.push(product.condition === 'new' ? 'Novo' : 'Usado');
-      }
-      if (product.shipping?.free_shipping) {
-        tags.push('Frete Grátis');
-      }
-      if (discountPercentage >= 20) {
-        tags.push('Super Desconto');
-      } else if (discountPercentage >= 10) {
-        tags.push('Ótimo Desconto');
-      }
-
-      // Build description
-      let description = product.title;
-      if (product.attributes && Array.isArray(product.attributes)) {
-        const keyAttributes = product.attributes
-          .filter((attr) => ['MODEL', 'BRAND', 'COLOR', 'STORAGE_CAPACITY'].includes(attr.id))
-          .map((attr) => `${attr.name}: ${attr.value_name}`)
-          .join(', ');
-        if (keyAttributes) {
-          description = `${product.title} - ${keyAttributes}`;
-        }
-      }
-
-      const now = new Date();
       return {
         title: product.title,
-        description,
-        originalPrice: Math.round(originalPrice * 100) / 100,
-        currentPrice: Math.round(currentPrice * 100) / 100,
-        discount: Math.round(discount * 100) / 100,
-        discountPercentage: Math.round(discountPercentage * 100) / 100,
+        description: `Oferta Mercado Livre: ${product.title}`,
+        originalPrice: originalPrice > currentPrice ? originalPrice : 0,
+        currentPrice: currentPrice,
+        discount: originalPrice > currentPrice ? originalPrice - currentPrice : 0,
+        discountPercentage: discountPercentage > 0 ? discountPercentage : 0,
         currency: product.currency_id || 'BRL',
-        imageUrl,
-        productUrl,
-        affiliateUrl, // Now uses buildAffiliateLink method
+        imageUrl: product.pictures && product.pictures.length > 0 ? product.pictures[0].url : product.thumbnail,
+        productUrl: product.permalink,
+        affiliateUrl: affiliateLink,
         source: 'mercadolivre',
-        category,
-        rating,
-        reviewsCount,
-        brand,
-        tags,
+        category: category,
+        tags: ['mercadolivre', category],
         isActive: true,
         isPosted: false,
-        createdAt: now,
-        updatedAt: now,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        availability: Number(product.available_quantity) > 0 ? 'in_stock' : 'out_of_stock',
       };
     } catch (error) {
-      logger.error('Error converting Mercado Livre product to offer:', error);
+      logger.error(`Error converting product ${product.id} to offer:`, error);
       return null;
     }
   }
 
+
   /**
-   * Scrape products from Mercado Livre Affiliates Hub page
-   * Alternative method when API is rate-limited
-   *
-   * @param hubUrl - URL of the affiliates hub page
-   * @param limit - Maximum number of products to scrape
-   * @returns Array of products
+   * Scrape search results using Hybrid Strategy (Puppeteer Stealth + Axios)
    */
-  async scrapeAffiliatesHub(
-    hubUrl: string = 'https://www.mercadolivre.com.br/afiliados/hub',
-    limit: number = 50
-  ): Promise<MercadoLivreProduct[]> {
+  private async scrapeSearchProducts(keyword: string, limit: number = 50): Promise<MercadoLivreProduct[]> {
     try {
-      logger.info(`🔍 Scraping Mercado Livre Affiliates Hub: ${hubUrl}`);
+      logger.info(`🕷️ Hybrid Scraping Mercado Livre for "${keyword}"...`);
 
-      // Throttle request
-      await this.throttleRequest();
+      // Lazy load scraper to avoid overhead if not needed
+      if (!this.scraper) {
+        const { MercadoLivreScraper } = require('./MercadoLivreScraper');
+        this.scraper = new MercadoLivreScraper();
+      }
 
-      // Make request with retry
-      const response = await this.retryRequest(async () => {
-        return await axios.get(hubUrl, {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Accept-Encoding': 'gzip, deflate, br',
-            Connection: 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-          },
-          timeout: 30000,
-        });
-      });
+      const encodedKeyword = encodeURIComponent(keyword).replace(/%20/g, '-');
+      const url = `https://lista.mercadolivre.com.br/${encodedKeyword}`;
 
-      const $ = cheerio.load(response.data);
+      let html = '';
+
+      // Step 1: Try Axios with Stealth Headers (Fast)
+      try {
+        const headers = await this.scraper.getHeaders();
+        const response = await axios.get(url, { headers, timeout: 15000 });
+        html = response.data;
+      } catch (axiosError) {
+        logger.warn('⚠️ Axios with Stealth Headers failed, switching to Full Browser Scraping...');
+        // Step 2: Fallback to Full Browser DOM Extraction (Slow but Robust)
+        return await this.scraper.scrapeSearchResults(url);
+      }
+
       const products: MercadoLivreProduct[] = [];
 
-      // Try multiple selectors for product cards (Mercado Livre may change structure)
-      const productSelectors = [
-        'article[data-testid="product-card"]',
-        '.ui-search-result',
-        '[data-testid="product"]',
-        '.item',
-        'li[class*="item"]',
-        'div[class*="item"]',
-      ];
+      // Regex Extraction (Legacy fallback for Axios response)
+      const itemRegex = /<li class="ui-search-layout__item".*?>(.*?)<\/li>/gs;
+      let match;
 
-      let productElements: cheerio.Cheerio<any> | null = null;
-
-      for (const selector of productSelectors) {
-        productElements = $(selector);
-        if (productElements.length > 0) {
-          logger.debug(
-            `Found products using selector: ${selector} (${productElements.length} items)`
-          );
-          break;
-        }
-      }
-
-      if (!productElements || productElements.length === 0) {
-        logger.debug('No products found with standard selectors, trying fallback...');
-        // Try to find any product-like elements
-        productElements = $('a[href*="/produto/"], a[href*="/MLB-"]').parent();
-        if (productElements.length === 0) {
-          // Try finding divs with item-like classes
-          productElements = $('div[class*="item"], li[class*="item"]');
-          if (productElements.length === 0) {
-            logger.warn('No products found using any selectors');
-            return [];
-          }
-        }
-      }
-
-      productElements.slice(0, limit).each((_index, element) => {
+      while ((match = itemRegex.exec(html)) !== null && products.length < limit) {
+        const itemHtml = match[1];
         try {
-          const $el = $(element);
+          // Extract Title
+          const titleMatch = itemHtml.match(/<h2[^>]*>(.*?)<\/h2>/) || itemHtml.match(/class="ui-search-item__title"[^>]*>(.*?)<\/a>/);
+          const title = titleMatch ? titleMatch[1].trim() : '';
 
-          // Extract product information - try multiple methods
-          // Title - try multiple selectors and fallbacks
-          let title = $el
-            .find(
-              'h2, h3, .ui-search-item__title, [data-testid="product-title"], .item-title, [class*="title"]'
-            )
-            .first()
-            .text()
-            .trim();
+          // Extract URL
+          const urlMatch = itemHtml.match(/href="(https:\/\/www\.mercadolivre\.com\.br\/[^"]+)"/);
+          const permalink = urlMatch ? urlMatch[1] : '';
 
-          if (!title) {
-            // Try from link
-            const linkEl = $el
-              .find('a[href*="/produto/"], a[href*="/MLB-"], a[href*="item.mercadolivre"]')
-              .first();
-            title = linkEl.attr('title') || linkEl.text().trim();
+          // Extract ID
+          let id = '';
+          if (permalink) {
+            const idMatch = permalink.match(/(MLB-?\d+)/i) || permalink.match(/\/p\/(MLB\d+)/);
+            id = idMatch ? idMatch[1].replace('-', '') : '';
           }
 
-          if (!title) {
-            // Try from any link in the element
-            title = $el.find('a').first().attr('title') || $el.find('a').first().text().trim();
-          }
+          // Extract Price
+          const priceMatch = itemHtml.match(/<span class="andes-money-amount__fraction">([\d.]+)<\/span>/);
+          const price = priceMatch ? parseFloat(priceMatch[1].replace(/\./g, '')) : 0;
 
-          if (!title || title.length < 5) {
-            return; // Skip if no valid title
-          }
+          // Extract Thumbnail
+          const imgMatch = itemHtml.match(/src="(https:\/\/[^"]+)"/);
+          const thumbnail = imgMatch ? imgMatch[1] : '';
 
-          // Price - try multiple selectors
-          let priceText = $el
-            .find(
-              '.price-tag, .ui-search-price, [data-testid="price"], .price, [class*="price"], .andes-money-amount'
-            )
-            .first()
-            .text()
-            .trim();
-
-          // If no price found, search in all text
-          if (!priceText || !priceText.match(/R\$\s*[\d.,]+/)) {
-            const allText = $el.text();
-            const priceMatch = allText.match(/R\$\s*([\d.,]+)/);
-            priceText = priceMatch ? `R$ ${priceMatch[1]}` : '';
-          }
-
-          const priceMatch = priceText.match(/R\$\s*([\d.,]+)/) || priceText.match(/([\d.,]+)/);
-          const price = priceMatch
-            ? parseFloat(priceText.replace(/[^\d.,]/g, '').replace(',', '.'))
-            : 0;
-
-          // Original price (if discounted)
-          const originalPriceText = $el
-            .find(
-              '.price-tag-original, .ui-search-price__original, [data-testid="original-price"], [class*="original"]'
-            )
-            .first()
-            .text()
-            .trim();
-          const originalPriceMatch = originalPriceText.match(/R\$\s*([\d.,]+)/);
-          const originalPrice = originalPriceMatch
-            ? parseFloat(originalPriceText.replace(/[^\d.,]/g, '').replace(',', '.'))
-            : price;
-
-          // Product URL - try multiple patterns
-          let productLink = $el
-            .find('a[href*="/produto/"], a[href*="/MLB-"], a[href*="item.mercadolivre"]')
-            .first()
-            .attr('href');
-
-          if (!productLink) {
-            // Try any link that might be a product
-            productLink = $el.find('a[href*="mercadolivre"]').first().attr('href');
-          }
-
-          const productUrl = productLink
-            ? productLink.startsWith('http')
-              ? productLink
-              : `https://www.mercadolivre.com.br${productLink}`
-            : '';
-
-          // Extract product ID from URL
-          const idMatch =
-            productUrl.match(/MLB-(\d+)/) ||
-            productUrl.match(/\/produto\/([^/?]+)/) ||
-            productUrl.match(/\/item\/([^/?]+)/);
-          const productId = idMatch
-            ? idMatch[1]
-            : `scraped-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-          // Image - try multiple attributes
-          const imageUrl =
-            $el.find('img').first().attr('src') ||
-            $el.find('img').first().attr('data-src') ||
-            $el.find('img').first().attr('data-lazy') ||
-            $el.find('img').first().attr('data-original') ||
-            '';
-
-          // Condition
-          const conditionText =
-            $el.find('[class*="condition"], .item-condition').first().text().toLowerCase() ||
-            $el.text().toLowerCase();
-          const condition = conditionText.includes('novo')
-            ? 'new'
-            : conditionText.includes('usado')
-              ? 'used'
-              : 'not_specified';
-
-          // Free shipping
-          const freeShipping =
-            $el.find('[class*="free-shipping"], [class*="frete-gratis"], .shipping-free').length >
-              0 ||
-            $el.text().toLowerCase().includes('frete grátis') ||
-            $el.text().toLowerCase().includes('frete gratis');
-
-          // Only add if we have minimum required data
-          if (price > 0 && title && productUrl) {
+          if (title && price > 0 && permalink) {
             products.push({
-              id: productId,
-              title: title.substring(0, 200), // Limit title length
+              id: id || `MLB${Date.now()}${Math.random().toString().slice(2, 5)}`,
+              title,
               price,
-              original_price: originalPrice > price ? originalPrice : undefined,
               currency_id: 'BRL',
-              condition,
-              permalink: productUrl,
-              thumbnail: imageUrl,
-              shipping: {
-                free_shipping: freeShipping,
-              },
               available_quantity: 1,
+              condition: 'new',
+              permalink,
+              thumbnail,
+              pictures: [{ url: thumbnail }]
             });
           }
-        } catch (error: any) {
-          logger.debug(`Error parsing product element: ${error.message}`);
+        } catch (err) {
+          // Skip item
         }
-      });
+      }
 
-      logger.info(`✅ Scraped ${products.length} products from Affiliates Hub`);
+      logger.info(`✅ Hybrid Scraper found ${products.length} products`);
       return products;
+
     } catch (error: any) {
-      logger.error('Error scraping Affiliates Hub:', {
-        message: error.message,
-        status: error.response?.status,
-        url: hubUrl,
-      });
+      logger.error(`❌ Hybrid Scraping failed: ${error.message}`);
       return [];
     }
   }
 
   /**
-   * Collect products using scraping as fallback when API is rate-limited
-   *
-   * @param category - Product category
-   * @param limit - Maximum products to collect
-   * @returns Array of products
+   * Scrape "Ofertas do Dia" page (Page 1 only)
    */
-  async collectViaScraping(
-    _category: string = 'electronics',
-    limit: number = 50
-  ): Promise<MercadoLivreProduct[]> {
+  async getDailyDeals(): Promise<MercadoLivreProduct[]> {
     try {
-      logger.info('🕷️ Using scraping method to collect products (API fallback)');
+      logger.info('🔥 Fetching Daily Deals from Mercado Livre...');
 
-      const allProducts: MercadoLivreProduct[] = [];
-
-      // Try scraping the affiliates hub
-      const hubProducts = await this.scrapeAffiliatesHub(
-        'https://www.mercadolivre.com.br/afiliados/hub',
-        limit
-      );
-      allProducts.push(...hubProducts);
-
-      // Try scraping category pages
-      const categoryUrls = [
-        'https://www.mercadolivre.com.br/ofertas',
-        'https://www.mercadolivre.com.br/ofertas/eletronicos',
-        'https://www.mercadolivre.com.br/ofertas/celulares',
-      ];
-
-      for (const url of categoryUrls) {
-        if (allProducts.length >= limit) break;
-
-        try {
-          await new Promise((resolve) => setTimeout(resolve, 1000)); // Delay between requests
-          const products = await this.scrapeAffiliatesHub(
-            url,
-            Math.min(20, limit - allProducts.length)
-          );
-
-          // Add unique products
-          for (const product of products) {
-            if (!allProducts.find((p) => p.id === product.id)) {
-              allProducts.push(product);
-            }
-          }
-        } catch (error: any) {
-          logger.debug(`Failed to scrape ${url}: ${error.message}`);
-        }
+      // Lazy load scraper
+      if (!this.scraper) {
+        const { MercadoLivreScraper } = require('./MercadoLivreScraper');
+        this.scraper = new MercadoLivreScraper();
       }
 
-      logger.info(`🕷️ Total products collected via scraping: ${allProducts.length}`);
-      return allProducts.slice(0, limit);
+      return await this.scraper.scrapeDailyDeals();
     } catch (error: any) {
-      logger.error('Error in scraping collection:', error);
+      logger.error(`❌ Failed to fetch daily deals: ${error.message}`);
       return [];
     }
   }

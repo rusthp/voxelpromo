@@ -57,9 +57,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     try {
       const response = await api.post('/auth/login', { email, password })
-      
+
       if (response.data.success) {
-        localStorage.setItem('token', response.data.token)
+        localStorage.setItem('token', response.data.accessToken)
+        localStorage.setItem('refreshToken', response.data.refreshToken)
         localStorage.setItem('user', JSON.stringify(response.data.user))
         setUser(response.data.user)
         router.push('/')
@@ -75,9 +76,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (username: string, email: string, password: string) => {
     try {
       const response = await api.post('/auth/register', { username, email, password })
-      
+
       if (response.data.success) {
-        localStorage.setItem('token', response.data.token)
+        localStorage.setItem('token', response.data.accessToken)
+        localStorage.setItem('refreshToken', response.data.refreshToken)
         localStorage.setItem('user', JSON.stringify(response.data.user))
         setUser(response.data.user)
         router.push('/')
@@ -87,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error: any) {
       // Get detailed error message
       let errorMessage = 'Erro ao criar conta'
-      
+
       console.error('Register error details:', {
         message: error.message,
         code: error.code,
@@ -95,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         status: error.response?.status,
         config: error.config?.url
       })
-      
+
       if (error.response?.data?.error) {
         errorMessage = error.response.data.error
       } else if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
@@ -111,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else if (error.message) {
         errorMessage = error.message
       }
-      
+
       throw new Error(errorMessage)
     }
   }

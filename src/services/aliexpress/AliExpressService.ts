@@ -54,6 +54,10 @@ export class AliExpressService {
   private exchangeRateService: any = null;
   private categoryService: CategoryService;
 
+  // Cache for affiliate links (productUrl -> { affiliateLink, timestamp })
+  private affiliateLinkCache = new Map<string, { link: string; timestamp: number }>();
+  private readonly AFFILIATE_LINK_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
   constructor() {
     this.categoryService = new CategoryService();
   }
@@ -136,6 +140,148 @@ export class AliExpressService {
   }
 
   /**
+   * Generate affiliate link for a product URL
+   * This ensures commission tracking for AliExpress products
+   * 
+   * @param productUrl - Original product URL
+   * @returns Affiliate link with tracking, or original URL if generation fails
+   */
+  async generateAffiliateLink(productUrl: string): Promise<string> {
+    try {
+      // Check cache first
+      const cached = this.affiliateLinkCache.get(productUrl);
+      if (cached) {
+        const age = Date.now() - cached.timestamp;
+        if (age < this.AFFILIATE_LINK_CACHE_TTL) {
+          logger.debug('Using cached affiliate link', {
+            productUrl: productUrl.substring(0, 50) + '...',
+            cacheAge: `${Math.round(age / 1000 / 60)}min`
+          });
+          return cached.link;
+        } else {
+          // Cache expired, remove it
+          this.affiliateLinkCache.delete(productUrl);
+        }
+      }
+
+      const config = this.getConfig();
+
+      if (!config.trackingId) {
+        logger.warn('⚠️ No tracking ID configured - affiliate links will not track commissions!');
+        logger.warn('💡 Configure tracking_id in config.json to enable commission tracking');
+        return productUrl;
+      }
+
+      logger.info('🔗 Generating affiliate link via API', {
+        method: 'aliexpress.affiliate.link.generate',
+        trackingId: config.trackingId,
+        urlPreview: productUrl.substring(0, 60) + '...'
+      });
+
+      const params = {
+        promotion_link_type: '0', // 0 = Normal promotion link
+        source_values: productUrl,
+        tracking_id: config.trackingId,
+      };
+
+      const response = await this.makeRequest(
+        'aliexpress.affiliate.link.generate',
+        params,
+        true // Suppress expected errors
+      );
+
+      // Extract affiliate link from response
+      // Try multiple possible response structures
+      let affiliateLink: string | null = null;
+
+      // Structure 1: aliexpress_affiliate_link_generate_response.resp_result.result.promotion_links
+      if (response.aliexpress_affiliate_link_generate_response?.resp_result?.result) {
+        const result = response.aliexpress_affiliate_link_generate_response.resp_result.result;
+
+        if (result.promotion_links && Array.isArray(result.promotion_links)) {
+          const firstLink = result.promotion_links[0];
+          affiliateLink = firstLink?.promotion_link || firstLink?.promotionLink;
+        } else if (result.promotion_links?.promotion_link) {
+          affiliateLink = result.promotion_links.promotion_link;
+        }
+      }
+      // Structure 2: Direct promotion_links array
+      else if (response.promotion_links && Array.isArray(response.promotion_links)) {
+        affiliateLink = response.promotion_links[0]?.promotion_link;
+      }
+
+      if (affiliateLink && typeof affiliateLink === 'string' && affiliateLink.trim().length > 0) {
+        logger.info('✅ Successfully generated affiliate link', {
+          original: productUrl.substring(0, 30) + '...',
+
+
+          affiliate: affiliateLink.substring(0, 30) + '...',
+          hasTracking: affiliateLink.includes(config.trackingId)
+        });
+
+        // Cache the generated link
+        this.affiliateLinkCache.set(productUrl, {
+          link: affiliateLink,
+          timestamp: Date.now()
+        });
+
+        return affiliateLink;
+      } else {
+        logger.warn('⚠️ Affiliate link generation returned empty result, using original URL');
+        return productUrl;
+      }
+    } catch (error: any) {
+      const config = this.getConfig(); // Get config for fallback
+
+      // Expected errors (API not available yet)
+      if (error.message?.includes('InvalidApiPath') || error.message?.includes('InvalidApi')) {
+        logger.warn('⚠️ Affiliate link API not available - using parametrized fallback');
+      } else if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        logger.warn('⚠️ API timeout - using parametrized fallback', {
+          timeout: '60s',
+          suggestion: 'API may be slow or unavailable'
+        });
+      } else {
+        logger.warn('⚠️ Error generating affiliate link via API:', error.message);
+      }
+
+      // Fallback to parametrized URL (still trackable!)
+      return this.generateParametrizedAffiliateLink(productUrl, config.trackingId);
+    }
+  }
+
+  /**
+   * Generate parametrized affiliate link (fallback method)
+   * Adds tracking parameters directly to URL
+   * @param productUrl - Original product URL
+   * @param trackingId - Tracking ID
+   * @returns URL with tracking parameters
+   */
+  private generateParametrizedAffiliateLink(productUrl: string, trackingId: string): string {
+    try {
+      const url = new URL(productUrl);
+
+      // Add AliExpress affiliate tracking parameters
+      url.searchParams.set('aff_platform', 'portals-tool');
+      url.searchParams.set('aff_trace_key', trackingId);
+      url.searchParams.set('terminal_id', 'voxelpromo');
+
+      const parametrizedUrl = url.toString();
+
+      logger.info('✅ Generated parametrized affiliate link (fallback)', {
+        original: productUrl.substring(0, 40) + '...',
+        parametrized: parametrizedUrl.substring(0, 50) + '...',
+        hasTracking: true
+      });
+
+      return parametrizedUrl;
+    } catch (error) {
+      logger.error('Failed to parse URL for parametrization, using original:', error);
+      return productUrl;
+    }
+  }
+
+  /**
    * Generate signature for AliExpress API
    * Based on AliExpress Open Service API documentation
    * Format: MD5(app_secret + sorted_params + app_secret).toUpperCase()
@@ -212,7 +358,7 @@ export class AliExpressService {
       // Reference: https://openservice.aliexpress.com/doc/api.htm
       const response = await axios.get(this.baseUrl, {
         params: requestParams,
-        timeout: 30000, // 30 second timeout
+        timeout: 60000, // 60 second timeout (increased from 30s to handle affiliate link generation)
       });
 
       // Only log debug if it's not an expected InvalidApiPath error
@@ -1103,11 +1249,11 @@ export class AliExpressService {
             .aeop_ae_product_display_dto
         )
           ? response.aliexpress_affiliate_hotproduct_query_response.aeop_ae_product_display_dto_list
-              .aeop_ae_product_display_dto
+            .aeop_ae_product_display_dto
           : [
-              response.aliexpress_affiliate_hotproduct_query_response
-                .aeop_ae_product_display_dto_list.aeop_ae_product_display_dto,
-            ];
+            response.aliexpress_affiliate_hotproduct_query_response
+              .aeop_ae_product_display_dto_list.aeop_ae_product_display_dto,
+          ];
       }
       // Structure 3: Direct products array
       else if (response.aliexpress_affiliate_hotproduct_query_response?.products) {
@@ -1372,9 +1518,9 @@ export class AliExpressService {
         const currentRecordCount = parseInt(
           String(
             result.current_record_count ||
-              result.currentRecordCount ||
-              String(productList.length) ||
-              '0'
+            result.currentRecordCount ||
+            String(productList.length) ||
+            '0'
           ),
           10
         );
@@ -1699,17 +1845,6 @@ export class AliExpressService {
       logger.debug('Error fetching coupons (expected if API not available):', error.message);
       return [];
     }
-  }
-
-  /**
-   * Generate affiliate link
-   */
-  generateAffiliateLink(productUrl: string): string {
-    const config = this.getConfig();
-    const url = new URL(productUrl);
-    url.searchParams.set('aff_platform', 'api');
-    url.searchParams.set('aff_trace_key', config.trackingId);
-    return url.toString();
   }
 
   /**
@@ -2057,7 +2192,7 @@ export class AliExpressService {
         '';
 
       // Generate affiliate link
-      const affiliateUrl = this.generateAffiliateLink(productUrl);
+      const affiliateUrl = await this.generateAffiliateLink(productUrl);
 
       // Extract title
       const title =

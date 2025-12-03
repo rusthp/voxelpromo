@@ -1,7 +1,7 @@
 {
-  "version": "1.0.0",
-  "installedAt": "2025-11-15T23:07:22.932Z",
-  "updatedAt": "2025-11-23T10:33:38.094Z",
+  "version": "1.1.3",
+  "installedAt": "2025-11-23T10:33:49.121Z",
+  "updatedAt": "2025-11-24T23:40:37.345Z",
   "projectId": "voxelpromo",
   "mode": "full",
   "features": {
@@ -11,7 +11,7 @@
     "telemetry": false,
     "notifications": false,
     "dryRun": false,
-    "gitHooks": false,
+    "gitHooks": true,
     "repl": false,
     "templates": true,
     "context": true,
@@ -29,36 +29,5 @@
     "taskExecution": 3600000,
     "cliResponse": 180000,
     "testRun": 600000
-  },
-  "languages": [
-    "typescript"
-  ],
-  "frameworks": [
-    "nestjs",
-    "spring",
-    "laravel",
-    "angular",
-    "react",
-    "vue",
-    "nuxt",
-    "django",
-    "flask",
-    "rails",
-    "symfony",
-    "zend",
-    "jquery",
-    "reactnative",
-    "flutter",
-    "nextjs",
-    "electron"
-  ],
-  "modules": [
-    "vectorizer",
-    "synap",
-    "context7",
-    "github",
-    "playwright"
-  ],
-  "modular": true,
-  "rulebookDir": "rulebook"
+  }
 }

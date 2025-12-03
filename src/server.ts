@@ -1,17 +1,18 @@
+import dotenv from 'dotenv';
+// Load environment variables immediately
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
 import { connectDatabase } from './config/database';
 import { setupRoutes } from './routes';
 import { setupCronJobs } from './jobs/scheduler';
+import { setupSwagger } from './config/swagger';
 import { logger } from './utils/logger';
 import { loadConfigFromFile } from './utils/loadConfig';
 import { validateAndLogEnv } from './utils/validateEnv';
-
-// Load environment variables
-dotenv.config();
 
 // Validate critical environment variables
 validateAndLogEnv();
@@ -53,7 +54,13 @@ app.use('/api/', limiter);
 // Security: CORS with better configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',')
-  : ['http://localhost:3001'];
+  : [];
+
+// Always allow localhost:3001 (frontend) and localhost:3000 (self)
+if (!allowedOrigins.includes('http://localhost:3001')) allowedOrigins.push('http://localhost:3001');
+if (!allowedOrigins.includes('http://localhost:3000')) allowedOrigins.push('http://localhost:3000');
+
+logger.info(`🌐 Allowed CORS Origins: ${allowedOrigins.join(', ')}`);
 
 app.use(
   cors({
@@ -64,13 +71,13 @@ app.use(
       if (allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
-        logger.warn(`CORS blocked request from origin: ${origin}`);
+        logger.warn(`🛑 CORS blocked request from origin: ${origin}`);
         callback(new Error('Not allowed by CORS'));
       }
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
   })
 );
 app.use(express.json());
@@ -80,6 +87,9 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Swagger API Documentation
+setupSwagger(app);
 
 // Routes
 setupRoutes(app);

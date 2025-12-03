@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { api } from '@/lib/api'
 import { format } from 'date-fns'
 import { Sparkles, Send, ExternalLink, Image as ImageIcon, Package, Trash2, CheckSquare, Square } from 'lucide-react'
+import { showError, showWarning } from '@/lib/toast'
 
 interface Offer {
   _id: string
@@ -39,7 +40,7 @@ export function OffersList({ offers, onUpdate }: OffersListProps) {
       onUpdate()
     } catch (error) {
       console.error('Error posting offer:', error)
-      alert('Erro ao publicar oferta')
+      showError('❌ Erro ao publicar oferta')
     } finally {
       setPosting(null)
     }
@@ -52,15 +53,15 @@ export function OffersList({ offers, onUpdate }: OffersListProps) {
       onUpdate()
     } catch (error) {
       console.error('Error generating post:', error)
-      alert('Erro ao gerar post')
+      showError('❌ Erro ao gerar post')
     } finally {
       setPosting(null)
     }
   }
 
   const handleDelete = async (offerId: string, permanent: boolean = true) => {
-    if (!confirm(permanent 
-      ? 'Tem certeza que deseja excluir permanentemente esta oferta? Esta ação não pode ser desfeita.' 
+    if (!confirm(permanent
+      ? 'Tem certeza que deseja excluir permanentemente esta oferta? Esta ação não pode ser desfeita.'
       : 'Tem certeza que deseja excluir esta oferta?')) {
       return
     }
@@ -76,7 +77,7 @@ export function OffersList({ offers, onUpdate }: OffersListProps) {
       onUpdate()
     } catch (error) {
       console.error('Error deleting offer:', error)
-      alert('Erro ao excluir oferta')
+      showError('❌ Erro ao excluir oferta')
     } finally {
       setDeleting(null)
     }
@@ -104,7 +105,7 @@ export function OffersList({ offers, onUpdate }: OffersListProps) {
 
   const handleDeleteSelected = async (permanent: boolean = true) => {
     if (selectedOffers.size === 0) {
-      alert('Nenhuma oferta selecionada')
+      showWarning('⚠️ Nenhuma oferta selecionada')
       return
     }
 
@@ -124,7 +125,7 @@ export function OffersList({ offers, onUpdate }: OffersListProps) {
       onUpdate()
     } catch (error) {
       console.error('Error deleting offers:', error)
-      alert('Erro ao excluir ofertas')
+      showError('❌ Erro ao excluir ofertas')
     } finally {
       setDeletingMultiple(false)
     }
@@ -197,11 +198,10 @@ export function OffersList({ offers, onUpdate }: OffersListProps) {
       {offers.map((offer) => (
         <div
           key={offer._id}
-          className={`bg-white rounded-xl border-2 p-6 hover:shadow-lg transition-all duration-300 ${
-            selectedOffers.has(offer._id) 
-              ? 'border-purple-500 bg-purple-50' 
+          className={`bg-white rounded-xl border-2 p-6 hover:shadow-lg transition-all duration-300 ${selectedOffers.has(offer._id)
+              ? 'border-purple-500 bg-purple-50'
               : 'border-gray-100 hover:border-purple-300'
-          }`}
+            }`}
         >
           <div className="flex flex-col md:flex-row gap-6">
             {/* Checkbox for selection */}
@@ -303,8 +303,8 @@ export function OffersList({ offers, onUpdate }: OffersListProps) {
                   {posting === offer._id
                     ? 'Publicando...'
                     : offer.isPosted
-                    ? 'Já Publicado'
-                    : 'Publicar'}
+                      ? 'Já Publicado'
+                      : 'Publicar'}
                 </button>
                 {offer.affiliateUrl && (
                   <a

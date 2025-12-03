@@ -17,20 +17,30 @@ export default function LoginPage() {
   const { login, register } = useAuth()
   const router = useRouter()
 
+  // Clear any old/invalid tokens on mount to prevent JWT errors
+  React.useEffect(() => {
+    // Clear localStorage on login page mount to remove stale tokens
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('token')
+      localStorage.removeItem('refreshToken')
+      localStorage.removeItem('user')
+    }
+  }, [])
+
   // Check backend status on mount
   React.useEffect(() => {
     const checkBackend = async () => {
       try {
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 3000)
-        
+
         const response = await fetch('http://localhost:3000/health', {
           method: 'GET',
           signal: controller.signal
         })
-        
+
         clearTimeout(timeoutId)
-        
+
         if (response.ok) {
           setBackendStatus('online')
         } else {
@@ -64,19 +74,19 @@ export default function LoginPage() {
           setLoading(false)
           return
         }
-        
+
         if (username.length < 3) {
           setError('Username deve ter no mínimo 3 caracteres')
           setLoading(false)
           return
         }
-        
+
         if (password.length < 6) {
           setError('Senha deve ter no mínimo 6 caracteres')
           setLoading(false)
           return
         }
-        
+
         // Basic email validation
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
         if (!emailRegex.test(email)) {
@@ -84,7 +94,7 @@ export default function LoginPage() {
           setLoading(false)
           return
         }
-        
+
         await register(username, email, password)
       }
       router.push('/')
@@ -115,7 +125,7 @@ export default function LoginPage() {
             </div>
           </div>
         )}
-        
+
         {/* Logo/Header */}
         <div className="text-center mb-8">
           <h1 className="text-5xl font-bold text-white mb-3 drop-shadow-lg">VoxelPromo</h1>

@@ -15,11 +15,11 @@ const OfferSchema = new Schema<OfferDocument>(
     discountPercentage: { type: Number, required: true },
     currency: { type: String, default: 'BRL' },
     imageUrl: { type: String, required: true },
-    productUrl: { type: String, required: true },
+    productUrl: { type: String, required: true, unique: true },
     affiliateUrl: { type: String, required: true },
     source: {
       type: String,
-      enum: ['amazon', 'aliexpress', 'shopee', 'rss', 'manual'],
+      enum: ['amazon', 'aliexpress', 'shopee', 'mercadolivre', 'rss', 'manual'],
       required: true,
       index: true,
     },
@@ -36,6 +36,7 @@ const OfferSchema = new Schema<OfferDocument>(
     postedAt: { type: Date },
     postedChannels: [{ type: String }],
     aiGeneratedPost: { type: String },
+    scheduledAt: { type: Date, index: true },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
   },
@@ -49,7 +50,17 @@ OfferSchema.index({ createdAt: -1 });
 OfferSchema.index({ discountPercentage: -1 });
 OfferSchema.index({ isActive: 1, isPosted: 1 });
 OfferSchema.index({ source: 1, category: 1 });
+
 // Compound index for common queries: active offers sorted by date and discount
 OfferSchema.index({ isActive: 1, createdAt: -1, discountPercentage: -1 });
+
+// Scheduled posts index (for cron job efficiency)
+OfferSchema.index({ isPosted: 1, scheduledAt: 1 });
+
+// Source and date index (analytics queries)
+OfferSchema.index({ source: 1, createdAt: -1 });
+
+// Category and discount index (finding best deals per category)
+OfferSchema.index({ category: 1, discountPercentage: -1 });
 
 export const OfferModel = mongoose.model<OfferDocument>('Offer', OfferSchema);

@@ -82,4 +82,25 @@ Before deploying:
 - [ ] Rate limiting is enabled
 - [ ] Error messages don't expose sensitive info
 - [ ] Logs don't contain sensitive data
+- [ ] Change all default passwords and API keys
+- [ ] Use strong, unique secrets for JWT_SECRET
+- [ ] Enable MongoDB authentication
+- [ ] Configure firewall rules
+- [ ] Use HTTPS/TLS for all connections
+- [ ] Review and restrict CORS origins
+- [ ] Enable security headers (Helmet.js)
+- [ ] Monitor logs for suspicious activity
 
+## Reporting a Vulnerability
+
+If you discover a security vulnerability, please:
+
+1. **DO NOT** open a public issue
+2. Email security details to: [your-email@example.com]
+3. Include:
+   - Description of the vulnerability
+   - Steps to reproduce
+   - Potential impact
+   - Suggested fix (if available)
+
+We will respond within 48 hours and work to fix the issue promptly.

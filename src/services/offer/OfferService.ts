@@ -1,4 +1,5 @@
 import { OfferModel } from '../../models/Offer';
+import { PostHistoryModel } from '../../models/PostHistory';
 import { Offer, FilterOptions } from '../../types';
 import { logger } from '../../utils/logger';
 import { AIService } from '../ai/AIService';
@@ -6,6 +7,7 @@ import { TelegramService } from '../messaging/TelegramService';
 import { WhatsAppServiceFactory } from '../messaging/WhatsAppServiceFactory';
 import { IWhatsAppService } from '../messaging/IWhatsAppService';
 import { XService } from '../messaging/XService';
+import { sanitizeOffer } from '../../middleware/sanitization';
 
 export class OfferService {
   private aiService: AIService | null = null;
@@ -86,8 +88,11 @@ export class OfferService {
    */
   async saveOffer(offer: Offer): Promise<Offer> {
     try {
-      // Validate numeric fields before saving
-      const validatedOffer = this.validateOfferNumbers(offer);
+      // Sanitize offer data before validation
+      const sanitized = sanitizeOffer(offer);
+
+      // Validate numeric fields after sanitization
+      const validatedOffer = this.validateOfferNumbers(sanitized);
 
       // Check if offer already exists (by URL) - check both active and inactive
       const existing = await OfferModel.findOne({ productUrl: validatedOffer.productUrl });
@@ -191,7 +196,9 @@ export class OfferService {
     // Process offers
     for (const offer of offers) {
       try {
-        const validatedOffer = this.validateOfferNumbers(offer);
+        // Sanitize and validate
+        const sanitized = sanitizeOffer(offer);
+        const validatedOffer = this.validateOfferNumbers(sanitized);
 
         // Check if already exists as ACTIVE offer
         const urlMatch = validatedOffer.productUrl?.match(/\/item\/(\d+)\.html/);
@@ -395,21 +402,80 @@ export class OfferService {
       let success = false;
       const postedChannels: string[] = [];
 
+      // Prepare post content
+      const postContent = offer.aiGeneratedPost || `${offer.title}\n\nPreço: R$ ${offer.currentPrice}\nDesconto: ${offer.discountPercentage}%\n\n${offer.productUrl}`;
+
       // Send to Telegram
       if (channels.includes('telegram')) {
-        const telegramSuccess = await this.getTelegramService().sendOffer(offer);
-        if (telegramSuccess) {
-          postedChannels.push('telegram');
-          success = true;
+        try {
+          const telegramSuccess = await this.getTelegramService().sendOffer(offer);
+          if (telegramSuccess) {
+            postedChannels.push('telegram');
+            success = true;
+
+            // Save to history
+            await PostHistoryModel.create({
+              offerId,
+              platform: 'telegram',
+              postContent,
+              status: 'success',
+            });
+          } else {
+            // Save failed attempt
+            await PostHistoryModel.create({
+              offerId,
+              platform: 'telegram',
+              postContent,
+              status: 'failed',
+              error: 'Failed to send to Telegram',
+            });
+          }
+        } catch (error: any) {
+          logger.error('Error posting to Telegram:', error);
+          await PostHistoryModel.create({
+            offerId,
+            platform: 'telegram',
+            postContent,
+            status: 'failed',
+            error: error.message,
+          });
         }
       }
 
       // Send to WhatsApp
       if (channels.includes('whatsapp')) {
-        const whatsappSuccess = await this.getWhatsAppService().sendOffer(offer);
-        if (whatsappSuccess) {
-          postedChannels.push('whatsapp');
-          success = true;
+        try {
+          const whatsappSuccess = await this.getWhatsAppService().sendOffer(offer);
+          if (whatsappSuccess) {
+            postedChannels.push('whatsapp');
+            success = true;
+
+            // Save to history
+            await PostHistoryModel.create({
+              offerId,
+              platform: 'whatsapp',
+              postContent,
+              status: 'success',
+            });
+          } else {
+            // Save failed attempt
+            await PostHistoryModel.create({
+              offerId,
+              platform: 'whatsapp',
+              postContent,
+              status: 'failed',
+              error: 'Failed to send to WhatsApp',
+            });
+          }
+        } catch (error: any) {
+          logger.error('Error posting to WhatsApp:', error);
+          await PostHistoryModel.create({
+            offerId,
+            platform: 'whatsapp',
+            postContent,
+            status: 'failed',
+            error: error.message,
+          });
         }
       }
 
@@ -422,14 +488,38 @@ export class OfferService {
             postedChannels.push('x');
             success = true;
             logger.info(`✅ Successfully posted offer ${offerId} to X (Twitter)`);
+
+            // Save to history
+            await PostHistoryModel.create({
+              offerId,
+              platform: 'x',
+              postContent,
+              status: 'success',
+            });
           } else {
             logger.warn(`⚠️ Failed to post offer ${offerId} to X (Twitter) - check logs above`);
+            // Save failed attempt
+            await PostHistoryModel.create({
+              offerId,
+              platform: 'x',
+              postContent,
+              status: 'failed',
+              error: 'Failed to post to X',
+            });
           }
         } catch (xError: any) {
           logger.error(
             `❌ Error posting offer ${offerId} to X (Twitter): ${xError.message}`,
             xError
           );
+          // Save failed attempt
+          await PostHistoryModel.create({
+            offerId,
+            platform: 'x',
+            postContent,
+            status: 'failed',
+            error: xError.message,
+          });
         }
       }
 
@@ -516,6 +606,73 @@ export class OfferService {
     } catch (error) {
       logger.error('Error deleting offers:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Schedule offer for posting
+   */
+  async scheduleOffer(id: string, date: Date): Promise<boolean> {
+    try {
+      const offer = await OfferModel.findById(id);
+      if (!offer) {
+        throw new Error('Offer not found');
+      }
+
+      await OfferModel.findByIdAndUpdate(id, {
+        scheduledAt: date,
+        updatedAt: new Date(),
+      });
+
+      logger.info(`📅 Scheduled offer ${id} for ${date.toISOString()}`);
+      return true;
+    } catch (error) {
+      logger.error('Error scheduling offer:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Process scheduled offers
+   */
+  async processScheduledOffers(): Promise<number> {
+    try {
+      const now = new Date();
+      const scheduledOffers = await OfferModel.find({
+        isActive: true,
+        isPosted: false,
+        scheduledAt: { $lte: now },
+      });
+
+      if (scheduledOffers.length === 0) {
+        return 0;
+      }
+
+      logger.info(`⏰ Processing ${scheduledOffers.length} scheduled offers...`);
+      let processedCount = 0;
+
+      for (const offer of scheduledOffers) {
+        try {
+          // Post to all configured channels
+          const success = await this.postOffer(offer._id.toString(), ['telegram', 'x', 'whatsapp']);
+
+          if (success) {
+            // Clear scheduledAt after successful posting
+            await OfferModel.findByIdAndUpdate(offer._id, {
+              $unset: { scheduledAt: 1 }
+            });
+            processedCount++;
+            await this.delay(2000); // Rate limit
+          }
+        } catch (error) {
+          logger.error(`Error processing scheduled offer ${offer._id}:`, error);
+        }
+      }
+
+      return processedCount;
+    } catch (error) {
+      logger.error('Error processing scheduled offers:', error);
+      return 0;
     }
   }
 

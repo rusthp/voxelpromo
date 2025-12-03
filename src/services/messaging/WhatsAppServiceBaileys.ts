@@ -24,6 +24,7 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
   private sock: WASocket | null = null;
   private _isReady = false;
   private targetNumber: string = '';
+  private targetGroups: string[] = []; // Array de IDs de grupos
   private initialized = false;
   private currentQRCode: string | null = null;
   private currentQRCodeDataURL: string | null = null; // QR code as Data URL (base64 image)
@@ -40,19 +41,35 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
   }
 
   /**
-   * Load target number from environment or config.json
+   * Load target number and groups from environment or config.json
    */
   private loadTargetNumber(forceReload: boolean = false): void {
     // Use loadConfigFromFile to ensure env vars are up to date
-    // Use cache by default to avoid repeated file reads
     loadConfigFromFile(forceReload);
 
     // Read from environment (which was set by loadConfigFromFile)
     this.targetNumber = process.env.WHATSAPP_TARGET_NUMBER || '';
 
-    // Only log when actually loading (not on every call)
-    if (this.targetNumber && forceReload) {
-      logger.debug(`WhatsApp target number loaded: ${this.targetNumber}`);
+    // Load targetGroups from config.json directly
+    try {
+      const configPath = join(process.cwd(), 'config.json');
+      if (existsSync(configPath)) {
+        const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+        this.targetGroups = config.whatsapp?.targetGroups || [];
+      }
+    } catch (error) {
+      logger.warn('Could not load targetGroups from config.json:', error);
+      this.targetGroups = [];
+    }
+
+    // Retrocompatibilidade: se targetGroups vazio, usar targetNumber
+    if (this.targetGroups.length === 0 && this.targetNumber) {
+      this.targetGroups = [this.targetNumber];
+      if (forceReload) {
+        logger.debug(`Using targetNumber as single target: ${this.targetNumber}`);
+      }
+    } else if (this.targetGroups.length > 0 && forceReload) {
+      logger.debug(`Loaded ${this.targetGroups.length} target groups from config`);
     }
   }
 
@@ -571,7 +588,33 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
   }
 
   /**
-   * Send offer to WhatsApp
+   * Lista todos os grupos WhatsApp disponíveis
+   */
+  async listGroups(): Promise<import('./IWhatsAppService').WhatsAppGroup[]> {
+    if (!this.sock || !this._isReady) {
+      throw new Error('WhatsApp not connected. Please scan QR code first.');
+    }
+
+    try {
+      const groups = await this.sock.groupFetchAllParticipating();
+      const groupList = Object.values(groups);
+
+      logger.info(`Found ${groupList.length} WhatsApp groups`);
+
+      return groupList.map((group: any) => ({
+        id: group.id,
+        name: group.subject,
+        participantCount: group.participants?.length || 0,
+        isActive: this.targetGroups.includes(group.id),
+      }));
+    } catch (error) {
+      logger.error('Error listing WhatsApp groups:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send offer to WhatsApp (supports multiple target groups)
    */
   async sendOffer(offer: Offer): Promise<boolean> {
     await this.initialize();
@@ -588,93 +631,105 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
     }
 
     try {
-      // Validate and format JID using JIDValidator
-      let jid: string;
-      try {
-        jid = JIDValidator.detectAndFormat(this.targetNumber);
-        const isGroup = JIDValidator.isGroupJID(jid);
-        logger.info(`📤 Sending offer to WhatsApp ${isGroup ? 'group' : 'number'}: ${jid}`);
-        logger.debug(`   Offer: ${offer.title.substring(0, 50)}...`);
-      } catch (validationError: any) {
-        const errorMsg = `Invalid target number format: ${this.targetNumber}. Error: ${validationError.message}`;
-        logger.error(`❌ ${errorMsg}`);
-        this.lastError = errorMsg;
-        this.messagesFailed++;
+      // Se não há targetGroups configurados, não enviar
+      if (this.targetGroups.length === 0) {
+        logger.warn('No target groups configured. Skipping WhatsApp send.');
         return false;
       }
 
+      let successCount = 0;
       const message = this.formatMessage(offer);
 
-      // Send text message with retry
-      try {
-        await RetryHelper.retryMessage(async () => {
-          if (!this.sock) {
-            throw new Error('Socket not initialized');
-          }
-          await this.sock.sendMessage(jid, { text: message });
-        }, `Send message to ${jid}`);
-        logger.debug(`✅ Text message sent successfully`);
-      } catch (messageError: any) {
-        const errorMsg = `Failed to send text message after retries: ${messageError.message}`;
-        logger.error(`❌ ${errorMsg}`);
-        this.lastError = errorMsg;
-        this.messagesFailed++;
-        return false;
-      }
-
-      // Send image if available with retry
-      if (offer.imageUrl) {
+      // Enviar para todos os grupos/números configurados
+      for (const target of this.targetGroups) {
         try {
-          await RetryHelper.retryNetwork(async () => {
-            if (!this.sock) {
-              throw new Error('Socket not initialized');
-            }
-
-            logger.debug(`📷 Downloading image from: ${offer.imageUrl}`);
-            const imageResponse = await axios.get(offer.imageUrl!, {
-              responseType: 'arraybuffer',
-              timeout: 10000, // 10 second timeout
-            });
-            const imageBuffer = Buffer.from(imageResponse.data);
-
-            logger.debug(`📷 Sending image (${imageBuffer.length} bytes)`);
-            await this.sock.sendMessage(jid, {
-              image: imageBuffer,
-              caption: offer.title,
-            });
-          }, `Send image to ${jid}`);
-          logger.debug(`✅ Image sent successfully`);
-        } catch (imageError: any) {
-          // Log warning but don't fail the entire operation
-          logger.warn(`⚠️ Could not send image to WhatsApp (Baileys): ${imageError.message}`);
-          logger.debug(`   Attempting to send image URL as fallback`);
-
+          // Validate and format JID using JIDValidator
+          let jid: string;
           try {
-            // Send image URL as fallback with retry
+            jid = JIDValidator.detectAndFormat(target);
+            const isGroup = JIDValidator.isGroupJID(jid);
+            logger.info(`📤 Sending offer to WhatsApp ${isGroup ? 'group' : 'number'}: ${jid}`);
+            logger.debug(`   Offer: ${offer.title.substring(0, 50)}...`);
+          } catch (validationError: any) {
+            const errorMsg = `Invalid target format: ${target}. Error: ${validationError.message}`;
+            logger.error(`❌ ${errorMsg}`);
+            this.messagesFailed++;
+            continue; // Próximo target
+          }
+
+          // Send text message with retry
+          try {
             await RetryHelper.retryMessage(async () => {
               if (!this.sock) {
                 throw new Error('Socket not initialized');
               }
-              await this.sock.sendMessage(jid, { text: `📷 Imagem: ${offer.imageUrl}` });
-            }, `Send image URL fallback to ${jid}`);
-            logger.debug(`✅ Image URL sent as fallback`);
-          } catch (fallbackError: any) {
-            logger.warn(`⚠️ Could not send image URL fallback: ${fallbackError.message}`);
-            // Don't fail the entire operation if image fails
+              await this.sock.sendMessage(jid, { text: message });
+            }, `Send message to ${jid}`);
+            logger.debug(`✅ Text message sent successfully`);
+          } catch (messageError: any) {
+            const errorMsg = `Failed to send text message after retries: ${messageError.message}`;
+            logger.error(`❌ ${errorMsg}`);
+            this.lastError = errorMsg;
+            this.messagesFailed++;
+            return false;
           }
+
+          // Send image if available with retry
+          if (offer.imageUrl) {
+            try {
+              await RetryHelper.retryNetwork(async () => {
+                if (!this.sock) {
+                  throw new Error('Socket not initialized');
+                }
+
+                logger.debug(`📷 Downloading image from: ${offer.imageUrl}`);
+                const imageResponse = await axios.get(offer.imageUrl!, {
+                  responseType: 'arraybuffer',
+                  timeout: 10000,
+                });
+                const imageBuffer = Buffer.from(imageResponse.data);
+
+                logger.debug(`📷 Sending image (${imageBuffer.length} bytes)`);
+                await this.sock.sendMessage(jid, {
+                  image: imageBuffer,
+                  caption: offer.title,
+                });
+              }, `Send image to ${jid}`);
+              logger.debug(`✅ Image sent successfully`);
+            } catch (imageError: any) {
+              logger.warn(`⚠️ Could not send image: ${imageError.message}`);
+              try {
+                await RetryHelper.retryMessage(async () => {
+                  if (!this.sock) throw new Error('Socket not initialized');
+                  await this.sock.sendMessage(jid, { text: `📷 Imagem: ${offer.imageUrl}` });
+                }, `Send image URL fallback to ${jid}`);
+              } catch (fallbackError: any) {
+                logger.warn(`⚠️ Image URL fallback failed: ${fallbackError.message}`);
+              }
+            }
+          }
+
+          this.messagesSent++;
+          successCount++;
+          logger.info(`✅ Offer sent to target (${jid}): ${offer.title}`);
+
+          // Delay anti-ban (exceto para o último)
+          if (this.targetGroups.indexOf(target) < this.targetGroups.length - 1) {
+            logger.debug('⏳ Waiting 3s before next send (anti-ban)');
+            await this.delay(3000);
+          }
+        } catch (targetError: any) {
+          logger.error(`❌ Failed to send to ${target}:`, targetError);
+          this.messagesFailed++;
         }
       }
 
-      this.messagesSent++;
-      logger.info(`✅ Offer sent successfully to WhatsApp (Baileys): ${offer.title}`);
-      logger.debug(`   Stats: ${this.messagesSent} sent, ${this.messagesFailed} failed`);
-      return true;
+      logger.info(`📊 WhatsApp send summary: ${successCount}/${this.targetGroups.length} successful`);
+      return successCount > 0;
     } catch (error: any) {
       const errorMsg = error?.message || String(error);
       logger.error(`❌ Error sending offer to WhatsApp (Baileys): ${errorMsg}`);
-      logger.debug(`   Error details:`, error);
       this.lastError = errorMsg;
-      this.messagesFailed++;
       return false;
     }
   }

@@ -1,12 +1,14 @@
-import { AmazonService } from '../amazon/AmazonService';
+import { AmazonService, AmazonProduct } from '../amazon/AmazonService';
 import { AliExpressService } from '../aliexpress/AliExpressService';
 import { MercadoLivreService } from '../mercadolivre/MercadoLivreService';
 import { ShopeeService } from '../shopee/ShopeeService';
 import { RSSService } from '../rss/RSSService';
 import { OfferService } from '../offer/OfferService';
+import { BlacklistService } from '../blacklist/BlacklistService';
 import { logger } from '../../utils/logger';
 import { retryWithBackoff } from '../../utils/retry';
 import { Offer } from '../../types';
+import { ScrapingBatchModel } from '../../models/ScrapingBatch';
 
 export class CollectorService {
   private amazonService: AmazonService;
@@ -15,6 +17,7 @@ export class CollectorService {
   private shopeeService: ShopeeService;
   private rssService: RSSService;
   private offerService: OfferService;
+  private blacklistService: BlacklistService;
 
   constructor() {
     this.amazonService = new AmazonService();
@@ -23,6 +26,39 @@ export class CollectorService {
     this.shopeeService = new ShopeeService();
     this.rssService = new RSSService();
     this.offerService = new OfferService();
+    this.blacklistService = new BlacklistService();
+  }
+
+  /**
+   * Filter offers using blacklist
+   */
+  private filterBlacklisted(offers: (Offer | null)[]): Offer[] {
+    const validOffers = offers.filter((o): o is Offer => o !== null);
+
+    if (!this.blacklistService.getConfig().enabled) {
+      return validOffers;
+    }
+
+    const filtered = validOffers.filter(offer => {
+      const isBlacklisted = this.blacklistService.isOfferBlacklisted({
+        title: offer.title,
+        description: offer.description,
+        brand: offer.brand,
+      });
+
+      if (isBlacklisted) {
+        logger.info(`🚫 Blacklisted offer: ${offer.title.substring(0, 50)}...`);
+      }
+
+      return !isBlacklisted;
+    });
+
+    const blacklistedCount = validOffers.length - filtered.length;
+    if (blacklistedCount > 0) {
+      logger.info(`🚫 Filtered out ${blacklistedCount} blacklisted offers`);
+    }
+
+    return filtered;
   }
 
   /**
@@ -40,13 +76,15 @@ export class CollectorService {
       logger.info(`📦 Found ${products.length} products from Amazon`);
 
       const offers = products
-        .map((product) => this.amazonService.convertToOffer(product, category))
-        .filter((offer) => offer !== null);
+        .map((product: AmazonProduct) => this.amazonService.convertToOffer(product, category))
+        .filter((offer: Offer | null) => offer !== null);
 
       logger.info(`✅ Converted ${offers.length} products to offers (filtered by discount)`);
-      const savedCount = await this.offerService.saveOffers(
-        offers.filter((o): o is Offer => o !== null)
-      );
+
+      // Apply blacklist filter
+      const filteredOffers = this.filterBlacklisted(offers);
+
+      const savedCount = await this.offerService.saveOffers(filteredOffers);
       logger.info(`💾 Saved ${savedCount} offers from Amazon to database`);
 
       return savedCount;
@@ -58,6 +96,7 @@ export class CollectorService {
 
   /**
    * Collect offers from AliExpress with retry and fallback
+   * Applies blacklist filtering
    */
   async collectFromAliExpress(category: string = 'electronics'): Promise<number> {
     try {
@@ -355,11 +394,81 @@ export class CollectorService {
   }
 
   /**
+   * Collect daily deals from Mercado Livre with batch tracking
+   */
+  async collectDailyDealsFromMercadoLivre(): Promise<number> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const source = 'mercadolivre-daily-deals';
+
+    try {
+      // Check if already collected
+      const existingBatch = await ScrapingBatchModel.findOne({ source, date: today });
+
+      if (existingBatch && existingBatch.status === 'completed') {
+        logger.info(`📅 Daily deals for ${today.toISOString().split('T')[0]} already collected. Skipping.`);
+        return existingBatch.itemsCount;
+      }
+
+      logger.info('🔥 Starting Daily Deals collection...');
+
+      // Create or update batch to pending
+      if (!existingBatch) {
+        await ScrapingBatchModel.create({ source, date: today, status: 'pending' });
+      }
+
+      const products = await this.mercadoLivreService.getDailyDeals();
+
+      if (products.length === 0) {
+        logger.warn('⚠️ No daily deals found.');
+        await ScrapingBatchModel.findOneAndUpdate(
+          { source, date: today },
+          { status: 'failed', errorMessage: 'No products found', updatedAt: new Date() }
+        );
+        return 0;
+      }
+
+      // Convert and save
+      const offers = products.map(p => this.mercadoLivreService.convertToOffer(p, 'daily-deals')).filter((o): o is Offer => o !== null);
+      const savedCount = await this.offerService.saveOffers(offers);
+
+      // Update batch
+      await ScrapingBatchModel.findOneAndUpdate(
+        { source, date: today },
+        { status: 'completed', itemsCount: savedCount, updatedAt: new Date() },
+        { upsert: true }
+      );
+
+      logger.info(`✅ Daily Deals collection completed: ${savedCount} offers saved.`);
+      return savedCount;
+
+    } catch (error: any) {
+      logger.error(`❌ Daily Deals collection failed: ${error.message}`);
+      await ScrapingBatchModel.findOneAndUpdate(
+        { source, date: today },
+        { status: 'failed', errorMessage: error.message, updatedAt: new Date() },
+        { upsert: true }
+      );
+      return 0;
+    }
+  }
+
+  /**
    * Collect offers from Mercado Livre with retry and fallback
    */
   async collectFromMercadoLivre(category: string = 'electronics'): Promise<number> {
     try {
       logger.info(`🔍 Starting Mercado Livre collection - Category: "${category}"`);
+
+      let totalSaved = 0;
+
+      // 1. Collect Daily Deals (Once per day)
+      try {
+        const dailyDealsCount = await this.collectDailyDealsFromMercadoLivre();
+        totalSaved += dailyDealsCount;
+      } catch (e: any) {
+        logger.warn(`⚠️ Daily Deals collection failed: ${e.message}`);
+      }
 
       const allProducts: any[] = [];
 
@@ -445,84 +554,12 @@ export class CollectorService {
         }
       }
 
-      // Fallback: Scraping when API fails
+      // Scraping fallback removed as per refactoring plan (Strict API usage)
       if (allProducts.length === 0) {
-        logger.info('🕷️ Trying scraping method as fallback for Mercado Livre...');
-        try {
-          const scrapedProducts = await this.mercadoLivreService.collectViaScraping(category, 50);
-          if (scrapedProducts.length > 0) {
-            logger.info(`🕷️ Found ${scrapedProducts.length} products via scraping`);
-            allProducts.push(...scrapedProducts);
-          }
-        } catch (error: any) {
-          logger.warn(`⚠️ Scraping fallback failed: ${error.message}`);
-        }
-      }
-
-      // Final fallback: RSS feeds
-      if (allProducts.length === 0) {
-        logger.info('🔄 Trying RSS feeds as final fallback for Mercado Livre...');
-        try {
-          const rssFeeds = [
-            'https://www.mercadolivre.com.br/rss/ofertas',
-            'https://www.pelando.com.br/feed',
-          ];
-
-          for (const feedUrl of rssFeeds) {
-            try {
-              const rssOffers = await this.rssService.parseFeed(feedUrl, 'mercadolivre');
-              if (rssOffers.length > 0) {
-                logger.info(`📰 Found ${rssOffers.length} offers from RSS feed`);
-                const savedCount = await this.offerService.saveOffers(rssOffers);
-                return savedCount;
-              }
-            } catch (rssError: any) {
-              logger.debug(`RSS feed ${feedUrl} failed: ${rssError.message}`);
-            }
-          }
-        } catch (error: any) {
-          logger.warn(`⚠️ RSS fallback failed: ${error.message}`);
-        }
+        logger.warn('⚠️ No products collected from Mercado Livre (API returned 0 results)');
       }
 
       logger.info(`📦 Total products from Mercado Livre: ${allProducts.length}`);
-
-      // If we have products but they might be missing original_price, fetch details
-      if (allProducts.length > 0 && allProducts.length < 50) {
-        logger.info('🔍 Fetching product details to get complete pricing information...');
-
-        try {
-          // Get product IDs
-          const productIds = allProducts.map((p) => p.id).slice(0, 20); // Limit to 20 per multiget
-
-          // Fetch detailed product information
-          const detailedProducts = await retryWithBackoff(
-            () => this.mercadoLivreService.getMultipleProducts(productIds),
-            { maxRetries: 2, initialDelay: 1000 }
-          );
-
-          // Replace products with detailed versions
-          const detailedMap = new Map();
-          detailedProducts.forEach((item: any) => {
-            if (item.code === 200 && item.body) {
-              detailedMap.set(item.body.id, item.body);
-            }
-          });
-
-          // Update products with detailed information
-          allProducts.forEach((product, index) => {
-            if (detailedMap.has(product.id)) {
-              allProducts[index] = detailedMap.get(product.id);
-              logger.debug(`✅ Updated product ${product.id} with detailed information`);
-            }
-          });
-
-          logger.info(`✅ Updated ${detailedMap.size} products with detailed information`);
-        } catch (error: any) {
-          logger.warn(`⚠️ Failed to fetch product details: ${error.message}`);
-          // Continue with original products
-        }
-      }
 
       // Debug: Log first product structure if available
       if (allProducts.length > 0) {
@@ -536,76 +573,11 @@ export class CollectorService {
       }
 
       if (allProducts.length === 0) {
-        logger.warn('⚠️ No products collected from Mercado Livre (all methods failed)');
         return 0;
       }
 
-      // Optionally fetch detailed product information for better data quality
-      // Use multiget for efficiency (up to 20 products at once)
-      let productsWithDetails: any[] = [];
-      const productsToDetail = allProducts.slice(0, 20); // Get details for first 20
-
-      if (productsToDetail.length > 0) {
-        try {
-          // Use multiget to fetch multiple products efficiently with retry
-          const itemIds = productsToDetail.map((p) => p.id);
-          const multigetResults = await retryWithBackoff(
-            () =>
-              this.mercadoLivreService.getMultipleProducts(itemIds, [
-                'id',
-                'title',
-                'price',
-                'original_price',
-                'base_price',
-                'sale_price',
-                'permalink',
-                'thumbnail',
-                'pictures',
-                'seller',
-                'attributes',
-                'shipping',
-                'currency_id',
-                'category_id',
-              ]),
-            { maxRetries: 2, initialDelay: 2000 }
-          );
-
-          // Process multiget results
-          // Mercado Livre API returns array directly, each item can be:
-          // - An object with {code: 200, body: {...}} for successful requests
-          // - An object with {code: 404, error: ...} for failed requests
-          // - Or directly the product object if successful
-          const detailedProducts = new Map<string, any>();
-          multigetResults.forEach((result: any) => {
-            // Handle different response formats
-            if (result.code === 200 && result.body) {
-              // Format: {code: 200, body: {...}}
-              detailedProducts.set(result.body.id, result.body);
-            } else if (result.id && !result.code) {
-              // Format: Direct product object
-              detailedProducts.set(result.id, result);
-            } else if (result.body && result.body.id) {
-              // Format: {body: {...}} without code
-              detailedProducts.set(result.body.id, result.body);
-            }
-          });
-
-          // Merge detailed products with original products
-          productsWithDetails = productsToDetail.map((product) => {
-            const detailed = detailedProducts.get(product.id);
-            return detailed || product; // Use detailed if available, otherwise use original
-          });
-
-          logger.info(`✅ Merged ${productsWithDetails.length} products with details`);
-        } catch (error) {
-          logger.warn('Error fetching product details via multiget, using basic data');
-          productsWithDetails = productsToDetail;
-        }
-      }
-
-      // For remaining products, use basic data
-      const remainingProducts = allProducts.slice(20);
-      const allProductsProcessed = [...productsWithDetails, ...remainingProducts];
+      // Products from search already contain necessary details
+      const allProductsProcessed = allProducts;
 
       logger.info(`🔄 Converting ${allProductsProcessed.length} products to offers...`);
 
@@ -622,9 +594,9 @@ export class CollectorService {
               discount:
                 product.original_price && product.price
                   ? (
-                      ((product.original_price - product.price) / product.original_price) *
-                      100
-                    ).toFixed(2) + '%'
+                    ((product.original_price - product.price) / product.original_price) *
+                    100
+                  ).toFixed(2) + '%'
                   : 'N/A',
             });
           }
@@ -638,7 +610,7 @@ export class CollectorService {
       );
       logger.info(`💾 Saved ${savedCount} offers from Mercado Livre to database`);
 
-      return savedCount;
+      return totalSaved + savedCount;
     } catch (error: any) {
       logger.error(`❌ Error collecting from Mercado Livre: ${error.message}`, error);
       return 0;
@@ -678,7 +650,31 @@ export class CollectorService {
   }
 
   /**
-   * Collect from all sources
+   * Get config from config.json or environment
+   */
+  private getConfig(): { sources?: string[]; enabled?: boolean } {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const configPath = path.join(process.cwd(), 'config.json');
+
+      if (fs.existsSync(configPath)) {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        return config.collection || {};
+      }
+    } catch (error) {
+      logger.debug('Error reading config.json, using defaults');
+    }
+
+    // Fallback: read from environment or use all sources
+    return {
+      sources: process.env.COLLECTION_SOURCES?.split(',') || ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'rss'],
+      enabled: true
+    };
+  }
+
+  /**
+   * Collect from all CONFIGURED sources (respects config.collection.sources)
    */
   async collectAll(): Promise<{
     amazon: number;
@@ -688,50 +684,92 @@ export class CollectorService {
     rss: number;
     total: number;
   }> {
+    const config = this.getConfig();
+    const enabledSources = config.sources || ['amazon', 'aliexpress', 'shopee', 'rss'];
+
     logger.info('🚀 ========================================');
-    logger.info('🚀 Starting collection from ALL sources');
+    logger.info('🚀 Starting collection from configured sources');
+    logger.info(`📋 Enabled sources: ${enabledSources.join(', ')}`);
     logger.info('🚀 ========================================');
 
     const startTime = Date.now();
 
-    const [amazon, aliexpress, mercadolivre, shopee, rss] = await Promise.all([
-      this.collectFromAmazon('electronics', 'electronics').catch((error) => {
-        logger.error('Amazon collection failed:', error);
-        return 0;
-      }),
-      this.collectFromAliExpress('electronics').catch((error) => {
-        logger.error('AliExpress collection failed:', error);
-        return 0;
-      }),
-      // Mercado Livre temporarily disabled
-      Promise.resolve(0).then(() => {
-        logger.info('⏸️  Mercado Livre collection is disabled');
-        return 0;
-      }),
-      // this.collectFromMercadoLivre('electronics').catch((error) => {
-      //   logger.error('Mercado Livre collection failed:', error);
-      //   return 0;
-      // }),
-      this.collectFromShopee('electronics').catch((error) => {
-        logger.error('Shopee collection failed:', error);
-        return 0;
-      }),
-      // Add default RSS feeds here (with better error handling)
-      this.collectFromRSS('https://www.pelando.com.br/feed', 'pelando').catch((error: any) => {
-        // Don't log as error if it's a connection issue - RSS feeds can be temporarily unavailable
-        if (
-          error.code === 'ECONNREFUSED' ||
-          error.code === 'ETIMEDOUT' ||
-          error.code === 'ENOTFOUND'
-        ) {
-          logger.debug(`RSS feed temporarily unavailable: ${error.message}`);
-        } else {
-          logger.warn(`RSS collection failed: ${error.message}`);
-        }
-        return 0;
-      }),
+    // Only collect from enabled sources
+    const collectPromises = await Promise.all([
+      enabledSources.includes('amazon')
+        ? this.collectFromAmazon('electronics', 'electronics').catch((error) => {
+          logger.error('Amazon collection failed:', error);
+          return 0;
+        })
+        : Promise.resolve(0),
+
+      enabledSources.includes('aliexpress')
+        ? this.collectFromAliExpress('electronics').catch((error) => {
+          logger.error('AliExpress collection failed:', error);
+          return 0;
+        })
+        : Promise.resolve(0),
+
+      enabledSources.includes('mercadolivre')
+        ? this.collectFromMercadoLivre('electronics').catch((error) => {
+          logger.error('Mercado Livre collection failed:', error);
+          return 0;
+        })
+        : Promise.resolve(0),
+
+      enabledSources.includes('shopee')
+        ? this.collectFromShopee('electronics').catch((error) => {
+          logger.error('Shopee collection failed:', error);
+          return 0;
+        })
+        : Promise.resolve(0),
+
+
+      enabledSources.includes('rss')
+        ? (async () => {
+          // Collect from all configured RSS feeds
+          const fs = require('fs');
+          const path = require('path');
+          const configPath = path.join(process.cwd(), 'config.json');
+
+          let rssFeeds: string[] = [];
+          if (fs.existsSync(configPath)) {
+            try {
+              const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+              rssFeeds = config.rss || [];
+            } catch (error) {
+              logger.warn('Could not read RSS feeds from config');
+            }
+          }
+
+          if (rssFeeds.length === 0) {
+            logger.info('ℹ️  No RSS feeds configured, skipping RSS collection');
+            return 0;
+          }
+
+          let totalCollected = 0;
+          for (const feedUrl of rssFeeds) {
+            try {
+              const count = await this.collectFromRSS(feedUrl, 'rss');
+              totalCollected += count;
+            } catch (error: any) {
+              if (
+                error.code === 'ECONNREFUSED' ||
+                error.code === 'ETIMEDOUT' ||
+                error.code === 'ENOTFOUND'
+              ) {
+                logger.debug(`RSS feed temporarily unavailable: ${error.message}`);
+              } else {
+                logger.warn(`RSS collection failed for ${feedUrl}: ${error.message}`);
+              }
+            }
+          }
+          return totalCollected;
+        })()
+        : Promise.resolve(0),
     ]);
 
+    const [amazon, aliexpress, mercadolivre, shopee, rss] = collectPromises;
     const total = amazon + aliexpress + mercadolivre + shopee + rss;
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
@@ -740,7 +778,7 @@ export class CollectorService {
     logger.info(`📊 Results:`);
     logger.info(`   - Amazon: ${amazon} offers`);
     logger.info(`   - AliExpress: ${aliexpress} offers`);
-    logger.info(`   - Mercado Livre: ${mercadolivre} offers (disabled)`);
+    logger.info(`   - Mercado Livre: ${mercadolivre} offers`);
     logger.info(`   - Shopee: ${shopee} offers`);
     logger.info(`   - RSS: ${rss} offers`);
     logger.info(`   - TOTAL: ${total} offers`);

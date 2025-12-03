@@ -25,10 +25,24 @@ interface ShopeeProduct {
 interface ShopeeConfig {
   feedUrls?: string[];
   affiliateCode?: string;
+  minDiscount?: number;      // Desconto mínimo (%)
+  maxPrice?: number;          // Preço máximo (BRL)
+  minPrice?: number;          // Preço mínimo (BRL)
+  cacheEnabled?: boolean;     // Habilitar cache de feeds
 }
 
 export class ShopeeService {
   private categoryService: CategoryService;
+
+  // Cache de feeds processados (feedUrl -> {products, timestamp})
+  private feedCache = new Map<string, {
+    products: ShopeeProduct[];
+    timestamp: number;
+    feedUrl: string;
+  }>();
+
+  // TTL do cache: 6 horas
+  private readonly FEED_CACHE_TTL = 6 * 60 * 60 * 1000;
 
   constructor() {
     this.categoryService = new CategoryService();
@@ -82,6 +96,10 @@ export class ShopeeService {
           return {
             feedUrls: config.shopee.feedUrls || [],
             affiliateCode: config.shopee.affiliateCode,
+            minDiscount: config.shopee.minDiscount,
+            maxPrice: config.shopee.maxPrice,
+            minPrice: config.shopee.minPrice,
+            cacheEnabled: config.shopee.cacheEnabled,
           };
         }
       }
@@ -103,7 +121,29 @@ export class ShopeeService {
    */
   async downloadFeed(feedUrl: string): Promise<ShopeeProduct[]> {
     try {
+      const config = this.getConfig();
+
+      // Check cache first if enabled
+      if (config.cacheEnabled !== false) {
+        const cached = this.feedCache.get(feedUrl);
+        if (cached) {
+          const age = Date.now() - cached.timestamp;
+          if (age < this.FEED_CACHE_TTL) {
+            logger.info(`💾 Cache HIT for feed (age: ${Math.round(age / 1000 / 60)}min)`, {
+              products: cached.products.length,
+              feedUrl: feedUrl.substring(0, 60) + '...'
+            });
+            return cached.products;
+          } else {
+            // Cache expired
+            logger.debug('Cache expired, re-downloading feed');
+            this.feedCache.delete(feedUrl);
+          }
+        }
+      }
+
       logger.info(`📥 Downloading Shopee feed: ${feedUrl.substring(0, 80)}...`);
+      const startTime = Date.now();
 
       const response = await axios.get(feedUrl, {
         headers: {
@@ -191,6 +231,8 @@ export class ShopeeService {
       // Convert to ShopeeProduct format
       const products: ShopeeProduct[] = [];
 
+      let filteredCount = 0;
+
       for (const record of records) {
         try {
           const price = parseFloat(record.price?.replace(/[^\d.,]/g, '').replace(',', '.') || '0');
@@ -199,12 +241,29 @@ export class ShopeeService {
             : price;
           const discount = record.discount_percentage
             ? parseFloat(
-                record.discount_percentage
-                  .toString()
-                  .replace(/[^\d.,]/g, '')
-                  .replace(',', '.')
-              )
+              record.discount_percentage
+                .toString()
+                .replace(/[^\d.,]/g, '')
+                .replace(',', '.')
+            )
             : 0;
+
+          // Calculate discount percentage if not provided
+          const discountPercentage = discount > 0 ? discount : (price > 0 ? ((price - salePrice) / price) * 100 : 0);
+
+          // Early filters (before creating object)
+          if (config.minDiscount && discountPercentage < config.minDiscount) {
+            filteredCount++;
+            continue;
+          }
+          if (config.maxPrice && salePrice > config.maxPrice) {
+            filteredCount++;
+            continue;
+          }
+          if (config.minPrice && salePrice < config.minPrice) {
+            filteredCount++;
+            continue;
+          }
 
           if (record.itemid && record.title && price > 0) {
             products.push({
@@ -212,7 +271,7 @@ export class ShopeeService {
               itemid: record.itemid || '',
               price: salePrice || price,
               sale_price: salePrice < price ? salePrice : undefined,
-              discount_percentage: discount > 0 ? discount : undefined,
+              discount_percentage: discountPercentage > 0 ? discountPercentage : undefined,
               title: record.title || '',
               description: record.description || record.title || '',
               product_link: record.product_link || '',
@@ -231,7 +290,23 @@ export class ShopeeService {
         }
       }
 
-      logger.info(`✅ Successfully processed ${products.length} products`);
+      const elapsed = Date.now() - startTime;
+
+      logger.info(`✅ Successfully processed ${products.length} products in ${elapsed}ms`);
+      if (filteredCount > 0) {
+        logger.info(`📊 Early filters: ${filteredCount} products discarded, ${products.length} kept`);
+      }
+
+      // Save to cache if enabled
+      if (config.cacheEnabled !== false) {
+        this.feedCache.set(feedUrl, {
+          products,
+          timestamp: Date.now(),
+          feedUrl
+        });
+        logger.debug(`💾 Cached ${products.length} products for feed`);
+      }
+
       return products;
     } catch (error: any) {
       logger.error('Error downloading Shopee feed:', {

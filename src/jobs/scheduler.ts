@@ -86,5 +86,31 @@ export function setupCronJobs(): void {
     }
   });
 
+  // Process scheduled offers every minute
+  cron.schedule('* * * * *', async () => {
+    try {
+      await offerService.processScheduledOffers();
+    } catch (error) {
+      logger.error('❌ Error processing scheduled offers:', error);
+    }
+  });
+
+  // Process automation system every 30 minutes
+  cron.schedule('*/30 * * * *', async () => {
+    logger.info('⚙️ ========================================');
+    logger.info('⚙️ Running automation system');
+    logger.info('⚙️ ========================================');
+    try {
+      const { AutomationService } = await import('../services/automation/AutomationService');
+      const automationService = new AutomationService();
+      const posted = await automationService.processScheduledPosts();
+      if (posted > 0) {
+        logger.info(`✅ Automation posted ${posted} offer(s)`);
+      }
+    } catch (error) {
+      logger.error('❌ Error in automation system:', error);
+    }
+  });
+
   logger.info('Cron jobs scheduled');
 }

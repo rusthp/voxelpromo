@@ -2,6 +2,12 @@ import { Router } from 'express';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { logger } from '../utils/logger';
+import {
+  validateTelegramBotToken,
+  validateTelegramChatId,
+  validateGroqApiKey,
+  validateOpenAIApiKey
+} from '../utils/validators';
 
 const router = Router();
 const configPath = join(process.cwd(), 'config.json');
@@ -19,72 +25,72 @@ router.get('/', (_req, res) => {
         ...config,
         amazon: config.amazon
           ? {
-              accessKey: config.amazon.accessKey ? '***' : '',
-              secretKey: config.amazon.secretKey ? '***' : '',
-              associateTag: config.amazon.associateTag || '',
-              region: config.amazon.region || 'BR',
-            }
+            accessKey: config.amazon.accessKey ? '***' : '',
+            secretKey: config.amazon.secretKey ? '***' : '',
+            associateTag: config.amazon.associateTag || '',
+            region: config.amazon.region || 'sa-east-1',
+          }
           : {},
         aliexpress: config.aliexpress
           ? {
-              appKey: config.aliexpress.appKey ? '***' : '',
-              appSecret: config.aliexpress.appSecret ? '***' : '',
-              trackingId: config.aliexpress.trackingId || '',
-            }
+            appKey: config.aliexpress.appKey ? '***' : '',
+            appSecret: config.aliexpress.appSecret ? '***' : '',
+            trackingId: config.aliexpress.trackingId || '',
+          }
           : {},
         mercadolivre: config.mercadolivre
           ? {
-              clientId: config.mercadolivre.clientId || '',
-              clientSecret: config.mercadolivre.clientSecret ? '***' : '',
-              redirectUri: config.mercadolivre.redirectUri || '',
-              affiliateCode: config.mercadolivre.affiliateCode || '',
-              accessToken: config.mercadolivre.accessToken ? '***' : '',
-              refreshToken: config.mercadolivre.refreshToken ? '***' : '',
-              tokenExpiresAt: config.mercadolivre.tokenExpiresAt || null,
-            }
+            clientId: config.mercadolivre.clientId || '',
+            clientSecret: config.mercadolivre.clientSecret ? '***' : '',
+            redirectUri: config.mercadolivre.redirectUri || '',
+            affiliateCode: config.mercadolivre.affiliateCode || '',
+            accessToken: config.mercadolivre.accessToken ? '***' : '',
+            refreshToken: config.mercadolivre.refreshToken ? '***' : '',
+            tokenExpiresAt: config.mercadolivre.tokenExpiresAt || null,
+          }
           : {},
         telegram: config.telegram
           ? {
-              botToken: config.telegram.botToken ? '***' : '',
-              chatId: config.telegram.chatId || '',
-            }
+            botToken: config.telegram.botToken ? '***' : '',
+            chatId: config.telegram.chatId || '',
+          }
           : {},
         whatsapp: config.whatsapp
           ? {
-              enabled: config.whatsapp.enabled || false,
-              targetNumber: config.whatsapp.targetNumber || '',
-              library: config.whatsapp.library || 'whatsapp-web.js',
-            }
+            enabled: config.whatsapp.enabled || false,
+            targetNumber: config.whatsapp.targetNumber || '',
+            library: config.whatsapp.library || 'whatsapp-web.js',
+          }
           : {},
         x: config.x
           ? {
-              bearerToken: config.x.bearerToken ? '***' : '',
-              apiKey: config.x.apiKey ? '***' : '',
-              apiKeySecret: config.x.apiKeySecret ? '***' : '',
-              accessToken: config.x.accessToken ? '***' : '',
-              accessTokenSecret: config.x.accessTokenSecret ? '***' : '',
-              oauth2ClientId: config.x.oauth2ClientId ? '***' : '',
-              oauth2ClientSecret: config.x.oauth2ClientSecret ? '***' : '',
-              oauth2RedirectUri:
-                config.x.oauth2RedirectUri || 'http://localhost:3000/api/x/auth/callback',
-              oauth2AccessToken: config.x.oauth2AccessToken ? '***' : '',
-              oauth2RefreshToken: config.x.oauth2RefreshToken ? '***' : '',
-              oauth2TokenExpiresAt: config.x.oauth2TokenExpiresAt || null,
-              oauth2Scope: config.x.oauth2Scope || '',
-            }
+            bearerToken: config.x.bearerToken ? '***' : '',
+            apiKey: config.x.apiKey ? '***' : '',
+            apiKeySecret: config.x.apiKeySecret ? '***' : '',
+            accessToken: config.x.accessToken ? '***' : '',
+            accessTokenSecret: config.x.accessTokenSecret ? '***' : '',
+            oauth2ClientId: config.x.oauth2ClientId ? '***' : '',
+            oauth2ClientSecret: config.x.oauth2ClientSecret ? '***' : '',
+            oauth2RedirectUri:
+              config.x.oauth2RedirectUri || 'http://localhost:3000/api/x/auth/callback',
+            oauth2AccessToken: config.x.oauth2AccessToken ? '***' : '',
+            oauth2RefreshToken: config.x.oauth2RefreshToken ? '***' : '',
+            oauth2TokenExpiresAt: config.x.oauth2TokenExpiresAt || null,
+            oauth2Scope: config.x.oauth2Scope || '',
+          }
           : {},
         ai: config.ai
           ? {
-              provider: config.ai.provider || 'groq',
-              groqApiKey: config.ai.groqApiKey ? '***' : '',
-              openaiApiKey: config.ai.openaiApiKey ? '***' : '',
-            }
+            provider: config.ai.provider || 'groq',
+            groqApiKey: config.ai.groqApiKey ? '***' : '',
+            openaiApiKey: config.ai.openaiApiKey ? '***' : '',
+          }
           : {},
         rss: config.rss || [],
         collection: config.collection || {
           enabled: true,
           schedule: '0 */6 * * *',
-          sources: ['amazon', 'aliexpress', 'rss'],
+          sources: ['amazon', 'aliexpress', 'shopee', 'rss'],
         },
       };
       return res.json(safeConfig);
@@ -100,7 +106,7 @@ router.get('/', (_req, res) => {
         collection: {
           enabled: true,
           schedule: '0 */6 * * *',
-          sources: ['amazon', 'aliexpress', 'mercadolivre', 'rss'],
+          sources: ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'rss'],
         },
       });
     }
@@ -135,6 +141,52 @@ router.post('/', (req, res) => {
         groqKeyPreview: config.ai?.groqApiKey?.substring(0, 10) || 'empty',
       },
     });
+
+    // Validate inputs before saving
+    const validationErrors: string[] = [];
+
+    // Validate Telegram Bot Token (if provided and not masked)
+    if (config.telegram?.botToken && config.telegram.botToken !== '***' && config.telegram.botToken.trim().length > 0) {
+      const validation = validateTelegramBotToken(config.telegram.botToken);
+      if (!validation.isValid) {
+        validationErrors.push(`Telegram Bot Token: ${validation.error}`);
+      }
+    }
+
+    // Validate Telegram Chat ID (if provided)
+    if (config.telegram?.chatId && config.telegram.chatId.trim().length > 0) {
+      const validation = validateTelegramChatId(config.telegram.chatId);
+      if (!validation.isValid) {
+        validationErrors.push(`Telegram Chat ID: ${validation.error}`);
+      }
+    }
+
+    // Validate Groq API Key (if provided and not masked)
+    if (config.ai?.groqApiKey && config.ai.groqApiKey !== '***' && config.ai.groqApiKey.trim().length > 0) {
+      const validation = validateGroqApiKey(config.ai.groqApiKey);
+      if (!validation.isValid) {
+        validationErrors.push(`Groq API Key: ${validation.error}`);
+      }
+    }
+
+    // Validate OpenAI API Key (if provided and not masked)
+    if (config.ai?.openaiApiKey && config.ai.openaiApiKey !== '***' && config.ai.openaiApiKey.trim().length > 0) {
+      const validation = validateOpenAIApiKey(config.ai.openaiApiKey);
+      if (!validation.isValid) {
+        validationErrors.push(`OpenAI API Key: ${validation.error}`);
+      }
+    }
+
+    // Return validation errors if any
+    if (validationErrors.length > 0) {
+      logger.warn('❌ Validation failed:', validationErrors);
+      return res.status(400).json({
+        success: false,
+        error: 'Erro de validação',
+        details: validationErrors,
+        message: `Encontrados ${validationErrors.length} erro(s) de validação: ${validationErrors.join('; ')}`
+      });
+    }
 
     // Load existing config to preserve sensitive data
     let existingConfig: any = {};
@@ -205,12 +257,12 @@ router.post('/', (req, res) => {
         // Preserve tokens - they should only be updated via OAuth endpoints
         accessToken:
           config.mercadolivre?.accessToken !== undefined &&
-          config.mercadolivre.accessToken !== '***'
+            config.mercadolivre.accessToken !== '***'
             ? config.mercadolivre.accessToken
             : existingConfig.mercadolivre?.accessToken || '',
         refreshToken:
           config.mercadolivre?.refreshToken !== undefined &&
-          config.mercadolivre.refreshToken !== '***'
+            config.mercadolivre.refreshToken !== '***'
             ? config.mercadolivre.refreshToken
             : existingConfig.mercadolivre?.refreshToken || '',
         tokenExpiresAt:
@@ -249,46 +301,60 @@ router.post('/', (req, res) => {
         // Handle X credentials - preserve if masked
         bearerToken:
           config.x?.bearerToken !== undefined
-            ? config.x.bearerToken !== '***' && config.x.bearerToken.trim().length > 0
-              ? config.x.bearerToken.trim()
-              : ''
+            ? config.x.bearerToken === '***'
+              ? existingConfig.x?.bearerToken || '' // Preserve if masked
+              : config.x.bearerToken.trim().length > 0
+                ? config.x.bearerToken.trim()
+                : '' // Clear if empty
             : existingConfig.x?.bearerToken || '',
         apiKey:
           config.x?.apiKey !== undefined
-            ? config.x.apiKey !== '***' && config.x.apiKey.trim().length > 0
-              ? config.x.apiKey.trim()
-              : ''
+            ? config.x.apiKey === '***'
+              ? existingConfig.x?.apiKey || '' // Preserve if masked
+              : config.x.apiKey.trim().length > 0
+                ? config.x.apiKey.trim()
+                : ''
             : existingConfig.x?.apiKey || '',
         apiKeySecret:
           config.x?.apiKeySecret !== undefined
-            ? config.x.apiKeySecret !== '***' && config.x.apiKeySecret.trim().length > 0
-              ? config.x.apiKeySecret.trim()
-              : ''
+            ? config.x.apiKeySecret === '***'
+              ? existingConfig.x?.apiKeySecret || '' // Preserve if masked
+              : config.x.apiKeySecret.trim().length > 0
+                ? config.x.apiKeySecret.trim()
+                : ''
             : existingConfig.x?.apiKeySecret || '',
         accessToken:
           config.x?.accessToken !== undefined
-            ? config.x.accessToken !== '***' && config.x.accessToken.trim().length > 0
-              ? config.x.accessToken.trim()
-              : ''
+            ? config.x.accessToken === '***'
+              ? existingConfig.x?.accessToken || '' // Preserve if masked
+              : config.x.accessToken.trim().length > 0
+                ? config.x.accessToken.trim()
+                : ''
             : existingConfig.x?.accessToken || '',
         accessTokenSecret:
           config.x?.accessTokenSecret !== undefined
-            ? config.x.accessTokenSecret !== '***' && config.x.accessTokenSecret.trim().length > 0
-              ? config.x.accessTokenSecret.trim()
-              : ''
+            ? config.x.accessTokenSecret === '***'
+              ? existingConfig.x?.accessTokenSecret || '' // Preserve if masked
+              : config.x.accessTokenSecret.trim().length > 0
+                ? config.x.accessTokenSecret.trim()
+                : ''
             : existingConfig.x?.accessTokenSecret || '',
         // OAuth 2.0 credentials
         oauth2ClientId:
           config.x?.oauth2ClientId !== undefined
-            ? config.x.oauth2ClientId !== '***' && config.x.oauth2ClientId.trim().length > 0
-              ? config.x.oauth2ClientId.trim()
-              : ''
+            ? config.x.oauth2ClientId === '***'
+              ? existingConfig.x?.oauth2ClientId || '' // Preserve if masked
+              : config.x.oauth2ClientId.trim().length > 0
+                ? config.x.oauth2ClientId.trim()
+                : ''
             : existingConfig.x?.oauth2ClientId || '',
         oauth2ClientSecret:
           config.x?.oauth2ClientSecret !== undefined
-            ? config.x.oauth2ClientSecret !== '***' && config.x.oauth2ClientSecret.trim().length > 0
-              ? config.x.oauth2ClientSecret.trim()
-              : ''
+            ? config.x.oauth2ClientSecret === '***'
+              ? existingConfig.x?.oauth2ClientSecret || '' // Preserve if masked
+              : config.x.oauth2ClientSecret.trim().length > 0
+                ? config.x.oauth2ClientSecret.trim()
+                : ''
             : existingConfig.x?.oauth2ClientSecret || '',
         oauth2RedirectUri:
           config.x?.oauth2RedirectUri ||
@@ -312,25 +378,40 @@ router.post('/', (req, res) => {
         ...config.ai,
         // Handle groqApiKey:
         // - If provided and valid (not masked, not empty after trim), use it
+        // - If masked as '***', preserve existing value
         // - If explicitly set to empty string, clear it
         // - If undefined, preserve existing value
         groqApiKey:
           config.ai?.groqApiKey !== undefined
-            ? config.ai.groqApiKey !== '***' && config.ai.groqApiKey.trim().length > 0
-              ? config.ai.groqApiKey.trim()
-              : '' // Clear if empty or masked
+            ? config.ai.groqApiKey === '***'
+              ? existingConfig.ai?.groqApiKey || '' // Preserve if masked
+              : config.ai.groqApiKey.trim().length > 0
+                ? config.ai.groqApiKey.trim()
+                : '' // Clear if empty
             : existingConfig.ai?.groqApiKey || '', // Preserve if undefined
         openaiApiKey:
           config.ai?.openaiApiKey !== undefined
-            ? config.ai.openaiApiKey !== '***' && config.ai.openaiApiKey.trim().length > 0
-              ? config.ai.openaiApiKey.trim()
-              : '' // Clear if empty or masked
+            ? config.ai.openaiApiKey === '***'
+              ? existingConfig.ai?.openaiApiKey || '' // Preserve if masked
+              : config.ai.openaiApiKey.trim().length > 0
+                ? config.ai.openaiApiKey.trim()
+                : '' // Clear if empty
             : existingConfig.ai?.openaiApiKey || '', // Preserve if undefined
       },
       rss: config.rss || existingConfig.rss || [],
       collection: {
         ...existingConfig.collection,
         ...config.collection,
+      },
+      shopee: {
+        ...existingConfig.shopee,
+        ...config.shopee,
+        feedUrls: config.shopee?.feedUrls || existingConfig.shopee?.feedUrls || [],
+        affiliateCode: config.shopee?.affiliateCode || existingConfig.shopee?.affiliateCode,
+        minDiscount: config.shopee?.minDiscount || existingConfig.shopee?.minDiscount,
+        maxPrice: config.shopee?.maxPrice || existingConfig.shopee?.maxPrice,
+        minPrice: config.shopee?.minPrice || existingConfig.shopee?.minPrice,
+        cacheEnabled: config.shopee?.cacheEnabled !== undefined ? config.shopee.cacheEnabled : existingConfig.shopee?.cacheEnabled,
       },
     };
 
@@ -485,7 +566,7 @@ router.post('/test', async (req, res) => {
       process.env.AMAZON_ACCESS_KEY = testConfig.amazon.accessKey;
       process.env.AMAZON_SECRET_KEY = testConfig.amazon.secretKey;
       process.env.AMAZON_ASSOCIATE_TAG = testConfig.amazon.associateTag;
-      process.env.AMAZON_REGION = testConfig.amazon.region || 'BR';
+      process.env.AMAZON_REGION = testConfig.amazon.region || 'sa-east-1';
     }
 
     if (testConfig.telegram?.botToken) {

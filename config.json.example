@@ -26,7 +26,9 @@
   },
   "whatsapp": {
     "enabled": false,
-    "targetNumber": ""
+    "targetNumber": "",
+    "targetGroups": [],
+    "library": "whatsapp-web.js"
   },
   "x": {
     "bearerToken": "",
@@ -49,7 +51,11 @@
   },
   "shopee": {
     "feedUrls": [],
-    "affiliateCode": ""
+    "affiliateCode": "",
+    "minDiscount": 5,
+    "maxPrice": 1000,
+    "minPrice": 10,
+    "cacheEnabled": true
   },
   "rss": [],
   "collection": {

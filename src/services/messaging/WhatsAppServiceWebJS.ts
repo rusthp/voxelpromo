@@ -14,6 +14,7 @@ export class WhatsAppServiceWebJS implements IWhatsAppService {
   private client: Client | null = null;
   private _isReady = false;
   private targetNumber: string = '';
+  private targetGroups: string[] = []; // NOVO: Array de IDs de grupos
   private initialized = false;
   private currentQRCode: string | null = null;
   private qrCodeCallbacks: ((qr: string) => void)[] = [];
@@ -24,7 +25,7 @@ export class WhatsAppServiceWebJS implements IWhatsAppService {
   }
 
   /**
-   * Load target number from environment or config.json
+   * Load target number and groups from environment or config.json
    */
   private loadTargetNumber(): void {
     // Use loadConfigFromFile to ensure env vars are up to date
@@ -33,8 +34,24 @@ export class WhatsAppServiceWebJS implements IWhatsAppService {
     // Read from environment (which was set by loadConfigFromFile)
     this.targetNumber = process.env.WHATSAPP_TARGET_NUMBER || '';
 
-    if (this.targetNumber) {
-      logger.debug(`WhatsApp target number loaded: ${this.targetNumber}`);
+    // Load targetGroups from config.json directly
+    try {
+      const configPath = join(process.cwd(), 'config.json');
+      if (existsSync(configPath)) {
+        const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+        this.targetGroups = config.whatsapp?.targetGroups || [];
+      }
+    } catch (error) {
+      logger.warn('Could not load targetGroups from config.json:', error);
+      this.targetGroups = [];
+    }
+
+    // Retrocompatibilidade: se targetGroups vazio, usar targetNumber
+    if (this.targetGroups.length === 0 && this.targetNumber) {
+      this.targetGroups = [this.targetNumber];
+      logger.debug(`Using targetNumber as single target: ${this.targetNumber}`);
+    } else if (this.targetGroups.length > 0) {
+      logger.debug(`Loaded ${this.targetGroups.length} target groups from config`);
     }
   }
 
@@ -198,7 +215,33 @@ export class WhatsAppServiceWebJS implements IWhatsAppService {
   }
 
   /**
-   * Send offer to WhatsApp
+   * Lista todos os grupos WhatsApp disponíveis
+   */
+  async listGroups(): Promise<import('./IWhatsAppService').WhatsAppGroup[]> {
+    if (!this.client || !this._isReady) {
+      throw new Error('WhatsApp not connected. Please scan QR code first.');
+    }
+
+    try {
+      const chats = await this.client.getChats();
+      const groups = chats.filter((chat: any) => chat.isGroup);
+
+      logger.info(`Found ${groups.length} WhatsApp groups`);
+
+      return groups.map((group: any) => ({
+        id: group.id._serialized,
+        name: group.name,
+        participantCount: group.participants?.length || 0,
+        isActive: this.targetGroups.includes(group.id._serialized),
+      }));
+    } catch (error) {
+      logger.error('Error listing WhatsApp groups:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send offer to WhatsApp (supports multiple target groups)
    */
   async sendOffer(offer: Offer): Promise<boolean> {
     await this.initialize();
@@ -215,46 +258,70 @@ export class WhatsAppServiceWebJS implements IWhatsAppService {
     }
 
     try {
-      const message = this.formatMessage(offer);
-      // Detect if it's a group or individual number
-      let chatId: string;
-
-      // Check if it's already a full JID (group or individual)
-      if (this.targetNumber.includes('@g.us')) {
-        // Group ID format: 120363123456789012@g.us
-        chatId = this.targetNumber;
-        logger.info(`Sending to WhatsApp group: ${chatId}`);
-      } else if (
-        this.targetNumber.includes('@c.us') ||
-        this.targetNumber.includes('@s.whatsapp.net')
-      ) {
-        // Already a full JID for individual
-        chatId = this.targetNumber.replace('@s.whatsapp.net', '@c.us'); // Normalize to @c.us for whatsapp-web.js
-        logger.info(`Sending to WhatsApp number: ${chatId}`);
-      } else if (this.targetNumber.length > 15 || this.targetNumber.includes('-')) {
-        // Group IDs are typically longer than 15 digits or contain hyphens
-        // Format: 120363123456789012@g.us
-        chatId = this.targetNumber.includes('@') ? this.targetNumber : `${this.targetNumber}@g.us`;
-        logger.info(`Detected group ID, sending to: ${chatId}`);
-      } else {
-        // Individual number: format is country code + DDD + number (usually 10-15 digits)
-        chatId = `${this.targetNumber}@c.us`;
-        logger.info(`Sending to WhatsApp number: ${chatId}`);
+      // Se não há targetGroups configurados, não enviar
+      if (this.targetGroups.length === 0) {
+        logger.warn('No target groups configured. Skipping WhatsApp send.');
+        return false;
       }
 
-      await this.client.sendMessage(chatId, message);
+      const message = this.formatMessage(offer);
+      let successCount = 0;
 
-      // If there's an image, send URL
-      if (offer.imageUrl) {
+      // Enviar para todos os grupos/números configurados
+      for (const target of this.targetGroups) {
         try {
-          await this.client.sendMessage(chatId, `📷 Imagem: ${offer.imageUrl}`);
-        } catch (imageError) {
-          logger.warn('Could not send image URL to WhatsApp:', imageError);
+          let chatId: string;
+
+          // Check if it's already a full JID (group or individual)
+          if (target.includes('@g.us')) {
+            // Group ID format: 120363123456789012@g.us
+            chatId = target;
+            logger.info(`Sending to WhatsApp group: ${chatId}`);
+          } else if (
+            target.includes('@c.us') ||
+            target.includes('@s.whatsapp.net')
+          ) {
+            // Already a full JID for individual
+            chatId = target.replace('@s.whatsapp.net', '@c.us'); // Normalize to @c.us for whatsapp-web.js
+            logger.info(`Sending to WhatsApp number: ${chatId}`);
+          } else if (target.length > 15 || target.includes('-')) {
+            // Group IDs are typically longer than 15 digits or contain hyphens
+            // Format: 120363123456789012@g.us
+            chatId = target.includes('@') ? target : `${target}@g.us`;
+            logger.info(`Detected group ID, sending to: ${chatId}`);
+          } else {
+            // Individual number: format is country code + DDD + number (usually 10-15 digits)
+            chatId = `${target}@c.us`;
+            logger.info(`Sending to WhatsApp number: ${chatId}`);
+          }
+
+          await this.client.sendMessage(chatId, message);
+
+          // If there's an image, send URL
+          if (offer.imageUrl) {
+            try {
+              await this.client.sendMessage(chatId, `📷 Imagem: ${offer.imageUrl}`);
+            } catch (imageError) {
+              logger.warn('Could not send image URL to WhatsApp:', imageError);
+            }
+          }
+
+          logger.info(`✅ Offer sent to WhatsApp target (${chatId}): ${offer.title}`);
+          successCount++;
+
+          // Delay anti-ban (exceto para o último)
+          if (this.targetGroups.indexOf(target) < this.targetGroups.length - 1) {
+            logger.debug('⏳ Waiting 3s before next send (anti-ban)');
+            await this.delay(3000);
+          }
+        } catch (targetError) {
+          logger.error(`❌ Failed to send to ${target}:`, targetError);
+          // Continuar para os próximos targets
         }
       }
 
-      logger.info(`Offer sent to WhatsApp (whatsapp-web.js): ${offer.title}`);
-      return true;
+      logger.info(`📊 WhatsApp send summary: ${successCount}/${this.targetGroups.length} successful`);
+      return successCount > 0;
     } catch (error) {
       logger.error('Error sending offer to WhatsApp (whatsapp-web.js):', error);
       return false;

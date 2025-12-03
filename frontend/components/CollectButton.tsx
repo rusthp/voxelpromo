@@ -18,15 +18,15 @@ export function CollectButton({ onCollect }: CollectButtonProps) {
       setLoading(true)
       setSuccess(false)
       setMessage('Coletando ofertas de todas as fontes...')
-      
+
       const response = await api.post('/collector/run-all')
-      
+
       setSuccess(true)
       const mercadolivre = response.data.mercadolivre || 0
       setMessage(
-        `✅ Coleta concluída! ${response.data.total} ofertas coletadas (Amazon: ${response.data.amazon}, AliExpress: ${response.data.aliexpress}, Mercado Livre: ${mercadolivre}, RSS: ${response.data.rss})`
+        `✅ Coleta concluída! ${response.data.total} ofertas coletadas (Amazon: ${response.data.amazon}, AliExpress: ${response.data.aliexpress}, Shopee: ${response.data.shopee || 0}, RSS: ${response.data.rss})`
       )
-      
+
       onCollect()
       setTimeout(() => {
         setMessage('')
@@ -35,7 +35,7 @@ export function CollectButton({ onCollect }: CollectButtonProps) {
     } catch (error: any) {
       console.error('Error collecting:', error)
       setSuccess(false)
-      
+
       let errorMessage = '❌ Erro ao coletar ofertas. Verifique as configurações.'
       if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
         errorMessage = '❌ Backend não está acessível. Verifique se está rodando na porta 3000.'
@@ -44,7 +44,7 @@ export function CollectButton({ onCollect }: CollectButtonProps) {
       } else if (error.response?.data?.error) {
         errorMessage = `❌ ${error.response.data.error}`
       }
-      
+
       setMessage(errorMessage)
       setTimeout(() => setMessage(''), 8000)
     } finally {
@@ -72,13 +72,12 @@ export function CollectButton({ onCollect }: CollectButtonProps) {
             </>
           )}
         </button>
-        
+
         {message && (
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-            success 
-              ? 'bg-green-50 text-green-700 border border-green-200' 
-              : 'bg-red-50 text-red-700 border border-red-200'
-          }`}>
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${success
+            ? 'bg-green-50 text-green-700 border border-green-200'
+            : 'bg-red-50 text-red-700 border border-red-200'
+            }`}>
             {success ? (
               <CheckCircle2 className="w-5 h-5" />
             ) : (

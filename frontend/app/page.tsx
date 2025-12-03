@@ -6,9 +6,10 @@ import { OffersListWithFilters } from '@/components/OffersListWithFilters'
 import { CollectButton } from '@/components/CollectButton'
 import { Logo } from '@/components/Logo'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { HealthWidget } from '@/components/HealthWidget'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
-import { TrendingUp, Package, Send, Percent, Settings, LogOut, User } from 'lucide-react'
+import { TrendingUp, Package, Send, Percent, Settings, LogOut, User, BarChart3, Shield } from 'lucide-react'
 import Link from 'next/link'
 
 function HomeContent() {
@@ -65,6 +66,34 @@ function HomeContent() {
           <div className="flex items-center gap-3">
             <UserInfo />
             <Link
+              href="/analytics"
+              className="glass px-6 py-3 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 text-gray-800 font-semibold"
+            >
+              <BarChart3 className="w-5 h-5" />
+              Analytics
+            </Link>
+            <Link
+              href="/history"
+              className="glass px-6 py-3 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 text-gray-800 font-semibold"
+            >
+              <Package className="w-5 h-5" />
+              Histórico
+            </Link>
+            <Link
+              href="/blacklist"
+              className="glass px-6 py-3 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 text-gray-800 font-semibold"
+            >
+              <Shield className="w-5 h-5" />
+              Blacklist
+            </Link>
+            <Link
+              href="/automation"
+              className="glass px-6 py-3 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 text-gray-800 font-semibold bg-gradient-to-r from-purple-50 to-blue-50"
+            >
+              <Settings className="w-5 h-5 text-purple-600" />
+              Automação
+            </Link>
+            <Link
               href="/settings"
               className="glass px-6 py-3 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 text-gray-800 font-semibold"
             >
@@ -72,6 +101,11 @@ function HomeContent() {
               Configurações
             </Link>
           </div>
+        </div>
+
+        {/* Health Widget */}
+        <div className="mb-8">
+          <HealthWidget />
         </div>
 
         {/* Collect Button */}

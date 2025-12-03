@@ -1,6 +1,16 @@
 import { Offer } from '../../types';
 
 /**
+ * Represents a WhatsApp group
+ */
+export interface WhatsAppGroup {
+  id: string;              // Group ID (e.g., "120363123456789012@g.us")
+  name: string;            // Group name
+  participantCount: number; // Number of participants
+  isActive: boolean;       // Whether this group is selected in config
+}
+
+/**
  * Interface comum para todos os serviços WhatsApp
  */
 export interface IWhatsAppService {
@@ -23,6 +33,11 @@ export interface IWhatsAppService {
    * Inicializa o serviço (lazy initialization)
    */
   initialize(): Promise<void>;
+
+  /**
+   * Lista todos os grupos WhatsApp disponíveis
+   */
+  listGroups(): Promise<WhatsAppGroup[]>;
 
   /**
    * Obtém o QR code atual (se disponível)

@@ -5,6 +5,8 @@ import { api } from '@/lib/api'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { Settings, Save, TestTube, CheckCircle2, XCircle, Loader, ArrowLeft, QrCode } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { showSuccess, showError, showLoading, dismissToast, showInfo, showWarning } from '@/lib/toast'
+import { validateTelegramBotToken, validateTelegramChatId, validateGroqApiKey, validateOpenAIApiKey } from '@/lib/validators'
 
 // WhatsApp QR Code Component
 function WhatsAppQRCode() {
@@ -345,6 +347,10 @@ function SettingsContent() {
   const [testing, setTesting] = useState<string | null>(null)
   const [testResults, setTestResults] = useState<any>({})
   const hasLoadedRef = useRef(false)
+
+  // Validation error states for real-time validation
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+
   const [config, setConfig] = useState<any>({
     amazon: {},
     aliexpress: {},
@@ -443,24 +449,26 @@ function SettingsContent() {
         ...config,
         telegram: {
           ...config.telegram,
-          // Send botToken if it's not the masked value and has reasonable length
-          // Telegram bot tokens are typically 45+ characters, but we'll accept anything > 10
-          botToken: currentTelegramToken &&
-            currentTelegramToken !== '***' &&
-            currentTelegramToken.trim().length > 0
-            ? currentTelegramToken.trim()
-            : (currentTelegramToken === '' ? '' : undefined), // Send empty string to clear, undefined to preserve
+          // Send botToken: if changed send new value, if masked send '***' to preserve, if empty send ''
+          botToken: currentTelegramToken !== undefined
+            ? currentTelegramToken === '***'
+              ? '***' // Send '***' to tell backend to preserve existing value
+              : currentTelegramToken.trim().length > 0
+                ? currentTelegramToken.trim()
+                : '' // Empty string to clear
+            : '***', // If undefined, send '***' to preserve
           chatId: currentTelegramChatId || ''
         },
         ai: {
           ...config.ai,
-          // Send groqApiKey if it's not the masked value and has reasonable length
-          // Groq API keys start with "gsk_" and are typically 50+ characters
-          groqApiKey: currentGroqKey &&
-            currentGroqKey !== '***' &&
-            currentGroqKey.trim().length > 0
-            ? currentGroqKey.trim()
-            : (currentGroqKey === '' ? '' : undefined) // Send empty string to clear, undefined to preserve
+          // Send groqApiKey: if changed send new value, if masked send '***' to preserve, if empty send ''
+          groqApiKey: currentGroqKey !== undefined
+            ? currentGroqKey === '***'
+              ? '***' // Send '***' to tell backend to preserve existing value
+              : currentGroqKey.trim().length > 0
+                ? currentGroqKey.trim()
+                : '' // Empty string to clear
+            : '***' // If undefined, send '***' to preserve
         }
       };
 
@@ -500,7 +508,7 @@ function SettingsContent() {
         }));
 
         const message = response.data?.message || 'Configuração salva com sucesso!'
-        alert('✅ ' + message)
+        showSuccess('✅ ' + message)
 
         // Log success details
         console.log('Save successful:', {
@@ -515,7 +523,7 @@ function SettingsContent() {
         })
       } else {
         const errorMsg = response.data?.error || 'Erro desconhecido'
-        alert('❌ Erro: ' + errorMsg)
+        showError('Erro: ' + errorMsg)
         console.error('Save failed:', response.data)
       }
     } catch (error: any) {
@@ -532,7 +540,7 @@ function SettingsContent() {
         errorMessage = error.message
       }
 
-      alert('❌ Erro ao salvar: ' + errorMessage)
+      showError('Erro ao salvar: ' + errorMessage)
       console.error('Full error:', error)
     } finally {
       setSaving(false)
@@ -576,7 +584,7 @@ function SettingsContent() {
           message += `\n❌ Erro: ${results.error}`
         }
 
-        alert(message)
+        showInfo(message)
       }
     } catch (error: any) {
       console.error('Test error:', error)
@@ -591,13 +599,14 @@ function SettingsContent() {
       }
 
       setTestResults({ error: errorMessage })
-      alert('❌ Erro ao testar: ' + errorMessage)
+      showError('Erro ao testar: ' + errorMessage)
     } finally {
       setTesting(null)
     }
   }
 
   const updateConfig = (section: string, field: string, value: any) => {
+    // Update config
     setConfig((prev: any) => ({
       ...prev,
       [section]: {
@@ -605,6 +614,48 @@ function SettingsContent() {
         [field]: value
       }
     }))
+
+    // Real-time validation
+    const fieldKey = `${section}.${field}`
+
+    // Clear error if field is empty
+    if (!value || value.trim().length === 0) {
+      setValidationErrors(prev => {
+        const newErrors = { ...prev }
+        delete newErrors[fieldKey]
+        return newErrors
+      })
+      return
+    }
+
+    // Validate specific fields
+    let validation: any = null
+
+    if (section === 'telegram' && field === 'botToken') {
+      validation = validateTelegramBotToken(value)
+    } else if (section === 'telegram' && field === 'chatId') {
+      validation = validateTelegramChatId(value)
+    } else if (section === 'ai' && field === 'groqApiKey') {
+      validation = validateGroqApiKey(value)
+    } else if (section === 'ai' && field === 'openaiApiKey') {
+      validation = validateOpenAIApiKey(value)
+    }
+
+    // Update validation errors
+    if (validation) {
+      if (!validation.isValid) {
+        setValidationErrors(prev => ({
+          ...prev,
+          [fieldKey]: validation.error || 'Inválido'
+        }))
+      } else {
+        setValidationErrors(prev => {
+          const newErrors = { ...prev }
+          delete newErrors[fieldKey]
+          return newErrors
+        })
+      }
+    }
   }
 
   if (loading) {
@@ -849,9 +900,21 @@ function SettingsContent() {
                   <div>
                     <p className="text-sm font-medium text-gray-700">Status da Autenticação</p>
                     <p className="text-xs text-gray-500">
-                      {config.mercadolivre?.accessToken
-                        ? '✅ Autenticado (Token válido)'
-                        : '❌ Não autenticado'}
+                      {(() => {
+                        if (!config.mercadolivre?.accessToken) return '❌ Não autenticado';
+
+                        // Check expiration if available
+                        if (config.mercadolivre?.tokenExpiresAt) {
+                          const expiresAt = new Date(config.mercadolivre.tokenExpiresAt);
+                          const now = new Date();
+                          // Add 5 minute buffer
+                          if (expiresAt.getTime() - now.getTime() < 5 * 60 * 1000) {
+                            return <span className="text-red-600 font-bold">❌ Token Expirado</span>;
+                          }
+                        }
+
+                        return <span className="text-green-600 font-bold">✅ Autenticado (Token válido)</span>;
+                      })()}
                     </p>
                   </div>
                   <button
@@ -859,13 +922,13 @@ function SettingsContent() {
                       try {
                         const response = await api.get('/mercadolivre/auth/status');
                         if (response.data.authenticated) {
-                          alert('✅ Autenticado!\n\nToken válido até: ' +
+                          showSuccess('✅ Autenticado!\n\nToken válido até: ' +
                             (response.data.expiresAt ? new Date(response.data.expiresAt).toLocaleString('pt-BR') : 'N/A'));
                         } else {
-                          alert('❌ Não autenticado.\n\nConfigure as credenciais e autorize o aplicativo.');
+                          showWarning('❌ Não autenticado.\n\nConfigure as credenciais e autorize o aplicativo.');
                         }
                       } catch (error: any) {
-                        alert('Erro ao verificar status: ' + (error.response?.data?.error || error.message));
+                        showError('Erro ao verificar status: ' + (error.response?.data?.error || error.message));
                       }
                     }}
                     className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
@@ -879,14 +942,14 @@ function SettingsContent() {
                     onClick={async () => {
                       try {
                         const response = await api.get('/mercadolivre/auth/url');
-                        if (response.data.url) {
-                          window.open(response.data.url, '_blank');
-                          alert('✅ URL de autorização aberta!\n\nApós autorizar, você será redirecionado. Copie o código da URL e use o botão "Trocar Código por Token" abaixo.');
+                        if (response.data.authUrl) {
+                          window.open(response.data.authUrl, '_blank');
+                          showInfo('✅ URL de autorização aberta!\n\nApós autorizar, você será redirecionado. Copie o código da URL e use o botão "Trocar Código por Token" abaixo.');
                         } else {
-                          alert('Erro: URL de autorização não disponível. Verifique as credenciais.');
+                          showError('Erro: URL de autorização não disponível. Verifique as credenciais.');
                         }
                       } catch (error: any) {
-                        alert('Erro ao obter URL: ' + (error.response?.data?.error || error.message));
+                        showError('Erro ao obter URL: ' + (error.response?.data?.error || error.message));
                       }
                     }}
                     disabled={!config.mercadolivre?.clientId || !config.mercadolivre?.clientSecret}
@@ -899,7 +962,7 @@ function SettingsContent() {
                     onClick={async () => {
                       // Validate clientSecret is configured
                       if (!config.mercadolivre?.clientSecret || config.mercadolivre.clientSecret.trim().length === 0) {
-                        alert('❌ Erro: Client Secret não configurado!\n\nPor favor, adicione o Client Secret antes de trocar o código por token.');
+                        showError('❌ Erro: Client Secret não configurado!\n\nPor favor, adicione o Client Secret antes de trocar o código por token.');
                         return;
                       }
 
@@ -913,18 +976,19 @@ function SettingsContent() {
                         setTesting('mercadolivre');
                         const response = await api.post('/mercadolivre/auth/exchange', { code: cleanCode });
                         if (response.data.success) {
-                          alert('✅ Token obtido com sucesso!\n\nO sistema está autenticado e pronto para usar.\n\nToken expira em: ' + (response.data.data?.expiresIn ? Math.floor(response.data.data.expiresIn / 3600) + ' horas' : '6 horas'));
+                          showSuccess('✅ Token obtido com sucesso!\n\nO sistema está autenticado e pronto para usar.\n\nToken expira em: ' + (response.data.data?.expiresIn ? Math.floor(response.data.data.expiresIn / 3600) + ' horas' : '6 horas'));
                           // Update only the token status without full reload
                           setConfig((prev: any) => ({
                             ...prev,
                             mercadolivre: {
                               ...prev.mercadolivre,
                               accessToken: response.data.data?.accessToken || prev.mercadolivre?.accessToken,
-                              refreshToken: response.data.data?.refreshToken || prev.mercadolivre?.refreshToken
+                              refreshToken: response.data.data?.refreshToken || prev.mercadolivre?.refreshToken,
+                              tokenExpiresAt: response.data.data?.expiresAt || prev.mercadolivre?.tokenExpiresAt
                             }
                           }))
                         } else {
-                          alert('❌ Erro: ' + (response.data.error || 'Falha ao trocar código por token'));
+                          showError('❌ Erro: ' + (response.data.error || 'Falha ao trocar código por token'));
                         }
                       } catch (error: any) {
                         let errorMessage = 'Erro desconhecido';
@@ -944,7 +1008,7 @@ function SettingsContent() {
                           errorMessage = '❌ Erro: ' + (error.response?.data?.error || error.message || 'Falha na comunicação');
                         }
 
-                        alert(errorMessage);
+                        showError(errorMessage);
                       } finally {
                         setTesting(null);
                       }
@@ -963,21 +1027,22 @@ function SettingsContent() {
                       setTesting('mercadolivre-refresh');
                       const response = await api.post('/mercadolivre/auth/refresh');
                       if (response.data.success) {
-                        alert('✅ Token renovado com sucesso!');
+                        showSuccess('✅ Token renovado com sucesso!');
                         // Update only the token status without full reload
                         setConfig((prev: any) => ({
                           ...prev,
                           mercadolivre: {
                             ...prev.mercadolivre,
                             accessToken: response.data.data?.accessToken || prev.mercadolivre?.accessToken,
-                            refreshToken: response.data.data?.refreshToken || prev.mercadolivre?.refreshToken
+                            refreshToken: response.data.data?.refreshToken || prev.mercadolivre?.refreshToken,
+                            tokenExpiresAt: response.data.data?.expiresAt || prev.mercadolivre?.tokenExpiresAt
                           }
                         }))
                       } else {
-                        alert('Erro: ' + (response.data.error || 'Falha ao renovar token'));
+                        showError('Erro: ' + (response.data.error || 'Falha ao renovar token'));
                       }
                     } catch (error: any) {
-                      alert('Erro: ' + (error.response?.data?.error || error.message));
+                      showError('Erro: ' + (error.response?.data?.error || error.message));
                     } finally {
                       setTesting(null);
                     }
@@ -1030,9 +1095,26 @@ function SettingsContent() {
                     updateConfig('telegram', 'botToken', trimmed);
                   }
                 }}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 transition-colors ${validationErrors['telegram.botToken']
+                  ? 'border-red-500 focus:ring-red-500'
+                  : config.telegram?.botToken && config.telegram.botToken.length > 0 && !validationErrors['telegram.botToken']
+                    ? 'border-green-500 focus:ring-green-500'
+                    : 'border-gray-300 focus:ring-purple-500'
+                  }`}
                 placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
               />
+              {validationErrors['telegram.botToken'] && (
+                <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
+                  <XCircle className="w-4 h-4" />
+                  {validationErrors['telegram.botToken']}
+                </p>
+              )}
+              {!validationErrors['telegram.botToken'] && config.telegram?.botToken && config.telegram.botToken.length > 0 && (
+                <p className="text-green-600 text-sm mt-1 flex items-center gap-1">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Token válido!
+                </p>
+              )}
               <p className="text-xs text-gray-500 mt-1">
                 Obtenha em <a href="https://t.me/botfather" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">@BotFather</a>
               </p>
@@ -1045,9 +1127,26 @@ function SettingsContent() {
                 type="text"
                 value={config.telegram?.chatId || ''}
                 onChange={(e) => updateConfig('telegram', 'chatId', e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
-                placeholder="123456789"
+                className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 transition-colors ${validationErrors['telegram.chatId']
+                  ? 'border-red-500 focus:ring-red-500'
+                  : config.telegram?.chatId && config.telegram.chatId.length > 0 && !validationErrors['telegram.chatId']
+                    ? 'border-green-500 focus:ring-green-500'
+                    : 'border-gray-300 focus:ring-purple-500'
+                  }`}
+                placeholder="123456789 ou -1001234567890"
               />
+              {validationErrors['telegram.chatId'] && (
+                <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
+                  <XCircle className="w-4 h-4" />
+                  {validationErrors['telegram.chatId']}
+                </p>
+              )}
+              {!validationErrors['telegram.chatId'] && config.telegram?.chatId && config.telegram.chatId.length > 0 && (
+                <p className="text-green-600 text-sm mt-1 flex items-center gap-1">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Chat ID válido!
+                </p>
+              )}
               <p className="text-xs text-gray-500 mt-1">
                 ID do canal ou grupo onde as ofertas serão enviadas
               </p>
@@ -1249,11 +1348,11 @@ function SettingsContent() {
                           // Open in new window for OAuth flow
                           window.open(data.authUrl, 'X OAuth', 'width=600,height=700');
                         } else {
-                          alert('Erro ao gerar URL de autorização: ' + (data.error || 'Erro desconhecido'));
+                          showError('Erro ao gerar URL de autorização: ' + (data.error || 'Erro desconhecido'));
                         }
                       } catch (error: any) {
                         const errorMsg = error.response?.data?.error || error.message || 'Erro desconhecido';
-                        alert('Erro ao conectar com X: ' + errorMsg);
+                        showError('Erro ao conectar com X: ' + errorMsg);
                       }
                     }}
                     className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
@@ -1341,15 +1440,31 @@ function SettingsContent() {
                     updateConfig('ai', 'groqApiKey', value);
                   }}
                   onBlur={(e) => {
-                    // Trim whitespace on blur
                     const trimmed = e.target.value.trim();
                     if (trimmed !== e.target.value) {
                       updateConfig('ai', 'groqApiKey', trimmed);
                     }
                   }}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
-                  placeholder="Sua Groq API Key"
+                  className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 transition-colors ${validationErrors['ai.groqApiKey']
+                    ? 'border-red-500 focus:ring-red-500'
+                    : config.ai?.groqApiKey && config.ai.groqApiKey.length > 0 && !validationErrors['ai.groqApiKey']
+                      ? 'border-green-500 focus:ring-green-500'
+                      : 'border-gray-300 focus:ring-purple-500'
+                    }`}
+                  placeholder="gsk_..."
                 />
+                {validationErrors['ai.groqApiKey'] && (
+                  <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
+                    <XCircle className="w-4 h-4" />
+                    {validationErrors['ai.groqApiKey']}
+                  </p>
+                )}
+                {!validationErrors['ai.groqApiKey'] && config.ai?.groqApiKey && config.ai.groqApiKey.length > 0 && (
+                  <p className="text-green-600 text-sm mt-1 flex items-center gap-1">
+                    <CheckCircle2 className="w-4 h-4" />
+                    API Key válida!
+                  </p>
+                )}
                 <p className="text-xs text-gray-500 mt-1">
                   Obtenha em <a href="https://console.groq.com/" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">console.groq.com</a>
                 </p>
@@ -1386,6 +1501,135 @@ function SettingsContent() {
                 <span>{testResults.ai.message}</span>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Shopee */}
+        <div className="glass rounded-xl shadow-lg p-6 mb-6">
+          <h2 className="text-2xl font-bold mb-4 text-gray-800">🛍️ Shopee</h2>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Configure os URLs dos feeds CSV/Excel do Shopee Affiliate Program.
+              Você pode adicionar múltiplos feeds para processar mais produtos.
+            </p>
+
+            {/* Affiliate Code */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Código de Afiliado (opcional)
+              </label>
+              <input
+                type="text"
+                value={config.shopee?.affiliateCode || ''}
+                onChange={(e) => updateConfig('shopee', 'affiliateCode', e.target.value)}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                placeholder="seu-codigo-afiliado"
+              />
+            </div>
+
+            {/* Feed URLs */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Feed URLs
+              </label>
+              <div className="space-y-3">
+                {((config.shopee?.feedUrls as string[]) || []).map((feedUrl: string, index: number) => (
+                  <div key={index} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={feedUrl || ''}
+                      onChange={(e) => {
+                        const newFeedUrls = [...((config.shopee?.feedUrls as string[]) || [])];
+                        newFeedUrls[index] = e.target.value;
+                        updateConfig('shopee', 'feedUrls', newFeedUrls);
+                      }}
+                      className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+                      placeholder="https://affiliate.shopee.com.br/api/v1/datafeed/download?id=..."
+                    />
+                    <button
+                      onClick={() => {
+                        const newFeedUrls = ((config.shopee?.feedUrls as string[]) || []).filter((_: string, i: number) => i !== index);
+                        updateConfig('shopee', 'feedUrls', newFeedUrls);
+                      }}
+                      className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm"
+                      title="Remover este feed"
+                    >
+                      🗑️ Remover
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => {
+                    const newFeedUrls = [...((config.shopee?.feedUrls as string[]) || []), ''];
+                    updateConfig('shopee', 'feedUrls', newFeedUrls);
+                  }}
+                  className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm"
+                >
+                  ➕ Adicionar Feed URL
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                💡 <strong>Como obter:</strong> Acesse o Shopee Affiliate Dashboard → Data Feed → Copie o link de download do CSV
+              </p>
+            </div>
+
+            {/* Performance Settings */}
+            <div className="border-t pt-4 mt-4">
+              <h3 className="text-lg font-semibold mb-3 text-gray-700">⚡ Configurações de Performance</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Desconto Mínimo (%)
+                  </label>
+                  <input
+                    type="number"
+                    value={config.shopee?.minDiscount || 5}
+                    onChange={(e) => updateConfig('shopee', 'minDiscount', parseInt(e.target.value) || 0)}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                    placeholder="5"
+                    min="0"
+                    max="100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Preço Máximo (R$)
+                  </label>
+                  <input
+                    type="number"
+                    value={config.shopee?.maxPrice || 1000}
+                    onChange={(e) => updateConfig('shopee', 'maxPrice', parseInt(e.target.value) || 0)}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                    placeholder="1000"
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Preço Mínimo (R$)
+                  </label>
+                  <input
+                    type="number"
+                    value={config.shopee?.minPrice || 10}
+                    onChange={(e) => updateConfig('shopee', 'minPrice', parseInt(e.target.value) || 0)}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                    placeholder="10"
+                    min="0"
+                  />
+                </div>
+                <div className="flex items-center">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={config.shopee?.cacheEnabled !== false}
+                      onChange={(e) => updateConfig('shopee', 'cacheEnabled', e.target.checked)}
+                      className="mr-2 w-5 h-5 text-purple-600 focus:ring-2 focus:ring-purple-500 rounded"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Cache Habilitado (6h)</span>
+                  </label>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1464,7 +1708,7 @@ function SettingsContent() {
                 Fontes de Coleta
               </label>
               <div className="space-y-2">
-                {['amazon', 'aliexpress', 'mercadolivre', 'rss'].map((source) => (
+                {['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'rss'].map((source) => (
                   <label key={source} className="flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -1490,13 +1734,22 @@ function SettingsContent() {
         <div className="flex gap-4">
           <button
             onClick={handleSave}
-            disabled={saving}
-            className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 font-semibold text-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2"
+            disabled={saving || Object.keys(validationErrors).length > 0}
+            className={`flex-1 px-6 py-3 rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2 ${Object.keys(validationErrors).length > 0
+              ? 'bg-gray-400 cursor-not-allowed text-white'
+              : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700'
+              } ${saving ? 'opacity-50' : ''}`}
+            title={Object.keys(validationErrors).length > 0 ? `${Object.keys(validationErrors).length} erro(s) de validação` : ''}
           >
             {saving ? (
               <>
                 <Loader className="w-5 h-5 animate-spin" />
                 Salvando...
+              </>
+            ) : Object.keys(validationErrors).length > 0 ? (
+              <>
+                <XCircle className="w-5 h-5" />
+                {Object.keys(validationErrors).length} Erro(s) - Corrija para Salvar
               </>
             ) : (
               <>

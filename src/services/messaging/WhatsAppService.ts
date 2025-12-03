@@ -39,4 +39,8 @@ export class WhatsAppService implements IWhatsAppService {
   onQRCode(callback: (qr: string) => void): void {
     return this.service.onQRCode(callback);
   }
+
+  async listGroups(): Promise<any[]> {
+    return this.service.listGroups();
+  }
 }

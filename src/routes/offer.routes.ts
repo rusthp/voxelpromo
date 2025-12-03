@@ -23,8 +23,56 @@ const deleteOffersSchema = Joi.object({
 const offerService = new OfferService();
 
 /**
- * GET /api/offers
- * Get all offers with optional filters
+ * @swagger
+ * tags:
+ *   - name: Offers
+ *     description: Offer management and collection
+ */
+
+/**
+ * @swagger
+ * /api/offers:
+ *   get:
+ *     summary: Get all offers with optional filtering and pagination
+ *     tags: [Offers]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Number of offers to return
+ *       - in: query
+ *         name: skip
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Number of offers to skip
+ *       - in: query
+ *         name: minDiscount
+ *         schema:
+ *           type: number
+ *         description: Minimum discount percentage
+ *       - in: query
+ *         name: maxPrice
+ *         schema:
+ *           type: number
+ *         description: Maximum price
+ *       - in: query
+ *         name: sources
+ *         schema:
+ *           type: string
+ *         description: Comma-separated list of sources
+ *     responses:
+ *       200:
+ *         description: List of offers
+ *         content:
+ *           application/json:\n *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Offer'
+ *       500:
+ *         description: Server error
  */
 router.get('/', async (req, res) => {
   try {
@@ -135,6 +183,37 @@ router.post('/:id/post', async (req, res) => {
     res.json({ success });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/offers/:id/schedule
+ * Schedule offer for posting
+ */
+router.post('/:id/schedule', async (req, res) => {
+  try {
+    const { date } = req.body;
+    if (!date) {
+      return res.status(400).json({ error: 'Date is required' });
+    }
+
+    const scheduledDate = new Date(date);
+    if (isNaN(scheduledDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
+    if (scheduledDate <= new Date()) {
+      return res.status(400).json({ error: 'Schedule date must be in the future' });
+    }
+
+    const success = await offerService.scheduleOffer(req.params.id, scheduledDate);
+    if (!success) {
+      return res.status(404).json({ error: 'Offer not found' });
+    }
+
+    return res.json({ success: true, scheduledAt: scheduledDate });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
   }
 });
 

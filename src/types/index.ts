@@ -24,6 +24,7 @@ export interface Offer {
   postedAt?: Date;
   postedChannels?: string[];
   aiGeneratedPost?: string;
+  scheduledAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }

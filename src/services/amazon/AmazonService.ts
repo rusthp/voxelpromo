@@ -3,18 +3,36 @@ import crypto from 'crypto';
 import { Offer } from '../../types';
 import { logger } from '../../utils/logger';
 
-interface AmazonProduct {
+export interface AmazonProduct {
   ASIN: string;
-  Title: string;
-  ListPrice?: { Amount: number; CurrencyCode: string };
-  OfferSummary?: { LowestNewPrice?: { Amount: number; CurrencyCode: string } };
+  ItemInfo?: {
+    Title?: { DisplayValue: string };
+    ByLineInfo?: { Brand?: { DisplayValue: string } };
+  };
+  Offers?: {
+    Listings?: Array<{
+      Price?: { Amount: number; Currency: string; DisplayAmount: string };
+      SavingBasis?: { Amount: number; Currency: string; DisplayAmount: string };
+    }>;
+    Summaries?: Array<{
+      LowestPrice?: { Amount: number; Currency: string; DisplayAmount: string };
+    }>;
+  };
   Images?: { Primary?: { Large?: { URL: string } } };
   DetailPageURL: string;
   CustomerReviews?: { StarRating?: { Value: number } };
-  ItemInfo?: {
-    ByLineInfo?: { Brand?: { DisplayValue: string } };
-    ProductInfo?: { TotalReviews?: { TotalReviewCount: number } };
+  BrowseNodeInfo?: { BrowseNodes?: Array<{ DisplayName: string }> };
+}
+
+interface AmazonPAAPIResponse {
+  SearchResult?: {
+    Items?: AmazonProduct[];
+    TotalResultCount?: number;
   };
+  ItemsResult?: {
+    Items?: AmazonProduct[];
+  };
+  Errors?: Array<{ Code: string; Message: string }>;
 }
 
 interface AmazonConfig {
@@ -22,159 +40,255 @@ interface AmazonConfig {
   secretKey: string;
   associateTag: string;
   region: string;
+  marketplace: string;
 }
 
 export class AmazonService {
+
   private config: AmazonConfig;
-  private endpoint: string;
+  private host: string;
+  private awsRegion: string;
 
   constructor() {
+    const region = process.env.AMAZON_REGION || 'BR';
+    const marketplace = process.env.AMAZON_MARKETPLACE || 'www.amazon.com.br';
+
+    // Map country codes/regions to AWS Regions for signing
+    const regionMap: Record<string, string> = {
+      'BR': 'us-east-1', // Brazil uses us-east-1 for PA-API signing
+      'US': 'us-east-1',
+      'UK': 'eu-west-1',
+      'DE': 'eu-central-1',
+      'FR': 'eu-west-1',
+      'JP': 'us-west-2',
+      'CA': 'us-east-1',
+      'IN': 'eu-west-1',
+      'IT': 'eu-west-1',
+      'ES': 'eu-west-1',
+      'MX': 'us-east-1',
+      'AU': 'us-west-2',
+      'SG': 'us-west-2',
+      'sa-east-1': 'sa-east-1',
+      'us-east-1': 'us-east-1',
+    };
+
+    // Map regions to PA-API Hosts
+    const hosts: Record<string, string> = {
+      'BR': 'webservices.amazon.com.br',
+      'US': 'webservices.amazon.com',
+      'UK': 'webservices.amazon.co.uk',
+      'DE': 'webservices.amazon.de',
+      'FR': 'webservices.amazon.fr',
+      'JP': 'webservices.amazon.co.jp',
+      'CA': 'webservices.amazon.ca',
+      'IN': 'webservices.amazon.in',
+      'IT': 'webservices.amazon.it',
+      'ES': 'webservices.amazon.es',
+      'MX': 'webservices.amazon.com.mx',
+      'AU': 'webservices.amazon.com.au',
+      'SG': 'webservices.amazon.sg',
+      'us-east-1': 'webservices.amazon.com',
+      'sa-east-1': 'webservices.amazon.com.br',
+    };
+
     this.config = {
       accessKey: process.env.AMAZON_ACCESS_KEY || '',
       secretKey: process.env.AMAZON_SECRET_KEY || '',
       associateTag: process.env.AMAZON_ASSOCIATE_TAG || '',
-      region: process.env.AMAZON_REGION || 'BR',
+      region,
+      marketplace,
     };
 
-    const endpoints: Record<string, string> = {
-      BR: 'webservices.amazon.com.br',
-      US: 'webservices.amazon.com',
-      UK: 'webservices.amazon.co.uk',
-    };
-
-    this.endpoint = endpoints[this.config.region] || endpoints.BR;
+    this.host = hosts[region] || 'webservices.amazon.com.br';
+    this.awsRegion = regionMap[region] || 'us-east-1';
   }
 
   /**
-   * Generate Amazon PA-API 5.0 signature
+   * Generate AWS Signature Version 4 for PA-API 5.0
    */
   private generateSignature(
     method: string,
-    uri: string,
-    queryString: string,
-    payload: string
-  ): string {
+    path: string,
+    payload: string,
+    amzDate: string,
+    dateStamp: string
+  ): { signature: string; authHeader: string } {
+    const service = 'ProductAdvertisingAPI';
     const algorithm = 'AWS4-HMAC-SHA256';
-    // eslint-disable-next-line no-useless-escape
-    const timestamp = new Date().toISOString().replace(/[:\-]|\.\d{3}/g, '');
-    const date = timestamp.substr(0, 8);
 
-    const kDate = crypto
-      .createHmac('sha256', 'AWS4' + this.config.secretKey)
-      .update(date)
-      .digest();
+    // Create canonical headers
+    const canonicalHeaders = `host:${this.host}\nx-amz-date:${amzDate}\nx-amz-target:com.amazon.paapi5.v1.ProductAdvertisingAPIv1.SearchItems\n`;
+    const signedHeaders = 'host;x-amz-date;x-amz-target';
 
-    const kRegion = crypto.createHmac('sha256', kDate).update(this.config.region).digest();
-    const kService = crypto.createHmac('sha256', kRegion).update('ProductAdvertisingAPI').digest();
-    const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest();
+    // Create payload hash
+    const payloadHash = crypto.createHash('sha256').update(payload).digest('hex');
 
+    // Create canonical request
     const canonicalRequest = [
       method,
-      uri,
-      queryString,
-      `host:${this.endpoint}`,
-      `x-amz-date:${timestamp}`,
-      '',
-      'host;x-amz-date',
-      crypto.createHash('sha256').update(payload).digest('hex'),
+      path,
+      '', // Query string (empty for POST)
+      canonicalHeaders,
+      signedHeaders,
+      payloadHash,
     ].join('\n');
 
+    // Create string to sign
+    const credentialScope = `${dateStamp}/${this.awsRegion}/${service}/aws4_request`;
     const stringToSign = [
       algorithm,
-      timestamp,
-      `${date}/${this.config.region}/ProductAdvertisingAPI/aws4_request`,
+      amzDate,
+      credentialScope,
       crypto.createHash('sha256').update(canonicalRequest).digest('hex'),
     ].join('\n');
 
+    // Calculate signature
+    const kDate = crypto
+      .createHmac('sha256', 'AWS4' + this.config.secretKey)
+      .update(dateStamp)
+      .digest();
+    const kRegion = crypto.createHmac('sha256', kDate).update(this.awsRegion).digest();
+    const kService = crypto.createHmac('sha256', kRegion).update(service).digest();
+    const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest();
     const signature = crypto.createHmac('sha256', kSigning).update(stringToSign).digest('hex');
 
-    return signature;
+    // Create authorization header
+    const authHeader = `${algorithm} Credential=${this.config.accessKey}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+    return { signature, authHeader };
   }
 
   /**
-   * Search products by keywords
+   * Make a signed request to PA-API 5.0
    */
-  async searchProducts(keywords: string, itemCount: number = 10): Promise<AmazonProduct[]> {
+  private async makeSignedRequest(
+    operation: string,
+    path: string,
+    payload: any
+  ): Promise<AmazonPAAPIResponse> {
     try {
-      const operation = 'SearchItems';
-      const payload = JSON.stringify({
-        Keywords: keywords,
-        ItemCount: itemCount,
-        Resources: [
-          'Images.Primary.Large',
-          'ItemInfo.ByLineInfo',
-          'ItemInfo.ProductInfo',
-          'ItemInfo.Title',
-          'Offers.Listings.Price',
-          'CustomerReviews.StarRating',
-          'ItemInfo.ExternalIds',
-        ],
+      const now = new Date();
+      const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
+      const dateStamp = amzDate.substr(0, 8);
+      const payloadString = JSON.stringify(payload);
+
+      const { authHeader } = this.generateSignature('POST', path, payloadString, amzDate, dateStamp);
+
+      const url = `https://${this.host}${path}`;
+
+      logger.debug(`Amazon PA-API Request: ${operation}`, {
+        url,
+        marketplace: this.config.marketplace,
+        region: this.config.region,
       });
 
-      const timestamp = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
-      const queryString = `AWSAccessKeyId=${encodeURIComponent(this.config.accessKey)}&AssociateTag=${encodeURIComponent(this.config.associateTag)}&Operation=${operation}&Service=AWSECommerceService&Timestamp=${encodeURIComponent(timestamp)}&Version=2013-08-01`;
-
-      const signature = this.generateSignature('POST', '/paapi5/searchitems', queryString, payload);
-
-      const url = `https://${this.endpoint}/paapi5/searchitems?${queryString}&Signature=${encodeURIComponent(signature)}`;
-
-      const response = await axios.post(url, payload, {
+      const response = await axios.post<AmazonPAAPIResponse>(url, payloadString, {
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
-          'X-Amz-Date': timestamp,
+          'X-Amz-Date': amzDate,
+          'X-Amz-Target': `com.amazon.paapi5.v1.ProductAdvertisingAPIv1.${operation}`,
+          'Content-Encoding': 'amz-1.0',
+          'Authorization': authHeader,
+          'Host': this.host,
         },
       });
 
-      if (response.data.SearchResult?.Items) {
-        return response.data.SearchResult.Items;
+      if (response.data.Errors && response.data.Errors.length > 0) {
+        logger.error('Amazon PA-API Errors:', response.data.Errors);
+        throw new Error(`Amazon API Error: ${response.data.Errors[0].Message}`);
       }
 
-      return [];
+      return response.data;
     } catch (error: any) {
-      logger.error('Amazon API error:', error.response?.data || error.message);
+      if (error.response) {
+        logger.error('Amazon API error response:', {
+          status: error.response.status,
+          data: error.response.data,
+        });
+        throw new Error(
+          `Amazon API error: ${error.response.data?.Errors?.[0]?.Message || error.response.statusText || error.message}`
+        );
+      }
+      logger.error('Amazon API request error:', error.message);
       throw new Error(`Amazon API error: ${error.message}`);
     }
   }
 
   /**
-   * Get product details by ASIN
+   * Search products by keywords using PA-API 5.0
+   */
+  async searchProducts(keywords: string, itemCount: number = 10): Promise<AmazonProduct[]> {
+    try {
+      if (!this.config.accessKey || !this.config.secretKey || !this.config.associateTag) {
+        throw new Error('Amazon PA-API credentials not configured');
+      }
+
+      const payload = {
+        PartnerTag: this.config.associateTag,
+        PartnerType: 'Associates',
+        Keywords: keywords,
+        SearchIndex: 'All',
+        ItemCount: Math.min(itemCount, 10), // Max 10 items per request
+        Marketplace: this.config.marketplace,
+        Resources: [
+          'Images.Primary.Large',
+          'ItemInfo.Title',
+          'ItemInfo.ByLineInfo',
+          'Offers.Listings.Price',
+          'Offers.Listings.SavingBasis',
+          'Offers.Summaries.LowestPrice',
+          'BrowseNodeInfo.BrowseNodes',
+        ],
+      };
+
+      const response = await this.makeSignedRequest('SearchItems', '/paapi5/searchitems', payload);
+
+      if (response.SearchResult?.Items) {
+        logger.info(`Found ${response.SearchResult.Items.length} products from Amazon`);
+        return response.SearchResult.Items;
+      }
+
+      logger.warn('No products found in Amazon response');
+      return [];
+    } catch (error: any) {
+      logger.error('Amazon searchProducts error:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get product details by ASIN using PA-API 5.0
    */
   async getProductByASIN(asin: string): Promise<AmazonProduct | null> {
     try {
-      const operation = 'GetItems';
-      const payload = JSON.stringify({
+      if (!this.config.accessKey || !this.config.secretKey || !this.config.associateTag) {
+        throw new Error('Amazon PA-API credentials not configured');
+      }
+
+      const payload = {
+        PartnerTag: this.config.associateTag,
+        PartnerType: 'Associates',
         ItemIds: [asin],
+        Marketplace: this.config.marketplace,
         Resources: [
           'Images.Primary.Large',
-          'ItemInfo.ByLineInfo',
-          'ItemInfo.ProductInfo',
           'ItemInfo.Title',
+          'ItemInfo.ByLineInfo',
           'Offers.Listings.Price',
-          'CustomerReviews.StarRating',
+          'Offers.Listings.SavingBasis',
+          'Offers.Summaries.LowestPrice',
         ],
-      });
+      };
 
-      const timestamp = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
-      const queryString = `AWSAccessKeyId=${encodeURIComponent(this.config.accessKey)}&AssociateTag=${encodeURIComponent(this.config.associateTag)}&Operation=${operation}&Service=AWSECommerceService&Timestamp=${encodeURIComponent(timestamp)}&Version=2013-08-01`;
+      const response = await this.makeSignedRequest('GetItems', '/paapi5/getitems', payload);
 
-      const signature = this.generateSignature('POST', '/paapi5/getitems', queryString, payload);
-
-      const url = `https://${this.endpoint}/paapi5/getitems?${queryString}&Signature=${encodeURIComponent(signature)}`;
-
-      const response = await axios.post(url, payload, {
-        headers: {
-          'Content-Type': 'application/json; charset=utf-8',
-          'X-Amz-Date': timestamp,
-        },
-      });
-
-      if (response.data.ItemsResult?.Items?.[0]) {
-        return response.data.ItemsResult.Items[0];
+      if (response.ItemsResult?.Items?.[0]) {
+        return response.ItemsResult.Items[0];
       }
 
       return null;
     } catch (error: any) {
-      logger.error('Amazon API error:', error.response?.data || error.message);
+      logger.error('Amazon getProductByASIN error:', error.message);
       return null;
     }
   }
@@ -184,38 +298,53 @@ export class AmazonService {
    */
   convertToOffer(product: AmazonProduct, category: string = 'electronics'): Offer | null {
     try {
-      const listPrice = product.ListPrice?.Amount || 0;
-      const currentPrice = product.OfferSummary?.LowestNewPrice?.Amount || listPrice;
-      const discount = listPrice - currentPrice;
-      const discountPercentage = listPrice > 0 ? (discount / listPrice) * 100 : 0;
+      // Get prices
+      const listingPrice = product.Offers?.Listings?.[0]?.Price?.Amount;
+      const savingBasis = product.Offers?.Listings?.[0]?.SavingBasis?.Amount;
+      const lowestPrice = product.Offers?.Summaries?.[0]?.LowestPrice?.Amount;
+
+      const currentPrice = listingPrice || lowestPrice || 0;
+      const originalPrice = savingBasis || currentPrice;
+
+      if (currentPrice === 0) {
+        logger.warn(`Product ${product.ASIN} has no price, skipping`);
+        return null;
+      }
+
+      const discount = originalPrice - currentPrice;
+      const discountPercentage = originalPrice > 0 ? (discount / originalPrice) * 100 : 0;
 
       if (discountPercentage < 5) {
         // Skip products with less than 5% discount
         return null;
       }
 
+      const title = product.ItemInfo?.Title?.DisplayValue || 'Unknown Product';
+      const brand = product.ItemInfo?.ByLineInfo?.Brand?.DisplayValue;
+      const imageUrl = product.Images?.Primary?.Large?.URL || '';
       const rating = product.CustomerReviews?.StarRating?.Value || 0;
-      const reviewsCount = product.ItemInfo?.ProductInfo?.TotalReviews?.TotalReviewCount || 0;
 
-      const affiliateUrl = `${product.DetailPageURL}?tag=${this.config.associateTag}`;
+      const affiliateUrl = product.DetailPageURL.includes('?')
+        ? `${product.DetailPageURL}&tag=${this.config.associateTag}`
+        : `${product.DetailPageURL}?tag=${this.config.associateTag}`;
 
       const now = new Date();
       return {
-        title: product.Title,
-        description: product.Title,
-        originalPrice: listPrice / 100, // Convert from cents
-        currentPrice: currentPrice / 100,
-        discount: discount / 100,
+        title,
+        description: title,
+        originalPrice,
+        currentPrice,
+        discount,
         discountPercentage: Math.round(discountPercentage * 100) / 100,
-        currency: product.ListPrice?.CurrencyCode || 'BRL',
-        imageUrl: product.Images?.Primary?.Large?.URL || '',
+        currency: product.Offers?.Listings?.[0]?.Price?.Currency || 'BRL',
+        imageUrl,
         productUrl: product.DetailPageURL,
         affiliateUrl,
         source: 'amazon',
         category,
         rating,
-        reviewsCount,
-        brand: product.ItemInfo?.ByLineInfo?.Brand?.DisplayValue,
+        reviewsCount: 0,
+        brand,
         tags: [],
         isActive: true,
         isPosted: false,
@@ -225,6 +354,33 @@ export class AmazonService {
     } catch (error) {
       logger.error('Error converting Amazon product to offer:', error);
       return null;
+    }
+  }
+
+  /**
+   * Test Amazon PA-API connection
+   */
+  async testConnection(): Promise<{ success: boolean; message: string }> {
+    try {
+      if (!this.config.accessKey || !this.config.secretKey || !this.config.associateTag) {
+        return {
+          success: false,
+          message: 'Credenciais não configuradas. Configure Access Key, Secret Key e Associate Tag.',
+        };
+      }
+
+      // Try a simple search to test credentials
+      const products = await this.searchProducts('test', 1);
+
+      return {
+        success: true,
+        message: `Conexão bem-sucedida! Encontrados ${products.length} produtos de teste. Marketplace: ${this.config.marketplace}`,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: `Erro na conexão: ${error.message}`,
+      };
     }
   }
 }
