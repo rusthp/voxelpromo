@@ -47,6 +47,10 @@ router.get('/', (_req, res) => {
             accessToken: config.mercadolivre.accessToken ? '***' : '',
             refreshToken: config.mercadolivre.refreshToken ? '***' : '',
             tokenExpiresAt: config.mercadolivre.tokenExpiresAt || null,
+            // Internal API for affiliate links
+            sessionCookies: config.mercadolivre.sessionCookies ? '***' : '',
+            csrfToken: config.mercadolivre.csrfToken ? '***' : '',
+            affiliateTag: config.mercadolivre.affiliateTag || '',
           }
           : {},
         telegram: config.telegram
@@ -269,6 +273,23 @@ router.post('/', (req, res) => {
           config.mercadolivre?.tokenExpiresAt !== undefined
             ? config.mercadolivre.tokenExpiresAt
             : existingConfig.mercadolivre?.tokenExpiresAt || null,
+        // Internal API for affiliate links (Phase 1 - Personal Use)
+        sessionCookies:
+          config.mercadolivre?.sessionCookies !== undefined
+            ? config.mercadolivre.sessionCookies === '***'
+              ? existingConfig.mercadolivre?.sessionCookies || ''
+              : config.mercadolivre.sessionCookies || ''
+            : existingConfig.mercadolivre?.sessionCookies || '',
+        csrfToken:
+          config.mercadolivre?.csrfToken !== undefined
+            ? config.mercadolivre.csrfToken === '***'
+              ? existingConfig.mercadolivre?.csrfToken || ''
+              : config.mercadolivre.csrfToken || ''
+            : existingConfig.mercadolivre?.csrfToken || '',
+        affiliateTag:
+          config.mercadolivre?.affiliateTag !== undefined
+            ? config.mercadolivre.affiliateTag || ''
+            : existingConfig.mercadolivre?.affiliateTag || '',
       },
       telegram: {
         ...existingConfig.telegram,

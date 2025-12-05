@@ -1,6 +1,6 @@
-// @ts-ignore - Missing types, install with: npm i --save-dev @types/swagger-jsdoc
+// @ts-expect-error - Missing types, install with: npm i --save-dev @types/swagger-jsdoc
 import swaggerJsdoc from 'swagger-jsdoc';
-// @ts-ignore - Missing types, install with: npm i --save-dev @types/swagger-ui-express
+// @ts-expect-error - Missing types, install with: npm i --save-dev @types/swagger-ui-express
 import swaggerUi from 'swagger-ui-express';
 import { Express } from 'express';
 

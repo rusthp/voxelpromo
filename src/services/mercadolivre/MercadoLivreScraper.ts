@@ -36,7 +36,14 @@ export class MercadoLivreScraper {
         // Check for Windows Chrome in WSL (Common workaround for missing Linux libs)
         const possiblePaths = [
             '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe',
-            '/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe'
+            '/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+            'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+            '/usr/bin/google-chrome',
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/chromium',
+            '/usr/bin/chromium-browser',
+            '/snap/bin/chromium'
         ];
 
         for (const path of possiblePaths) {
@@ -48,20 +55,28 @@ export class MercadoLivreScraper {
         }
 
         try {
+            const args = [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-infobars',
+                '--window-position=0,0',
+                '--ignore-certificate-errors',
+                '--ignore-certificate-errors-spki-list',
+                '--disable-accelerated-2d-canvas',
+                '--disable-gpu',
+                '--window-size=1920,1080',
+            ];
+
+            const proxyUrl = process.env.PROXY_URL;
+            if (proxyUrl) {
+                logger.info(`🌐 Using Proxy: ${proxyUrl}`);
+                args.push(`--proxy-server=${proxyUrl}`);
+            }
+
             this.browser = await puppeteer.launch({
                 headless: 'new',
-                executablePath, // Use Windows Chrome if found, otherwise default to bundled
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-infobars',
-                    '--window-position=0,0',
-                    '--ignore-certificate-errors',
-                    '--ignore-certificate-errors-spki-list',
-                    '--disable-accelerated-2d-canvas',
-                    '--disable-gpu',
-                    '--window-size=1920,1080',
-                ],
+                executablePath, // Use Windows/Linux Chrome if found, otherwise default to bundled
+                args: args,
                 ignoreHTTPSErrors: true,
             });
 
@@ -95,6 +110,117 @@ export class MercadoLivreScraper {
             logger.error(`❌ Failed to init scraper session: ${error.message}`);
             await this.closeSession();
             throw error;
+        }
+    }
+
+    /**
+     * Loads affiliate cookies from environment variable or file
+     */
+    private async loadAffiliateCookies(): Promise<void> {
+        if (!this.page) return;
+
+        const cookieSource = process.env.MERCADOLIVRE_AFFILIATE_COOKIES;
+        if (!cookieSource) return;
+
+        try {
+            let cookies: any[] = [];
+
+            // Check if it's a file path
+            if (cookieSource.endsWith('.json') && existsSync(cookieSource)) {
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
+                const fs = require('fs');
+                const content = fs.readFileSync(cookieSource, 'utf-8');
+                cookies = JSON.parse(content);
+            } else {
+                // Assume it's a JSON string
+                cookies = JSON.parse(cookieSource);
+            }
+
+            if (Array.isArray(cookies) && cookies.length > 0) {
+                await this.page.setCookie(...cookies);
+                logger.info(`🍪 Loaded ${cookies.length} affiliate cookies`);
+
+                // Update local cookies array
+                this.cookies = await this.page.cookies();
+            }
+        } catch (error: any) {
+            logger.warn(`⚠️ Failed to load affiliate cookies: ${error.message}`);
+        }
+    }
+
+    /**
+     * Generates an affiliate link using the authenticated session
+     * Route A: Simulates the "Link Generator" request
+     */
+    async generateAffiliateLink(productUrl: string): Promise<string> {
+        await this.initSession();
+        await this.loadAffiliateCookies();
+
+        if (!this.page) throw new Error('Page not initialized');
+
+        const generatorEndpoint = process.env.MERCADOLIVRE_LINK_GENERATOR_ENDPOINT;
+
+        if (!generatorEndpoint) {
+            logger.warn('⚠️ MERCADOLIVRE_LINK_GENERATOR_ENDPOINT not configured. Returning original URL.');
+            return productUrl;
+        }
+
+        try {
+            logger.info(`🔗 Generating affiliate link for: ${productUrl}`);
+
+            // Navigate to a safe page (e.g., home or affiliate panel) to ensure cookies are active
+            // We don't necessarily need to be on the generator page if we are just doing a fetch,
+            // but being on the domain is required for cookies to be sent.
+            if (this.page.url() === 'about:blank') {
+                await this.page.goto('https://www.mercadolivre.com.br', { waitUntil: 'domcontentloaded' });
+            }
+
+            // Execute the request in the browser context to use the session cookies
+            const result = await this.page.evaluate(async (endpoint, url) => {
+                try {
+                    // This payload structure is a guess/example. 
+                    // The user needs to verify the actual payload required by the endpoint.
+                    const payload = {
+                        url: url,
+                        // Add other required fields if known, e.g., campaign_id
+                    };
+
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            // 'X-CSRF-Token': '...' // Might be needed
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    // Adjust based on actual response structure
+                    return data.link || data.url || data.short_url || null;
+                } catch (e: any) {
+                    return { error: e.message };
+                }
+            }, generatorEndpoint, productUrl);
+
+            if (result && typeof result === 'string') {
+                logger.info('✅ Affiliate link generated successfully');
+                return result;
+            } else if (result && result.error) {
+                logger.warn(`⚠️ Link generation error: ${result.error}`);
+            } else {
+                logger.warn('⚠️ Link generation returned unknown format');
+            }
+
+            return productUrl;
+
+        } catch (error: any) {
+            logger.error(`❌ Link Generation Failed: ${error.message}`);
+            return productUrl;
         }
     }
 
@@ -162,6 +288,23 @@ export class MercadoLivreScraper {
                 logger.warn('⚠️ No search results selector found (might be empty or captcha)');
             }
 
+            // Scroll to trigger lazy loading of images
+            logger.info('📜 Scrolling to load lazy images...');
+            await this.page.evaluate(async () => {
+                const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+                const scrollStep = 400;
+                const maxScrolls = 10;
+
+                for (let i = 0; i < maxScrolls; i++) {
+                    window.scrollBy(0, scrollStep);
+                    await delay(200);
+                }
+
+                // Scroll back to top
+                window.scrollTo(0, 0);
+                await delay(500);
+            });
+
             // Extract data using DOM APIs with Multi-Selector Strategy
             const products = await this.page.evaluate(() => {
                 const results: any[] = [];
@@ -183,6 +326,94 @@ export class MercadoLivreScraper {
                     }
                 }
 
+                // Helper to get real image URL (handles lazy loading)
+                const getImageUrl = (imgEl: Element | null): string => {
+                    if (!imgEl) return '';
+
+                    // Priority order for image sources
+                    const sources = [
+                        imgEl.getAttribute('data-src'),
+                        imgEl.getAttribute('data-zoom'),
+                        imgEl.getAttribute('srcset')?.split(' ')[0],
+                        imgEl.getAttribute('src'),
+                    ];
+
+                    for (const src of sources) {
+                        if (src && !src.startsWith('data:image/gif') && !src.includes('base64')) {
+                            // Clean up the URL if needed
+                            return src.replace(/-[A-Z]\./, '-O.'); // Get larger image variant
+                        }
+                    }
+
+                    return '';
+                };
+
+                // Helper to extract original price for discount calculation
+                const getOriginalPrice = (item: Element): number => {
+                    // Try to find the crossed-out/previous price
+                    const originalPriceEl = item.querySelector('.andes-money-amount--previous .andes-money-amount__fraction') ||
+                        item.querySelector('.poly-price__previous .andes-money-amount__fraction') ||
+                        item.querySelector('[class*="original"] .andes-money-amount__fraction') ||
+                        item.querySelector('.ui-search-price__original-value .andes-money-amount__fraction') ||
+                        item.querySelector('s .andes-money-amount__fraction') || // <s> tag means strikethrough
+                        item.querySelector('del .andes-money-amount__fraction'); // <del> tag also strikethrough
+
+                    if (originalPriceEl) {
+                        const priceText = originalPriceEl.textContent?.replace(/\./g, '').replace(/,/g, '.') || '0';
+                        return parseFloat(priceText);
+                    }
+                    return 0;
+                };
+
+                // Helper to get the CURRENT (promotional) price - the green/large one
+                const getCurrentPrice = (item: Element): number => {
+                    // First try to find specifically the current/promotional price
+                    const priceSelectors = [
+                        '.poly-price__current .andes-money-amount__fraction',
+                        '.ui-search-price__second-line .andes-money-amount__fraction', // This is usually the promotional price
+                        '.ui-search-price__part--medium .andes-money-amount__fraction'
+                    ];
+
+                    for (const selector of priceSelectors) {
+                        const el = item.querySelector(selector);
+                        if (el) {
+                            const priceText = el.textContent?.replace(/\./g, '').replace(/,/g, '.') || '0';
+                            const price = parseFloat(priceText);
+                            if (price > 0) return price;
+                        }
+                    }
+
+                    // Fallback: Get all price fractions and pick the LOWEST (assuming it's the sale price)
+                    const allPriceEls = item.querySelectorAll('.andes-money-amount__fraction');
+                    let lowestPrice = Infinity;
+
+                    allPriceEls.forEach(el => {
+                        const priceText = el.textContent?.replace(/\./g, '').replace(/,/g, '.') || '0';
+                        const price = parseFloat(priceText);
+                        if (price > 0 && price < lowestPrice) {
+                            lowestPrice = price;
+                        }
+                    });
+
+                    return lowestPrice === Infinity ? 0 : lowestPrice;
+                };
+
+                // Helper to extract discount percentage from badge
+                const getDiscountPercentage = (item: Element): number | undefined => {
+                    const discountEl = item.querySelector('.poly-component__discount') ||
+                        item.querySelector('[class*="discount"]') ||
+                        item.querySelector('.andes-badge__content');
+
+                    if (discountEl) {
+                        const text = discountEl.textContent || '';
+                        const match = text.match(/(\d+)%/);
+                        if (match) {
+                            return parseInt(match[1]);
+                        }
+                    }
+                    return undefined;
+                };
+
                 items.forEach((item: Element) => {
                     try {
                         // Title Selectors
@@ -197,17 +428,17 @@ export class MercadoLivreScraper {
                             item.querySelector('a');
                         const permalink = linkEl?.getAttribute('href') || '';
 
-                        // Price Selectors
-                        const priceEl = item.querySelector('.andes-money-amount__fraction') ||
-                            item.querySelector('.poly-price__current .andes-money-amount__fraction');
-                        const priceText = priceEl?.textContent?.replace(/\./g, '') || '0';
-                        const price = parseFloat(priceText);
+                        // Get prices correctly
+                        const currentPrice = getCurrentPrice(item);
+                        const originalPrice = getOriginalPrice(item);
+                        const discountFromBadge = getDiscountPercentage(item);
 
-                        // Image Selectors
+                        // Image Selectors - Try multiple approaches
                         const imgEl = item.querySelector('img.ui-search-result-image__element') ||
                             item.querySelector('img.poly-component__picture') ||
+                            item.querySelector('img[data-src]') ||
                             item.querySelector('img');
-                        const thumbnail = imgEl?.getAttribute('src') || imgEl?.getAttribute('data-src') || '';
+                        const thumbnail = getImageUrl(imgEl);
 
                         // ID extraction
                         let id = '';
@@ -216,17 +447,19 @@ export class MercadoLivreScraper {
                             id = idMatch ? idMatch[1].replace('-', '') : '';
                         }
 
-                        if (title && price > 0 && permalink) {
+                        if (title && currentPrice > 0 && permalink) {
                             results.push({
                                 id: id || `MLB${Date.now()}${Math.random().toString().slice(2, 5)}`,
                                 title,
-                                price,
+                                price: currentPrice, // The sale/promotional price
+                                original_price: originalPrice > currentPrice ? originalPrice : undefined,
+                                discount_percentage: discountFromBadge,
                                 currency_id: 'BRL',
                                 available_quantity: 1,
                                 condition: 'new',
                                 permalink,
                                 thumbnail,
-                                pictures: [{ url: thumbnail }]
+                                pictures: thumbnail ? [{ url: thumbnail }] : []
                             });
                         }
                     } catch (err) {

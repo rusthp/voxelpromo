@@ -1,0 +1,50 @@
+{
+  "collection": {
+    "sources": ["rss"],
+    "enabled": true
+  },
+  "rss": [],
+  "telegram": {
+    "botToken": "",
+    "chatId": ""
+  },
+  "x": {
+    "bearerToken": "",
+    "apiKey": "",
+    "apiKeySecret": "",
+    "accessToken": "",
+    "accessTokenSecret": ""
+  },
+  "whatsapp": {
+    "enabled": false,
+    "targetNumber": "",
+    "library": "whatsapp-web.js"
+  },
+  "ai": {
+    "provider": "groq",
+    "groqApiKey": "",
+    "openaiApiKey": ""
+  },
+  "amazon": {
+    "accessKey": "",
+    "secretKey": "",
+    "associateTag": "",
+    "region": "sa-east-1"
+  },
+  "aliexpress": {
+    "appKey": "",
+    "appSecret": "",
+    "trackingId": ""
+  },
+  "mercadolivre": {
+    "clientId": "",
+    "clientSecret": "",
+    "redirectUri": "",
+    "affiliateCode": ""
+  },
+  "shopee": {
+    "feedUrls": [],
+    "affiliateCode": "",
+    "minDiscount": 0
+  }
+}

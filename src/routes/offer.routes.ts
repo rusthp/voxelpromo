@@ -2,7 +2,7 @@ import { Router } from 'express';
 import Joi from 'joi';
 import { OfferService } from '../services/offer/OfferService';
 import { validateRequest } from '../middleware/validation';
-import { FilterOptions } from '../types';
+import { FilterOptions, Offer } from '../types';
 
 const router = Router();
 
@@ -86,6 +86,7 @@ router.get('/', async (req, res) => {
       excludePosted,
       limit,
       skip,
+      sortBy,
     } = req.query;
 
     if (
@@ -95,7 +96,8 @@ router.get('/', async (req, res) => {
       minRating ||
       categories ||
       sources ||
-      excludePosted
+      excludePosted ||
+      sortBy
     ) {
       // Use filter service
       const filterOptions: FilterOptions = {
@@ -107,6 +109,8 @@ router.get('/', async (req, res) => {
         sources: sources ? (sources as string).split(',') : undefined,
         excludePosted: excludePosted === 'true',
         limit: limit ? parseInt(limit as string) : undefined,
+        skip: skip ? parseInt(skip as string) : 0,
+        sortBy: sortBy as string,
       };
 
       const offers = await offerService.filterOffers(filterOptions);
@@ -116,7 +120,8 @@ router.get('/', async (req, res) => {
       const requestedLimit = limit ? parseInt(limit as string) : 50;
       const offers = await offerService.getAllOffers(
         requestedLimit,
-        skip ? parseInt(skip as string) : 0
+        skip ? parseInt(skip as string) : 0,
+        sortBy as string
       );
       // Log for debugging
       console.log(
@@ -126,6 +131,70 @@ router.get('/', async (req, res) => {
     }
   } catch (error: any) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/offers
+ * Create a new offer manually
+ */
+router.post('/', async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      price,
+      original_price,
+      originalPrice,
+      discount_percentage,
+      link,
+      image,
+      source,
+      category,
+    } = req.body;
+
+    if (!title || !price || !link) {
+      return res.status(400).json({
+        error: 'Title, price, and link are required',
+      });
+    }
+
+    const currentPrice = parseFloat(price);
+    const origPrice = original_price ? parseFloat(original_price) : (originalPrice ? parseFloat(originalPrice) : currentPrice);
+    const discountPct = discount_percentage ||
+      (origPrice > currentPrice
+        ? Math.round((1 - currentPrice / origPrice) * 100)
+        : 0);
+
+    const offer: Partial<Offer> = {
+      title,
+      description: description || '',
+      originalPrice: origPrice,
+      currentPrice: currentPrice,
+      discount: origPrice - currentPrice,
+      discountPercentage: discountPct,
+      currency: 'BRL',
+      imageUrl: image || '',
+      productUrl: link,
+      affiliateUrl: link,
+      source: source || 'manual',
+      category: category || 'Outros',
+      tags: [],
+      isActive: true,
+      isPosted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const savedOffer = await offerService.saveOffer(offer as Offer);
+
+    return res.status(201).json({
+      success: true,
+      offer: savedOffer,
+      message: 'Offer created successfully',
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
   }
 });
 
@@ -218,6 +287,28 @@ router.post('/:id/schedule', async (req, res) => {
 });
 
 /**
+ * DELETE /api/offers/all
+ * Delete ALL offers
+ * Query: ?permanent=true (optional)
+ */
+router.delete('/all', async (req, res) => {
+  try {
+    const permanent = req.query.permanent === 'true';
+    const deletedCount = await offerService.deleteAllOffers(permanent);
+
+    return res.json({
+      success: true,
+      deletedCount,
+      message: permanent
+        ? `Permanently deleted ${deletedCount} offers`
+        : `Soft deleted ${deletedCount} offers`
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * DELETE /api/offers/:id
  * Delete offer (soft delete by default, use ?permanent=true for permanent deletion)
  */
@@ -258,9 +349,10 @@ router.delete('/', validateRequest(deleteOffersSchema), async (req, res) => {
 
     return res.json({ success: true, deletedCount, message: `Deleted ${deletedCount} offers` });
   } catch (error: any) {
-    console.error('[DELETE BATCH] Error:', error);
     return res.status(500).json({ error: error.message });
   }
 });
+
+
 
 export { router as offerRoutes };

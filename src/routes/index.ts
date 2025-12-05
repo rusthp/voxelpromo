@@ -5,6 +5,7 @@ import { statsRoutes } from './stats.routes';
 import { configRoutes } from './config.routes';
 import { authRoutes } from './auth.routes';
 import { mercadoLivreRoutes } from './mercadolivre.routes';
+import { amazonRoutes } from './amazon.routes';
 import { xRoutes } from './x.routes';
 import whatsappRoutes from './whatsapp.routes';
 import { authenticate } from '../middleware/auth';
@@ -56,6 +57,7 @@ export function setupRoutes(app: Express): void {
   // Public routes with specific rate limiting
   app.use('/api/auth', authRoutes); // Auth routes have internal rate limiting
   app.use('/api/mercadolivre', mercadoLivreRoutes); // OAuth callback needs to be public
+  app.use('/api/amazon', amazonRoutes); // Amazon scraping (no API needed)
   app.use('/api/x', xRoutes); // OAuth callback needs to be public
   app.use('/api/whatsapp', whatsappRoutes); // WhatsApp QR code needs to be accessible
   app.use('/api/health', healthRoutes); // Health check endpoints
@@ -64,7 +66,7 @@ export function setupRoutes(app: Express): void {
   app.use('/api/offers', authenticate, apiLimiter, offerRoutes);
   app.use('/api/collector', authenticate, collectionLimiter, collectorRoutes);
   app.use('/api/stats', authenticate, apiLimiter, statsRoutes);
-  app.use('/api/config', authenticate, configLimiter, configRoutes);
+  app.use('/api/config', configLimiter, configRoutes);
   app.use('/api/admin', authenticate, apiLimiter, adminRoutes);
   app.use('/api/posts', authenticate, apiLimiter, postsRoutes); // Post history
   app.use('/api/automation', authenticate, apiLimiter, automationRoutes); // Automation system

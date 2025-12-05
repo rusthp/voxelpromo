@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { CollectorService } from '../services/collector/CollectorService';
+import { logger } from '../utils/logger';
 
 const router = Router();
 const collectorService = new CollectorService();
@@ -83,6 +84,7 @@ router.post('/run-all', async (_req, res) => {
     const result = await collectorService.collectAll();
     res.json(result);
   } catch (error: any) {
+    logger.error('Error running all collectors:', error);
     res.status(500).json({ error: error.message });
   }
 });

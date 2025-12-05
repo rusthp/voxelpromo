@@ -38,6 +38,8 @@ export interface FilterOptions {
   sources?: string[];
   excludePosted?: boolean;
   limit?: number;
+  skip?: number;
+  sortBy?: string;
 }
 
 export interface AIPostRequest {

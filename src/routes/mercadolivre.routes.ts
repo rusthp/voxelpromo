@@ -391,4 +391,91 @@ router.get('/auth/status', async (_req, res) => {
   }
 });
 
+/**
+ * POST /api/mercadolivre/scrape-url
+ * Scrape products from a custom Mercado Livre URL
+ * Useful for specific offers pages like /ofertas?container_id=MLB779362-1
+ */
+router.post('/scrape-url', async (req, res) => {
+  try {
+    const { url, saveToDatabase = true } = req.body;
+
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        error: 'URL is required',
+      });
+    }
+
+    // Validate it's a Mercado Livre URL
+    if (!url.includes('mercadolivre.com.br') && !url.includes('mercadolibre.com')) {
+      return res.status(400).json({
+        success: false,
+        error: 'URL must be from Mercado Livre',
+      });
+    }
+
+    logger.info(`🕷️ Starting custom URL scrape: ${url}`);
+
+    // Use the scraper to get products
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { MercadoLivreScraper } = require('../services/mercadolivre/MercadoLivreScraper');
+    const scraper = new MercadoLivreScraper();
+
+    try {
+      const products = await scraper.scrapeSearchResults(url);
+
+      logger.info(`✅ Scraped ${products.length} products from custom URL`);
+
+      if (products.length === 0) {
+        return res.json({
+          success: true,
+          message: 'No products found on this page',
+          products: [],
+          saved: 0,
+        });
+      }
+
+      let savedCount = 0;
+
+      if (saveToDatabase) {
+        // Convert and save to database
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { OfferService } = require('../services/offer/OfferService');
+        const offerService = new OfferService();
+
+        const offers = await Promise.all(
+          products.map(async (product: any) => {
+            try {
+              return await mercadoLivreService.convertToOffer(product, 'ofertas');
+            } catch (e) {
+              return null;
+            }
+          })
+        );
+
+        const validOffers = offers.filter((o: any) => o !== null);
+        savedCount = await offerService.saveOffers(validOffers);
+        logger.info(`💾 Saved ${savedCount} offers to database`);
+      }
+
+      return res.json({
+        success: true,
+        message: `Scraped ${products.length} products`,
+        products: products.slice(0, 10), // Return first 10 for preview
+        totalFound: products.length,
+        saved: savedCount,
+      });
+    } finally {
+      await scraper.closeSession();
+    }
+  } catch (error: any) {
+    logger.error('Error scraping custom URL:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 export { router as mercadoLivreRoutes };

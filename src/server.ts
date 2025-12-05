@@ -56,9 +56,10 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',')
   : [];
 
-// Always allow localhost:3001 (frontend) and localhost:3000 (self)
+// Always allow localhost:3001 (frontend), localhost:3000 (self), and localhost:8080 (alternative frontend port)
 if (!allowedOrigins.includes('http://localhost:3001')) allowedOrigins.push('http://localhost:3001');
 if (!allowedOrigins.includes('http://localhost:3000')) allowedOrigins.push('http://localhost:3000');
+if (!allowedOrigins.includes('http://localhost:8080')) allowedOrigins.push('http://localhost:8080');
 
 logger.info(`🌐 Allowed CORS Origins: ${allowedOrigins.join(', ')}`);
 
@@ -157,3 +158,4 @@ async function startServer() {
 }
 
 startServer();
+// Trigger restart

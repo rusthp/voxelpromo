@@ -14,6 +14,10 @@ interface MercadoLivreConfig {
   tokenExpiresAt?: number;
   affiliateCode?: string;
   codeVerifier?: string;
+  // Internal API for affiliate links (Phase 1 - Personal Use)
+  sessionCookies?: string;  // Full cookie string from logged-in session
+  csrfToken?: string;       // x-csrf-token from affiliate page
+  affiliateTag?: string;    // Your affiliate tag (e.g., "voxelpromo")
 }
 
 export interface MercadoLivreProduct {
@@ -34,6 +38,7 @@ export interface MercadoLivreProduct {
     percent: number;
   };
   original_price?: number;
+  discount_percentage?: number; // Scraped discount percentage from badge
   seller_id?: number;
   seller?: {
     id: number;
@@ -100,16 +105,20 @@ export class MercadoLivreService {
 
       if (existsSync(configPath)) {
         const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-        if (config.mercadolivre?.clientId) {
+        if (config.mercadolivre?.clientId || config.mercadolivre?.sessionCookies) {
           return {
-            clientId: config.mercadolivre.clientId,
+            clientId: config.mercadolivre.clientId || '',
             clientSecret: config.mercadolivre.clientSecret || '',
             redirectUri: config.mercadolivre.redirectUri || 'https://proplaynews.com.br/',
             accessToken: config.mercadolivre.accessToken,
             refreshToken: config.mercadolivre.refreshToken,
             tokenExpiresAt: config.mercadolivre.tokenExpiresAt,
             affiliateCode: process.env.MERCADOLIVRE_AFFILIATE_CODE || config.mercadolivre.affiliateCode,
-            codeVerifier: config.mercadolivre.codeVerifier, // Read stored verifier
+            codeVerifier: config.mercadolivre.codeVerifier,
+            // Internal API config
+            sessionCookies: config.mercadolivre.sessionCookies,
+            csrfToken: config.mercadolivre.csrfToken,
+            affiliateTag: config.mercadolivre.affiliateTag,
           };
         }
       }
@@ -128,6 +137,10 @@ export class MercadoLivreService {
         : undefined,
       affiliateCode: process.env.MERCADOLIVRE_AFFILIATE_CODE,
       codeVerifier: process.env.MERCADOLIVRE_CODE_VERIFIER,
+      // Internal API config from env
+      sessionCookies: process.env.MERCADOLIVRE_SESSION_COOKIES,
+      csrfToken: process.env.MERCADOLIVRE_CSRF_TOKEN,
+      affiliateTag: process.env.MERCADOLIVRE_AFFILIATE_TAG,
     };
   }
 
@@ -547,19 +560,49 @@ export class MercadoLivreService {
   async getProductDetails(itemId: string): Promise<MercadoLivreProduct | null> {
     try {
       await this.throttleRequest();
-      // Use public endpoint
-      const response = await this.retryRequest(async () => {
-        return await axios.get(`${this.baseUrl}/items/${itemId}`, {
+
+      // Try primary endpoint first: /items/{id}
+      try {
+        const response = await this.retryRequest(async () => {
+          return await axios.get(`${this.baseUrl}/items/${itemId}`, {
+            headers: {
+              Accept: 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            },
+            timeout: 10000,
+          });
+        });
+        return response.data;
+      } catch (primaryError: any) {
+        logger.warn(`Primary endpoint /items/ failed for ${itemId}, trying /pdp/item/ fallback...`);
+
+        // Fallback to /pdp/item/ endpoint - always returns correct price
+        const fallbackResponse = await axios.get(`${this.baseUrl}/pdp/item/${itemId}`, {
           headers: {
             Accept: 'application/json',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           },
           timeout: 10000,
         });
-      });
-      return response.data;
+
+        const pdpData = fallbackResponse.data;
+
+        // Map PDP response to MercadoLivreProduct format
+        return {
+          id: pdpData.id || itemId,
+          title: pdpData.title || '',
+          price: pdpData.price || pdpData.price_info?.price || 0,
+          original_price: pdpData.original_price || pdpData.price_info?.original_price,
+          currency_id: pdpData.currency_id || 'BRL',
+          available_quantity: pdpData.available_quantity || 1,
+          condition: pdpData.condition || 'new',
+          permalink: pdpData.permalink || `https://www.mercadolivre.com.br/p/${itemId}`,
+          thumbnail: pdpData.thumbnail || (pdpData.pictures?.[0]?.url) || '',
+          pictures: pdpData.pictures || [],
+        };
+      }
     } catch (error: any) {
-      logger.warn(`Failed to fetch details for ${itemId}: ${error.message}`);
+      logger.warn(`Failed to fetch details for ${itemId} from both endpoints: ${error.message}`);
       return null;
     }
   }
@@ -589,6 +632,65 @@ export class MercadoLivreService {
   }
 
 
+  /**
+   * Generate affiliate link using Mercado Livre's internal API (createLink)
+   * This requires valid session cookies and CSRF token from a logged-in session
+   * 
+   * @param productUrl - The original product URL to convert
+   * @returns The short affiliate URL (e.g., https://mercadolivre.com/sec/...)
+   */
+  async generateAffiliateLink(productUrl: string): Promise<string | null> {
+    const config = this.getConfig();
+
+    // Check if internal API is configured
+    if (!config.sessionCookies || !config.csrfToken) {
+      logger.debug('🔗 Internal API not configured, will use fallback method');
+      return null;
+    }
+
+    const tag = config.affiliateTag || 'voxelpromo';
+
+    try {
+      logger.info(`🔗 Generating affiliate link via internal API for: ${productUrl.substring(0, 60)}...`);
+
+      const response = await axios.post(
+        'https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink',
+        {
+          urls: [productUrl],
+          tag: tag,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-csrf-token': config.csrfToken,
+            'Cookie': config.sessionCookies,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Accept': 'application/json',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Origin': 'https://www.mercadolivre.com.br',
+            'Referer': 'https://www.mercadolivre.com.br/affiliate-program/link-builder',
+          },
+          timeout: 15000,
+        }
+      );
+
+      if (response.data?.urls?.[0]?.short_url) {
+        const shortUrl = response.data.urls[0].short_url;
+        logger.info(`✅ Affiliate link generated: ${shortUrl}`);
+        return shortUrl;
+      }
+
+      logger.warn('⚠️ Internal API response missing short_url:', response.data);
+      return null;
+    } catch (error: any) {
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        logger.error('❌ Session expired or invalid. Please update cookies and csrf-token in settings.');
+      } else {
+        logger.error(`❌ Failed to generate affiliate link via internal API: ${error.message}`);
+      }
+      return null;
+    }
+  }
 
   private buildAffiliateLink(productUrl: string, _itemId: string): string {
     const config = this.getConfig();
@@ -632,17 +734,46 @@ export class MercadoLivreService {
     }
   }
 
-  convertToOffer(product: MercadoLivreProduct, category: string = 'electronics'): Offer | null {
+  async convertToOffer(product: MercadoLivreProduct, category: string = 'electronics'): Promise<Offer | null> {
     try {
       const currentPrice = product.sale_price || product.price || 0;
       const originalPrice = product.original_price || product.base_price || product.price || currentPrice;
-      const discountPercentage = originalPrice > currentPrice
-        ? Math.round(((originalPrice - currentPrice) / originalPrice) * 100)
-        : 0;
+
+      // Prioritize scraped discount percentage from badge, fallback to calculated
+      let discountPercentage = product.discount_percentage || 0;
+
+      if (!discountPercentage && originalPrice > currentPrice) {
+        discountPercentage = Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
+      }
 
       if (currentPrice <= 0) return null;
 
-      const affiliateLink = this.buildAffiliateLink(product.permalink, product.id);
+      let affiliateLink = product.permalink;
+
+      // Priority 1: Try Internal API (createLink) - most reliable
+      const internalLink = await this.generateAffiliateLink(product.permalink);
+      if (internalLink) {
+        affiliateLink = internalLink;
+      } else {
+        // Priority 2: Use Puppeteer/Scraper if configured
+        const generatorEndpoint = process.env.MERCADOLIVRE_LINK_GENERATOR_ENDPOINT;
+        if (generatorEndpoint) {
+          try {
+            if (!this.scraper) {
+              // eslint-disable-next-line @typescript-eslint/no-var-requires
+              const { MercadoLivreScraper } = require('./MercadoLivreScraper');
+              this.scraper = new MercadoLivreScraper();
+            }
+            affiliateLink = await this.scraper.generateAffiliateLink(product.permalink);
+          } catch (e) {
+            logger.warn(`⚠️ Failed to generate affiliate link via scraper, falling back to standard: ${e}`);
+            affiliateLink = this.buildAffiliateLink(product.permalink, product.id);
+          }
+        } else {
+          // Priority 3: Legacy/Standard method (URL param appending)
+          affiliateLink = this.buildAffiliateLink(product.permalink, product.id);
+        }
+      }
 
       return {
         title: product.title,
@@ -668,6 +799,7 @@ export class MercadoLivreService {
       logger.error(`Error converting product ${product.id} to offer:`, error);
       return null;
     }
+
   }
 
 
@@ -680,6 +812,7 @@ export class MercadoLivreService {
 
       // Lazy load scraper to avoid overhead if not needed
       if (!this.scraper) {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
         const { MercadoLivreScraper } = require('./MercadoLivreScraper');
         this.scraper = new MercadoLivreScraper();
       }
@@ -768,6 +901,7 @@ export class MercadoLivreService {
 
       // Lazy load scraper
       if (!this.scraper) {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
         const { MercadoLivreScraper } = require('./MercadoLivreScraper');
         this.scraper = new MercadoLivreScraper();
       }

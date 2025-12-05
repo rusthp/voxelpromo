@@ -292,9 +292,29 @@ export class OfferService {
       }
 
       const limit = options.limit || 50;
+      const skip = (options as any).skip || 0; // Add skip support for pagination
+      const sortBy = (options as any).sortBy || 'newest';
+
+      let sort: any = { createdAt: -1 };
+      switch (sortBy) {
+        case 'discount':
+          sort = { discountPercentage: -1 };
+          break;
+        case 'price_asc':
+          sort = { currentPrice: 1 };
+          break;
+        case 'price_desc':
+          sort = { currentPrice: -1 };
+          break;
+        case 'newest':
+        default:
+          sort = { createdAt: -1 };
+          break;
+      }
 
       const offers = await OfferModel.find(query)
-        .sort({ discountPercentage: -1, createdAt: -1 })
+        .sort(sort)
+        .skip(skip) // Add skip to query chain
         .limit(limit)
         .lean();
 
@@ -308,9 +328,30 @@ export class OfferService {
   /**
    * Get all offers
    */
-  async getAllOffers(limit?: number, skip: number = 0): Promise<Offer[]> {
+  /**
+   * Get all offers
+   */
+  async getAllOffers(limit?: number, skip: number = 0, sortBy: string = 'newest'): Promise<Offer[]> {
     try {
-      let query = OfferModel.find({ isActive: true }).sort({ createdAt: -1 }).skip(skip);
+      let sort: any = { createdAt: -1 };
+
+      switch (sortBy) {
+        case 'discount':
+          sort = { discountPercentage: -1 };
+          break;
+        case 'price_asc':
+          sort = { currentPrice: 1 };
+          break;
+        case 'price_desc':
+          sort = { currentPrice: -1 };
+          break;
+        case 'newest':
+        default:
+          sort = { createdAt: -1 };
+          break;
+      }
+
+      let query = OfferModel.find({ isActive: true }).sort(sort).skip(skip);
 
       // Only apply limit if provided
       if (limit !== undefined && limit > 0) {
@@ -605,6 +646,32 @@ export class OfferService {
       return deletedCount;
     } catch (error) {
       logger.error('Error deleting offers:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete ALL offers
+   */
+  async deleteAllOffers(permanent: boolean = false): Promise<number> {
+    try {
+      let deletedCount = 0;
+
+      if (permanent) {
+        // Permanent deletion
+        const result = await OfferModel.deleteMany({});
+        deletedCount = result.deletedCount || 0;
+        logger.info(`Permanently deleted ALL offers (${deletedCount})`);
+      } else {
+        // Soft delete - mark as inactive
+        const result = await OfferModel.updateMany({}, { isActive: false });
+        deletedCount = result.modifiedCount || 0;
+        logger.info(`Soft deleted ALL offers (${deletedCount})`);
+      }
+
+      return deletedCount;
+    } catch (error) {
+      logger.error('Error deleting all offers:', error);
       throw error;
     }
   }

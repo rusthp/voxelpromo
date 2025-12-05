@@ -1,7 +1,6 @@
-import makeWASocket, {
-  DisconnectReason,
-  useMultiFileAuthState,
-  fetchLatestBaileysVersion,
+// Baileys is an ESM-only module, so we need to use dynamic import
+// We'll import the types for TypeScript, but use dynamic import at runtime
+import type {
   WASocket,
   ConnectionState,
 } from 'baileys';
@@ -114,6 +113,11 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
     this.lastError = null;
 
     try {
+      // Dynamically import Baileys (ESM module)
+      const baileys = await import('baileys');
+      const makeWASocket = baileys.default;
+      const { useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = baileys;
+
       const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
       const { version } = await fetchLatestBaileysVersion();
 

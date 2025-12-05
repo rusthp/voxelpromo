@@ -429,7 +429,9 @@ export class CollectorService {
       }
 
       // Convert and save
-      const offers = products.map(p => this.mercadoLivreService.convertToOffer(p, 'daily-deals')).filter((o): o is Offer => o !== null);
+      const offersPromises = products.map(p => this.mercadoLivreService.convertToOffer(p, 'daily-deals'));
+      const offersResults = await Promise.all(offersPromises);
+      const offers = offersResults.filter((o): o is Offer => o !== null);
       const savedCount = await this.offerService.saveOffers(offers);
 
       // Update batch
@@ -581,9 +583,9 @@ export class CollectorService {
 
       logger.info(`🔄 Converting ${allProductsProcessed.length} products to offers...`);
 
-      const offers = allProductsProcessed
-        .map((product, index) => {
-          const offer = this.mercadoLivreService.convertToOffer(product, category);
+      const offersPromises = allProductsProcessed
+        .map(async (product, index) => {
+          const offer = await this.mercadoLivreService.convertToOffer(product, category);
           if (!offer && index < 3) {
             // Log first 3 failed conversions for debugging
             logger.debug(`Product ${index + 1} conversion failed:`, {
@@ -601,8 +603,10 @@ export class CollectorService {
             });
           }
           return offer;
-        })
-        .filter((offer) => offer !== null);
+        });
+
+      const offersResults = await Promise.all(offersPromises);
+      const offers = offersResults.filter((offer) => offer !== null);
 
       logger.info(`✅ Converted ${offers.length} products to offers (filtered by discount)`);
       const savedCount = await this.offerService.saveOffers(
@@ -654,7 +658,9 @@ export class CollectorService {
    */
   private getConfig(): { sources?: string[]; enabled?: boolean } {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const fs = require('fs');
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const path = require('path');
       const configPath = path.join(process.cwd(), 'config.json');
 
@@ -728,7 +734,9 @@ export class CollectorService {
       enabledSources.includes('rss')
         ? (async () => {
           // Collect from all configured RSS feeds
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
           const fs = require('fs');
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
           const path = require('path');
           const configPath = path.join(process.cwd(), 'config.json');
 

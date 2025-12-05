@@ -269,13 +269,13 @@ export class ShopeeService {
             products.push({
               image_link: record.image_link || record.image_link_3 || '',
               itemid: record.itemid || '',
-              price: salePrice || price,
+              price: price, // Keep original price
               sale_price: salePrice < price ? salePrice : undefined,
               discount_percentage: discountPercentage > 0 ? discountPercentage : undefined,
               title: record.title || '',
               description: record.description || record.title || '',
               product_link: record.product_link || '',
-              product_short_link: record.product_short_link || record.product_link || '',
+              product_short_link: record['product_short link'] || record.product_short_link || record.product_link || '',
               global_category1: record.global_category1 || 'electronics',
               global_category2: record.global_category2,
               item_rating: record.item_rating
@@ -372,6 +372,52 @@ export class ShopeeService {
    * @param category - Product category
    * @returns Offer object
    */
+  /**
+   * Analyze Shopee link to determine type and extract original link
+   */
+  private analyzeLink(url: string): { type: 'affiliate' | 'product' | 'unknown'; originalLink: string; affiliateLink: string } {
+    const result = {
+      type: 'unknown' as 'affiliate' | 'product' | 'unknown',
+      originalLink: url,
+      affiliateLink: ''
+    };
+
+    if (!url) return result;
+
+    // Rule 1: Affiliate Link
+    if (url.includes('shope.ee/an_redir') || url.includes('shope.ee/')) {
+      result.type = 'affiliate';
+      result.affiliateLink = url;
+
+      // Extract origin_link if present
+      const originMatch = url.match(/origin_link=([^&]+)/);
+      if (originMatch) {
+        try {
+          result.originalLink = decodeURIComponent(originMatch[1]);
+        } catch (e) {
+          // Keep original url if decode fails
+        }
+      }
+      return result;
+    }
+
+    // Rule 2: Normal Product Link
+    if (url.includes('shopee.com.br/product/')) {
+      result.type = 'product';
+      result.originalLink = url;
+      return result;
+    }
+
+    return result;
+  }
+
+  /**
+   * Convert Shopee product to Offer format
+   *
+   * @param product - Shopee product
+   * @param category - Product category
+   * @returns Offer object
+   */
   convertToOffer(product: ShopeeProduct, category: string = 'electronics'): Offer | null {
     try {
       const currentPrice = product.sale_price || product.price || 0;
@@ -392,9 +438,37 @@ export class ShopeeService {
         return null;
       }
 
-      // Use affiliate link if available, otherwise use product link
-      const affiliateUrl = product.product_short_link || product.product_link;
-      const productUrl = product.product_link;
+      // Analyze links to ensure correctness
+      const rawAffiliateLink = product.product_short_link || product.product_link;
+      const rawProductLink = product.product_link;
+
+      const affiliateAnalysis = this.analyzeLink(rawAffiliateLink);
+      const productAnalysis = this.analyzeLink(rawProductLink);
+
+      // Determine final links
+      let affiliateUrl = '';
+      let productUrl = '';
+
+      // 1. Try to get affiliate link
+      if (affiliateAnalysis.type === 'affiliate') {
+        affiliateUrl = affiliateAnalysis.affiliateLink;
+      } else if (productAnalysis.type === 'affiliate') {
+        affiliateUrl = productAnalysis.affiliateLink;
+      }
+
+      // 2. Try to get product link
+      if (productAnalysis.type === 'product') {
+        productUrl = productAnalysis.originalLink;
+      } else if (affiliateAnalysis.originalLink && affiliateAnalysis.originalLink.includes('shopee.com.br/product/')) {
+        productUrl = affiliateAnalysis.originalLink;
+      } else {
+        productUrl = rawProductLink; // Fallback
+      }
+
+      // If we still don't have an affiliate link, use the raw one if it looks suspicious/short, otherwise empty
+      if (!affiliateUrl && rawAffiliateLink && rawAffiliateLink !== productUrl) {
+        affiliateUrl = rawAffiliateLink;
+      }
 
       // Build tags
       const tags: string[] = [];
