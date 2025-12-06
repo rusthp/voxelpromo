@@ -25,7 +25,7 @@ jobs:
         run: |
           codespell \
             --skip="*.lock,*.json,*.map,*.yaml,*.yml,*.csv,*.bib,target,node_modules,.git,dist,venv,build,benchmarks" \
-            --ignore-words-list="crate,ser,deser,erro,sucesso,msg,val,info,historico,usuario,autenticacao,conexao,leve,controle,componentes,comando,comandos,instale,atual,validade,considere,fase,limite,seletor,caracteres,autorize,bloc,oficial,falso,compre,nome,itens,nomes,copie,inicial,anormal,erros,moment,momento,parem,repete,vai,contem,conter,ignora,prefer,prefere,eles,refere,envolve,utiliza,profissional,gere,funcional,comercial,classe,meu,meus,alternativos,termo,potencial,validador"
+            --ignore-words-list="crate,ser,deser,erro,sucesso,msg,val,info,historico,usuario,autenticacao,conexao,leve,controle,componentes,comando,comandos,instale,atual,validade,considere,fase,limite,seletor,caracteres,autorize,bloc,oficial,falso,compre,nome,itens,nomes,copie,inicial,anormal,erros,moment,momento,parem,repete,vai,contem,conter,ignora,prefer,prefere,eles,refere,envolve,utiliza,profissional,gere,funcional,comercial,classe,meu,meus,alternativos,termo,potencial,validador,ative,controles,essencial,caractere,afterAll"
           # MONOREPO NOTE: Add multilingual stopwords to ignore-words-list if needed
           # Example: --ignore-words-list="crate,ser,deser,meu,oder,ist,alle" (Portuguese,German,etc)
 
