@@ -64,6 +64,14 @@ export class WhatsAppServiceWebJS implements IWhatsAppService {
     }
 
     this.initialized = true;
+
+    // Get Chrome path from environment or use Puppeteer's default cache location
+    const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH ||
+      process.env.CHROME_PATH ||
+      (process.platform === 'win32'
+        ? `${process.env.USERPROFILE}\\.cache\\puppeteer\\chrome\\win64-121.0.6167.85\\chrome-win64\\chrome.exe`
+        : undefined);
+
     this.client = new Client({
       authStrategy: new LocalAuth({
         dataPath: '.wwebjs_auth',
@@ -71,6 +79,7 @@ export class WhatsAppServiceWebJS implements IWhatsAppService {
       puppeteer: {
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        ...(chromePath && { executablePath: chromePath }),
       },
     });
 
@@ -297,14 +306,8 @@ export class WhatsAppServiceWebJS implements IWhatsAppService {
 
           await this.client.sendMessage(chatId, message);
 
-          // If there's an image, send URL
-          if (offer.imageUrl) {
-            try {
-              await this.client.sendMessage(chatId, `📷 Imagem: ${offer.imageUrl}`);
-            } catch (imageError) {
-              logger.warn('Could not send image URL to WhatsApp:', imageError);
-            }
-          }
+          // Note: WhatsApp automatically generates link preview from the URL in the message
+          // No need to send image URL separately as it creates duplicate messages
 
           logger.info(`✅ Offer sent to WhatsApp target (${chatId}): ${offer.title}`);
           successCount++;
@@ -330,10 +333,44 @@ export class WhatsAppServiceWebJS implements IWhatsAppService {
 
   /**
    * Format offer message for WhatsApp
+   * Converts HTML formatting to WhatsApp format
    */
   private formatMessage(offer: Offer): string {
     const post = offer.aiGeneratedPost || this.generateDefaultPost(offer);
-    return `${post}\n\n🔗 ${offer.affiliateUrl}`;
+    const formattedPost = this.convertHtmlToWhatsApp(post);
+
+    // Only add link if it's not already in the post
+    if (offer.affiliateUrl && !formattedPost.includes(offer.affiliateUrl)) {
+      return `${formattedPost}\n\n🔗 ${offer.affiliateUrl}`;
+    }
+
+    return formattedPost;
+  }
+
+  /**
+   * Convert HTML formatting to WhatsApp formatting
+   * WhatsApp uses: *bold*, _italic_, ~strikethrough~, ```monospace```
+   */
+  private convertHtmlToWhatsApp(text: string): string {
+    return text
+      // Bold: <b>text</b> or <strong>text</strong> -> *text*
+      .replace(/<b>(.*?)<\/b>/gi, '*$1*')
+      .replace(/<strong>(.*?)<\/strong>/gi, '*$1*')
+      // Italic: <i>text</i> or <em>text</em> -> _text_
+      .replace(/<i>(.*?)<\/i>/gi, '_$1_')
+      .replace(/<em>(.*?)<\/em>/gi, '_$1_')
+      // Strikethrough: <s>text</s> or <strike>text</strike> -> ~text~
+      .replace(/<s>(.*?)<\/s>/gi, '~$1~')
+      .replace(/<strike>(.*?)<\/strike>/gi, '~$1~')
+      // Code: <code>text</code> -> ```text```
+      .replace(/<code>(.*?)<\/code>/gi, '```$1```')
+      // Remove other HTML tags
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      // Clean up any double formatting that might occur
+      .replace(/\*\*+/g, '*')
+      .replace(/__+/g, '_')
+      .replace(/~~+/g, '~');
   }
 
   /**

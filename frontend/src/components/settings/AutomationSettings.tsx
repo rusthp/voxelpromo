@@ -1,0 +1,144 @@
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Loader2, Bot, Play, Pause, Clock } from "lucide-react";
+import { ConfigState } from "@/types/settings";
+import { MESSAGING_CHANNELS, MESSAGING_CHANNEL_LABELS, AUTOMATION_INTERVALS } from "@/constants/channels";
+
+interface AutomationSettingsProps {
+    config: ConfigState;
+    setConfig: React.Dispatch<React.SetStateAction<ConfigState>>;
+    loading: boolean;
+    onToggleAutomation: () => void;
+}
+
+export function AutomationSettings({ config, setConfig, loading, onToggleAutomation }: AutomationSettingsProps) {
+    return (
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                    <CardTitle className="flex items-center gap-2">
+                        <Bot className="w-5 h-5 text-primary" />
+                        Robô de Automação
+                    </CardTitle>
+                    <CardDescription>
+                        Configure o agendamento automático de postagens
+                    </CardDescription>
+                </div>
+                <Button
+                    variant={config.automation.isActive ? "destructive" : "default"}
+                    onClick={onToggleAutomation}
+                    disabled={loading}
+                    className="gap-2"
+                >
+                    {loading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : config.automation.isActive ? (
+                        <Pause className="w-4 h-4" />
+                    ) : (
+                        <Play className="w-4 h-4" />
+                    )}
+                    {config.automation.isActive ? "Parar Robô" : "Iniciar Robô"}
+                </Button>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-medium flex items-center gap-2">
+                            <Clock className="w-4 h-4" /> Horários
+                        </h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="startHour">Início (Hora)</Label>
+                                <Input
+                                    id="startHour"
+                                    type="number"
+                                    min="0"
+                                    max="23"
+                                    value={config.automation.startHour}
+                                    onChange={(e) => setConfig({
+                                        ...config,
+                                        automation: { ...config.automation, startHour: parseInt(e.target.value) || 0 }
+                                    })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="endHour">Fim (Hora)</Label>
+                                <Input
+                                    id="endHour"
+                                    type="number"
+                                    min="0"
+                                    max="23"
+                                    value={config.automation.endHour}
+                                    onChange={(e) => setConfig({
+                                        ...config,
+                                        automation: { ...config.automation, endHour: parseInt(e.target.value) || 0 }
+                                    })}
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="interval">Intervalo (minutos)</Label>
+                            <select
+                                id="interval"
+                                className="w-full px-3 py-2 border border-input bg-background rounded-lg"
+                                value={config.automation.intervalMinutes}
+                                onChange={(e) => setConfig({
+                                    ...config,
+                                    automation: { ...config.automation, intervalMinutes: parseInt(e.target.value) || 30 }
+                                })}
+                            >
+                                {AUTOMATION_INTERVALS.map(({ value, label }) => (
+                                    <option key={value} value={value}>{label}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-medium">Filtros e Canais</h3>
+                        <div className="space-y-2">
+                            <Label>Canais Ativos</Label>
+                            <div className="flex flex-wrap gap-4 pt-2">
+                                {Object.values(MESSAGING_CHANNELS).map(channel => (
+                                    <div key={channel} className="flex items-center space-x-2">
+                                        <Switch
+                                            id={`auto-${channel}`}
+                                            checked={config.automation.enabledChannels.includes(channel)}
+                                            onCheckedChange={(checked) => {
+                                                const channels = checked
+                                                    ? [...config.automation.enabledChannels, channel]
+                                                    : config.automation.enabledChannels.filter(c => c !== channel);
+                                                setConfig({
+                                                    ...config,
+                                                    automation: { ...config.automation, enabledChannels: channels }
+                                                });
+                                            }}
+                                        />
+                                        <Label htmlFor={`auto-${channel}`}>
+                                            {MESSAGING_CHANNEL_LABELS[channel] || channel}
+                                        </Label>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="space-y-2 pt-2">
+                            <Label htmlFor="minDiscount">Desconto Mínimo (%)</Label>
+                            <Input
+                                id="minDiscount"
+                                type="number"
+                                value={config.automation.minDiscount}
+                                onChange={(e) => setConfig({
+                                    ...config,
+                                    automation: { ...config.automation, minDiscount: parseInt(e.target.value) || 0 }
+                                })}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}

@@ -8,7 +8,6 @@ import { Boom } from '@hapi/boom';
 import { Offer } from '../../types';
 import { logger } from '../../utils/logger';
 import { IWhatsAppService } from './IWhatsAppService';
-import axios from 'axios';
 import QRCode from 'qrcode';
 import { JIDValidator } from './whatsapp/utils/JIDValidator';
 import { RetryHelper } from './whatsapp/utils/RetryHelper';
@@ -678,40 +677,8 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
             return false;
           }
 
-          // Send image if available with retry
-          if (offer.imageUrl) {
-            try {
-              await RetryHelper.retryNetwork(async () => {
-                if (!this.sock) {
-                  throw new Error('Socket not initialized');
-                }
-
-                logger.debug(`📷 Downloading image from: ${offer.imageUrl}`);
-                const imageResponse = await axios.get(offer.imageUrl!, {
-                  responseType: 'arraybuffer',
-                  timeout: 10000,
-                });
-                const imageBuffer = Buffer.from(imageResponse.data);
-
-                logger.debug(`📷 Sending image (${imageBuffer.length} bytes)`);
-                await this.sock.sendMessage(jid, {
-                  image: imageBuffer,
-                  caption: offer.title,
-                });
-              }, `Send image to ${jid}`);
-              logger.debug(`✅ Image sent successfully`);
-            } catch (imageError: any) {
-              logger.warn(`⚠️ Could not send image: ${imageError.message}`);
-              try {
-                await RetryHelper.retryMessage(async () => {
-                  if (!this.sock) throw new Error('Socket not initialized');
-                  await this.sock.sendMessage(jid, { text: `📷 Imagem: ${offer.imageUrl}` });
-                }, `Send image URL fallback to ${jid}`);
-              } catch (fallbackError: any) {
-                logger.warn(`⚠️ Image URL fallback failed: ${fallbackError.message}`);
-              }
-            }
-          }
+          // Note: WhatsApp automatically generates link preview from the URL in the message
+          // No need to send image separately as it creates duplicate messages
 
           this.messagesSent++;
           successCount++;
@@ -740,10 +707,44 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
 
   /**
    * Format offer message for WhatsApp
+   * Converts HTML formatting to WhatsApp format
    */
   private formatMessage(offer: Offer): string {
     const post = offer.aiGeneratedPost || this.generateDefaultPost(offer);
-    return `${post}\n\n🔗 ${offer.affiliateUrl}`;
+    const formattedPost = this.convertHtmlToWhatsApp(post);
+
+    // Only add link if it's not already in the post
+    if (offer.affiliateUrl && !formattedPost.includes(offer.affiliateUrl)) {
+      return `${formattedPost}\n\n🔗 ${offer.affiliateUrl}`;
+    }
+
+    return formattedPost;
+  }
+
+  /**
+   * Convert HTML formatting to WhatsApp formatting
+   * WhatsApp uses: *bold*, _italic_, ~strikethrough~, ```monospace```
+   */
+  private convertHtmlToWhatsApp(text: string): string {
+    return text
+      // Bold: <b>text</b> or <strong>text</strong> -> *text*
+      .replace(/<b>(.*?)<\/b>/gi, '*$1*')
+      .replace(/<strong>(.*?)<\/strong>/gi, '*$1*')
+      // Italic: <i>text</i> or <em>text</em> -> _text_
+      .replace(/<i>(.*?)<\/i>/gi, '_$1_')
+      .replace(/<em>(.*?)<\/em>/gi, '_$1_')
+      // Strikethrough: <s>text</s> or <strike>text</strike> -> ~text~
+      .replace(/<s>(.*?)<\/s>/gi, '~$1~')
+      .replace(/<strike>(.*?)<\/strike>/gi, '~$1~')
+      // Code: <code>text</code> -> ```text```
+      .replace(/<code>(.*?)<\/code>/gi, '```$1```')
+      // Remove other HTML tags
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      // Clean up any double formatting that might occur
+      .replace(/\*\*+/g, '*')
+      .replace(/__+/g, '_')
+      .replace(/~~+/g, '~');
   }
 
   /**

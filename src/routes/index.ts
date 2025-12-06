@@ -15,6 +15,7 @@ import { postsRoutes } from './posts.routes';
 import { healthRoutes } from './health.routes';
 import { automationRoutes } from './automation.routes';
 import { templatesRoutes } from './templates.routes';
+import { aiRoutes } from './ai.routes';
 import {
   collectionLimiter,
   configLimiter,
@@ -61,6 +62,7 @@ export function setupRoutes(app: Express): void {
   app.use('/api/x', xRoutes); // OAuth callback needs to be public
   app.use('/api/whatsapp', whatsappRoutes); // WhatsApp QR code needs to be accessible
   app.use('/api/health', healthRoutes); // Health check endpoints
+  app.use('/api/ai', aiRoutes); // AI provider testing
 
   // Protected routes (require authentication) with rate limiting
   app.use('/api/offers', authenticate, apiLimiter, offerRoutes);

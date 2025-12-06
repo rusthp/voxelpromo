@@ -6,10 +6,11 @@ import { logger } from '../../utils/logger';
 export class AIService {
   private groqClient: Groq | null = null;
   private openaiClient: OpenAI | null = null;
-  private provider: 'groq' | 'openai';
+  private deepseekClient: OpenAI | null = null; // DeepSeek uses OpenAI-compatible API
+  private provider: 'groq' | 'openai' | 'deepseek';
 
   constructor() {
-    this.provider = (process.env.AI_PROVIDER || 'groq') as 'groq' | 'openai';
+    this.provider = (process.env.AI_PROVIDER || 'groq') as 'groq' | 'openai' | 'deepseek';
 
     if (this.provider === 'groq' && process.env.GROQ_API_KEY) {
       this.groqClient = new Groq({
@@ -19,6 +20,80 @@ export class AIService {
       this.openaiClient = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
       });
+    } else if (this.provider === 'deepseek' && process.env.DEEPSEEK_API_KEY) {
+      this.deepseekClient = new OpenAI({
+        apiKey: process.env.DEEPSEEK_API_KEY,
+        baseURL: 'https://api.deepseek.com',
+      });
+    }
+  }
+
+  /**
+   * Test connection to the AI provider
+   * Returns success message or throws error
+   */
+  async testConnection(provider?: string, apiKey?: string): Promise<{ success: boolean; message: string; provider: string }> {
+    const targetProvider = provider || this.provider;
+
+    try {
+      let testClient: Groq | OpenAI | null = null;
+      const testPrompt = 'Responda apenas: OK';
+      let model = '';
+
+      if (targetProvider === 'groq') {
+        const key = apiKey || process.env.GROQ_API_KEY;
+        if (!key) throw new Error('Groq API Key não configurada');
+        testClient = new Groq({ apiKey: key });
+        model = 'llama-3.1-8b-instant';
+      } else if (targetProvider === 'openai') {
+        const key = apiKey || process.env.OPENAI_API_KEY;
+        if (!key) throw new Error('OpenAI API Key não configurada');
+        testClient = new OpenAI({ apiKey: key });
+        model = 'gpt-3.5-turbo';
+      } else if (targetProvider === 'deepseek') {
+        const key = apiKey || process.env.DEEPSEEK_API_KEY;
+        if (!key) throw new Error('DeepSeek API Key não configurada');
+        testClient = new OpenAI({ apiKey: key, baseURL: 'https://api.deepseek.com' });
+        model = 'deepseek-chat';
+      } else {
+        throw new Error(`Provedor desconhecido: ${targetProvider}`);
+      }
+
+      // Make a minimal test request
+      if (targetProvider === 'groq') {
+        await (testClient as Groq).chat.completions.create({
+          messages: [{ role: 'user', content: testPrompt }],
+          model,
+          max_tokens: 5,
+        });
+      } else {
+        await (testClient as OpenAI).chat.completions.create({
+          messages: [{ role: 'user', content: testPrompt }],
+          model,
+          max_tokens: 5,
+        });
+      }
+
+      logger.info(`✅ AI connection test successful for ${targetProvider}`);
+      return {
+        success: true,
+        message: `Conexão com ${targetProvider.toUpperCase()} funcionando!`,
+        provider: targetProvider,
+      };
+    } catch (error: any) {
+      const errorMsg = error?.message || String(error);
+      logger.error(`❌ AI connection test failed for ${targetProvider}:`, errorMsg);
+
+      // Parse common error types for user-friendly messages
+      if (errorMsg.includes('401') || errorMsg.includes('Unauthorized') || errorMsg.includes('invalid_api_key')) {
+        throw new Error(`API Key inválida para ${targetProvider}`);
+      } else if (errorMsg.includes('429') || errorMsg.includes('rate_limit')) {
+        throw new Error(`Limite de requisições atingido para ${targetProvider}`);
+      } else if (errorMsg.includes('ENOTFOUND') || errorMsg.includes('ECONNREFUSED')) {
+        throw new Error(`Não foi possível conectar ao servidor ${targetProvider}`);
+      }
+
+      throw new Error(`Erro ao conectar com ${targetProvider}: ${errorMsg}`);
     }
   }
 
@@ -33,6 +108,8 @@ export class AIService {
         return await this.generateWithGroq(prompt, request);
       } else if (this.provider === 'openai' && this.openaiClient) {
         return await this.generateWithOpenAI(prompt, request);
+      } else if (this.provider === 'deepseek' && this.deepseekClient) {
+        return await this.generateWithDeepSeek(prompt, request);
       } else {
         throw new Error('No AI provider configured');
       }
@@ -296,6 +373,38 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
       temperature: 0.7,
       max_tokens: 500,
       response_format: { type: 'json_object' },
+    });
+
+    const content = completion.choices[0]?.message?.content || '{}';
+    return this.parseAIResponse(content, request.offer);
+  }
+
+  /**
+   * Generate with DeepSeek (OpenAI-compatible API)
+   */
+  private async generateWithDeepSeek(
+    prompt: string,
+    request: AIPostRequest
+  ): Promise<AIPostResponse> {
+    if (!this.deepseekClient) {
+      throw new Error('DeepSeek client not initialized');
+    }
+
+    const completion = await this.deepseekClient.chat.completions.create({
+      model: 'deepseek-chat',
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are an expert at creating engaging social media posts for deals and promotions. Always respond with valid JSON only.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 500,
     });
 
     const content = completion.choices[0]?.message?.content || '{}';
