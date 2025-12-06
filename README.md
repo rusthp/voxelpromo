@@ -1,112 +1,172 @@
-# 🛍️ VoxelPromo - Sistema de Monitoramento de Ofertas
+# 🚀 VoxelPromo - Automação de Ofertas com IA
 
-Sistema completo de monitoramento e automação de ofertas de e-commerces (Amazon, AliExpress, Shopee, etc) com geração automática de posts usando IA e envio para múltiplos canais.
+> **Sistema inteligente de monitoramento, enriquecimento e distribuição de ofertas para afiliados.**
 
-## 🚀 Tecnologias
+O **VoxelPromo** é uma solução completa para automatizar o marketing de afiliados. Ele monitora lojas, detecta promoções, usa Inteligência Artificial para criar copys persuasivas e publica automaticamente em múltiplas redes sociais.
 
-- **Backend**: Node.js + TypeScript + Express
-- **Frontend**: Next.js + React + TypeScript
-- **Database**: MongoDB
-- **AI**: Groq/OpenAI para geração de conteúdo
-- **Automation**: node-cron para tarefas agendadas
-- **Integrations**: Telegram Bot, WhatsApp Web.js
+---
 
-## 📋 Funcionalidades
+## 📋 Índice
 
-- ✅ Coleta automática de ofertas (Amazon PA-API, AliExpress Affiliate API, RSS)
-- ✅ Scraping leve de sites de promoções
-- ✅ Filtros inteligentes de ofertas
-- ✅ Geração automática de links de afiliado
-- ✅ IA para melhorar descrições e criar posts virais
-- ✅ Postagem automática em Telegram e WhatsApp
-- ✅ Painel web para monitoramento e controle
-- ✅ Sistema de categorias e nichos
-- ✅ Logs e analytics
+- [Funcionalidades Principais](#-funcionalidades-principais)
+- [Como Funciona](#-como-funciona)
+- [Tecnologias](#-tecnologias)
+- [Instalação e Uso](#-instalação-e-uso)
+- [Configuração](#-configuração)
+  - [Painel Web](#painel-web-recomendado)
+  - [Variáveis de Ambiente](#variáveis-de-ambiente)
+- [Integrações Suportadas](#-integrações-suportadas)
+- [Documentação Técnica](#-documentação-técnica)
 
-## 🏗️ Estrutura do Projeto
+---
 
+## ✨ Funcionalidades Principais
+
+| Categoria | Recursos |
+|-----------|----------|
+| **📥 Coleta** | Monitoramento de RSS, Amazon PA-API, AliExpress Affiliate, Shopee e Mercado Livre. |
+| **🧠 Inteligência** | Integração com **DeepSeek**, **Groq** e **OpenAI** para gerar descrições virais e hashtags. |
+| **🔗 Afiliados** | Conversão automática de links normais para links com seu ID de afiliado. |
+| **📢 Distribuição** | Postagem automática no **Telegram**, **WhatsApp** (WebJS/Baileys) e **X (Twitter)**. |
+| **🖥️ Interface** | Dashboard moderno para gerenciar ofertas, configurações e ver estatísticas. |
+| **📊 Analytics** | Rastreamento de cliques e desempenho das ofertas. |
+
+---
+
+## 🔄 Como Funciona
+
+1.  **Monitoramento**: O sistema verifica periodicamente feeds RSS e APIs de lojas em busca de novos produtos.
+2.  **Filtragem**: Aplica filtros de preço, categoria e palavras-chave (blacklist) para ignorar ofertas irrelevantes.
+3.  **Enriquecimento (IA)**:
+    *   Extrai dados técnicos do produto.
+    *   A IA (ex: DeepSeek) analisa o produto e cria um texto de vendas (copy) persuasivo.
+    *   Adiciona emojis e hashtags relevantes.
+4.  **Monetização**: Substitui o link original pelo seu Link de Afiliado.
+5.  **Publicação**: Envia o post formatado (Imagem + Texto + Link) para os canais configurados (Telegram, WhatsApp, etc).
+
+---
+
+## 🛠️ Tecnologias
+
+*   **Backend**: Node.js, Express, TypeScript, MongoDB, Puppeteer/Playwright.
+*   **Frontend**: React, Next.js, TailwindCSS (Interface Administrativa).
+*   **IA**: Integrações com OpenAI API, Groq SDK e DeepSeek.
+
+---
+
+## 🚀 Instalação e Uso
+
+### Pré-requisitos
+*   Node.js 18+ ou 20+
+*   MongoDB (Local ou Atlas)
+*   Navegador Chrome (para WhatsApp WebJS)
+
+### Passo a Passo
+
+1.  **Clone o repositório:**
+    ```bash
+    git clone https://github.com/seu-usuario/voxelpromo.git
+    cd voxelpromo
+    ```
+
+2.  **Instale as dependências:**
+    ```bash
+    # Na raiz (Backend)
+    npm install
+
+    # No Frontend
+    cd frontend
+    npm install
+    cd ..
+    ```
+
+3.  **Configure o ambiente básico:**
+    ```bash
+    cp .env.example .env
+    # Preencha pelo menos a string de conexão do DATABASE_URL no .env
+    ```
+
+4.  **Inicie o projeto (Backend + Frontend):**
+    ```bash
+    npm run dev
+    ```
+
+    *   **Backend API**: `http://localhost:3000`
+    *   **Painel Admin**: `http://localhost:3001`
+
+---
+
+## ⚙️ Configuração
+
+A maneira recomendada de configurar o sistema é através do **Painel Web**.
+
+### Painel Web (Recomendado)
+Acesse `http://localhost:3001/settings` para configurar:
+
+1.  **Canais de Divulgação**: Conecte seu Bot do Telegram, conta do Twitter e WhatsApp.
+2.  **Programas de Afiliados**: Insira suas IDs de associado (Amazon Tag, AliExpress App Key, etc).
+3.  **Inteligência Artificial**:
+    *   Escolha seu provedor: **DeepSeek** (Custo-benefício), **Groq** (Velocidade) ou **OpenAI** (Qualidade).
+    *   Insira sua API Key e clique em **"Testar Conexão"**.
+4.  **Automação**: Defina os intervalos de verificação de ofertas.
+
+### Variáveis de Ambiente
+Para configurações sensíveis ou de infraestrutura, edite o arquivo `.env`:
+
+```env
+# Banco de Dados
+DATABASE_URL=mongodb://localhost:27017/voxelpromo
+
+# Servidor
+PORT=3000
+NODE_ENV=development
+
+# Segurança (JWT)
+JWT_SECRET=sua_chave_secreta_super_segura
 ```
-voxelpromo/
-├── src/                    # Backend TypeScript
-│   ├── server.ts          # Servidor principal
-│   ├── config/            # Configurações
-│   ├── models/            # Modelos MongoDB
-│   ├── routes/            # Rotas da API
-│   ├── services/          # Serviços (APIs, IA, etc)
-│   ├── jobs/              # Cron jobs
-│   ├── utils/             # Utilitários
-│   └── types/             # Tipos TypeScript
-├── frontend/              # Next.js Frontend
-│   ├── app/               # App Router
-│   ├── components/        # Componentes React
-│   └── lib/               # Utilitários frontend
-└── docs/                  # Documentação
-```
 
-## 🚀 Início Rápido
+---
 
-### Comando Único para Tudo
+## 🔌 Integrações Suportadas
 
-```bash
-npm run dev
-```
+### Fontes de Oferta (Entrada)
+*   **Amazon**: Requer credenciais da PA-API.
+*   **AliExpress**: Integração via API oficial ou monitoramento de links.
+*   **Shopee**: Coleta via feeds RSS/Links.
+*   **Mercado Livre**: Scraping inteligente de ofertas do dia.
 
-Este comando inicia **backend e frontend juntos**:
-- ✅ Backend: http://localhost:3000
-- ✅ Frontend: http://localhost:3001
+### Destinos (Saída)
+*   **Telegram**: Envia mensagens com botões de link (Inline Keyboards).
+*   **WhatsApp**: Suporta conexão via QR Code (multi-device) usando `whatsapp-web.js` ou `Baileys`.
+*   **X (Twitter)**: Postagem automática de tweets via API Oficial (OAuth 1.0a/2.0).
 
-## 🚀 Instalação
+---
 
-1. Clone o repositório
-2. Instale as dependências:
-```bash
-# Backend
-npm install
+## 📚 Documentação Técnica
 
-# Frontend (PowerShell)
-cd frontend; npm install; cd ..
+Para detalhes profundos sobre cada módulo, consulte a pasta [`docs/`](./docs):
 
-# Ou no CMD/Bash:
-cd frontend && npm install && cd ..
-```
+*   [Guia de Configuração Completo](./docs/CONFIGURATION_COMPLETE.md)
+*   [API Reference](./docs/API.md)
+*   [Estrutura do Projeto](./docs/PROJECT_SUMMARY.md)
+*   [Guia de Testes](./docs/TESTING_GUIDE.md)
+*   [Solução de Problemas](./docs/TROUBLESHOOTING.md)
 
-3. Configure as variáveis de ambiente:
-```bash
-cp .env.example .env
-# Edite o .env com suas credenciais
-```
+---
 
-4. Inicie o servidor de desenvolvimento:
-```bash
-npm run dev
-```
+## 🤝 Contribuição
 
-## 📝 Configuração
+Contribuições são bem-vindas! Por favor, leia o [Guia de Contribuição](./CONTRIBUTING.md) antes de enviar um Pull Request.
 
-### Amazon PA-API
-1. Crie uma conta no [Amazon Associates](https://affiliate-program.amazon.com/)
-2. Obtenha suas credenciais (Access Key, Secret Key, Associate Tag)
-3. Configure no `.env`
+1.  Faça um Fork do projeto
+2.  Crie sua Feature Branch (`git checkout -b feature/MinhaFeature`)
+3.  Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
+4.  Push para a Branch (`git push origin feature/MinhaFeature`)
+5.  Abra um Pull Request
 
-### AliExpress Affiliate API
-1. Registre-se no [AliExpress Affiliate Program](https://portals.aliexpress.com/)
-2. Obtenha App Key e App Secret
-3. Configure no `.env`
-
-### Telegram Bot
-1. Crie um bot com [@BotFather](https://t.me/botfather)
-2. Obtenha o token
-3. Configure `TELEGRAM_BOT_TOKEN` e `TELEGRAM_CHAT_ID` no `.env`
-
-### IA (Groq/OpenAI)
-1. Obtenha uma API key do [Groq](https://console.groq.com/) ou [OpenAI](https://platform.openai.com/)
-2. Configure no `.env`
-
-## 📚 Documentação
-
-Consulte a pasta `docs/` para documentação detalhada de cada módulo.
+---
 
 ## 📄 Licença
 
-MIT
+Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
