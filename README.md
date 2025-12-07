@@ -140,6 +140,18 @@ JWT_SECRET=sua_chave_secreta_super_segura
 *   **WhatsApp**: Suporta conexão via QR Code (multi-device) usando `whatsapp-web.js` ou `Baileys`.
 *   **X (Twitter)**: Postagem automática de tweets via API Oficial (OAuth 1.0a/2.0).
 
+## 🚀 Deploy em Produção (VPS)
+
+Para colocar o projeto no ar 24/7 (usando PM2 e Nginx), consulte o guia oficial:
+
+👉 **[Guia de Instalação e Produção (VM)](./production_guide.md)**
+
+Este guia cobre:
+*   Requisitos de Hardware (VM Simples: 2 vCPU / 4GB RAM)
+*   Instalação limpa no Ubuntu/Debian
+*   Configuração do PM2 para Backend e Frontend
+*   Otimizações de recurso
+
 ---
 
 ## 📚 Documentação Técnica
