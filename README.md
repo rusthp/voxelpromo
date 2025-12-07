@@ -144,7 +144,7 @@ JWT_SECRET=sua_chave_secreta_super_segura
 
 Para colocar o projeto no ar 24/7 (usando PM2 e Nginx), consulte o guia oficial:
 
-👉 **[Guia de Instalação e Produção (VM)](./production_guide.md)**
+👉 **[Guia de Instalação e Produção (VM)](./docs/production_guide.md)**
 
 Este guia cobre:
 *   Requisitos de Hardware (VM Simples: 2 vCPU / 4GB RAM)
