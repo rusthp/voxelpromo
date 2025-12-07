@@ -2,26 +2,21 @@ import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { cn } from "@/lib/utils";
 import { Settings2, CheckCircle2, XCircle } from "lucide-react";
-import { IntegrationModal } from "@/components/integrations/IntegrationModal";
+import { IntegrationModal, Platform } from "@/components/integrations/IntegrationModal";
 import { WhatsAppModal } from "@/components/integrations/WhatsAppModal";
 import api from "@/services/api";
 import { FaTelegram, FaWhatsapp, FaDiscord, FaXTwitter } from "react-icons/fa6";
 
-interface Platform {
-    id: string;
-    name: string;
-    icon: React.ReactNode;
-    connected: boolean;
+interface LocalPlatform extends Platform {
     posts: number;
-    color: string;
     description: string;
 }
 
 const Integrations = () => {
-    const [selectedPlatform, setSelectedPlatform] = useState<Platform | null>(null);
+    const [selectedPlatform, setSelectedPlatform] = useState<LocalPlatform | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
-    const [platforms, setPlatforms] = useState<Platform[]>([
+    const [platforms, setPlatforms] = useState<LocalPlatform[]>([
         {
             id: "telegram",
             name: "Telegram",
@@ -115,7 +110,7 @@ const Integrations = () => {
         }
     };
 
-    const handleOpenConfig = (platform: Platform) => {
+    const handleOpenConfig = (platform: LocalPlatform) => {
         if (platform.id === 'whatsapp') {
             setIsWhatsAppModalOpen(true);
         } else {

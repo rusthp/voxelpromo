@@ -1,25 +1,20 @@
 import { useState, useEffect } from "react";
 import { Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { IntegrationModal } from "@/components/integrations/IntegrationModal";
+import { IntegrationModal, Platform } from "@/components/integrations/IntegrationModal";
 import { WhatsAppModal } from "@/components/integrations/WhatsAppModal";
 import api from "@/services/api";
 import { FaTelegram, FaDiscord, FaWhatsapp, FaXTwitter } from "react-icons/fa6";
 
-interface Platform {
-  id: string;
-  name: string;
-  icon: React.ReactNode;
-  connected: boolean;
+interface LocalPlatform extends Platform {
   posts: number;
-  color: string;
 }
 
 export function SocialPlatforms() {
-  const [selectedPlatform, setSelectedPlatform] = useState<Platform | null>(null);
+  const [selectedPlatform, setSelectedPlatform] = useState<LocalPlatform | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
-  const [platforms, setPlatforms] = useState<Platform[]>([
+  const [platforms, setPlatforms] = useState<LocalPlatform[]>([
     { id: "twitter", name: "X (Twitter)", icon: <FaXTwitter className="w-5 h-5 text-white" />, connected: false, posts: 0, color: "bg-black" },
     { id: "telegram", name: "Telegram", icon: <FaTelegram className="w-5 h-5 text-white" />, connected: true, posts: 0, color: "bg-[#0088cc]" },
     { id: "discord", name: "Discord", icon: <FaDiscord className="w-5 h-5 text-white" />, connected: false, posts: 0, color: "bg-[#5865F2]" },
@@ -81,7 +76,7 @@ export function SocialPlatforms() {
     fetchStatus();
   }, []);
 
-  const handleOpenConfig = (platform: Platform) => {
+  const handleOpenConfig = (platform: LocalPlatform) => {
     if (platform.id === 'whatsapp') {
       setIsWhatsAppModalOpen(true);
     } else {

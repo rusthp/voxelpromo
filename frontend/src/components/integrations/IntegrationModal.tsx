@@ -12,10 +12,10 @@ interface IntegrationModalProps {
   platform: Platform | null;
 }
 
-interface Platform {
+export interface Platform {
   id: string;
   name: string;
-  icon: string;
+  icon: React.ReactNode;
   color: string;
   connected: boolean;
 }
