@@ -6,7 +6,8 @@ import {
   BarChart3,
   Zap,
   ChevronLeft,
-  X
+  X,
+  User
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "react-router-dom";
@@ -17,6 +18,7 @@ const menuItems = [
   { icon: Share2, label: "Publicações", href: "/publications" },
   { icon: BarChart3, label: "Analytics", href: "/analytics" },
   { icon: Zap, label: "Integrações", href: "/integrations" },
+  { icon: User, label: "Meu Perfil", href: "/profile" },
   { icon: Settings, label: "Configurações", href: "/settings" },
 ];
 

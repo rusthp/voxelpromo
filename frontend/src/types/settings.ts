@@ -64,6 +64,11 @@ export interface AutomationConfig {
     maxPrice: number;
 }
 
+export interface CollectionConfig {
+    sources: string[];
+    enabled: boolean;
+}
+
 export interface ConfigState {
     ai: AIConfig;
     telegram: TelegramConfig;
@@ -74,6 +79,7 @@ export interface ConfigState {
     mercadolivre: MercadoLivreConfig;
     shopee: ShopeeConfig;
     automation: AutomationConfig;
+    collection: CollectionConfig;
     rss: string[];
 }
 

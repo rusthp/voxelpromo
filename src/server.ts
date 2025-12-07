@@ -35,9 +35,10 @@ app.use(
         defaultSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         scriptSrc: ["'self'"],
-        imgSrc: ["'self'", 'data:', 'https:'],
+        imgSrc: ["'self'", 'data:', 'https:', 'http://localhost:3000', 'http://localhost:3001'],
       },
     },
+    crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow images to be loaded from different origins
   })
 );
 
@@ -101,6 +102,43 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ error: 'Internal server error' });
 });
 
+// Handle uncaught exceptions to prevent crashes
+process.on('uncaughtException', (error) => {
+  logger.error('❌ Uncaught Exception:', error);
+  logger.error(error.stack || 'No stack trace available');
+  // Don't exit - try to keep running
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('❌ Unhandled Promise Rejection at:', promise);
+  logger.error('Reason:', reason);
+  // Don't exit - try to keep running
+});
+
+// Memory monitoring - log warning if memory usage is high
+const MEMORY_CHECK_INTERVAL = 60000; // 1 minute
+const MEMORY_WARNING_THRESHOLD = 500 * 1024 * 1024; // 500MB
+
+setInterval(() => {
+  const memUsage = process.memoryUsage();
+  if (memUsage.heapUsed > MEMORY_WARNING_THRESHOLD) {
+    logger.warn(`⚠️ High memory usage: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`);
+    logger.warn('   Consider restarting the server or reducing background tasks');
+  }
+}, MEMORY_CHECK_INTERVAL);
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  logger.info('🛑 SIGTERM received, shutting down gracefully...');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  logger.info('🛑 SIGINT received, shutting down gracefully...');
+  process.exit(0);
+});
+
 // Start server
 async function startServer() {
   const startTime = Date.now();
@@ -158,4 +196,4 @@ async function startServer() {
 }
 
 startServer();
-// Trigger restart
+

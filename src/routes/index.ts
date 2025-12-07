@@ -1,9 +1,12 @@
 import { Express } from 'express';
+import express from 'express';
+import path from 'path';
 import { offerRoutes } from './offer.routes';
 import { collectorRoutes } from './collector.routes';
 import { statsRoutes } from './stats.routes';
 import { configRoutes } from './config.routes';
 import { authRoutes } from './auth.routes';
+import { profileRoutes } from './profile.routes';
 import { mercadoLivreRoutes } from './mercadolivre.routes';
 import { amazonRoutes } from './amazon.routes';
 import { xRoutes } from './x.routes';
@@ -23,6 +26,9 @@ import {
 } from '../middleware/rate-limit';
 
 export function setupRoutes(app: Express): void {
+  // Serve static files for uploads (avatars, etc.)
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
   // Root callback route for X OAuth (Twitter accepts root domain as callback)
   // This matches the pattern used by ActivePiece and other integrations
   // Must be registered BEFORE other routes to catch OAuth callbacks
@@ -73,5 +79,7 @@ export function setupRoutes(app: Express): void {
   app.use('/api/posts', authenticate, apiLimiter, postsRoutes); // Post history
   app.use('/api/automation', authenticate, apiLimiter, automationRoutes); // Automation system
   app.use('/api/templates', authenticate, apiLimiter, templatesRoutes); // Message templates
+  app.use('/api/profile', authenticate, apiLimiter, profileRoutes); // User profile
   app.use('/api/fix', authenticate, fixRoutes); // Temporary fix endpoints
 }
+

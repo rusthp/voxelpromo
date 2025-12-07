@@ -77,15 +77,18 @@ export function loadConfigFromFile(force = false): void {
       logger.info(`✅ Telegram config loaded (token length: ${config.telegram.botToken.length})`);
     }
 
-    // WhatsApp
+    // WhatsApp - always load library setting (regardless of enabled)
+    if (config.whatsapp?.library) {
+      process.env.WHATSAPP_LIBRARY = config.whatsapp.library;
+    }
+
     if (config.whatsapp?.enabled) {
       process.env.WHATSAPP_ENABLED = config.whatsapp.enabled.toString();
       process.env.WHATSAPP_TARGET_NUMBER = config.whatsapp.targetNumber;
-      process.env.WHATSAPP_LIBRARY = config.whatsapp.library || 'whatsapp-web.js';
       // Only log when actually loading from file (not using cache) to reduce log spam
       if (force || !configCache) {
         logger.debug(
-          `WhatsApp config loaded (library: ${config.whatsapp.library || 'whatsapp-web.js'})`
+          `WhatsApp config loaded (library: ${config.whatsapp.library || 'baileys'})`
         );
       }
     }

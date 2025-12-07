@@ -16,7 +16,7 @@ export class WhatsAppServiceFactory {
     const libraryName = (
       library ||
       process.env.WHATSAPP_LIBRARY ||
-      'whatsapp-web.js'
+      'baileys'  // Changed default from whatsapp-web.js to baileys (lighter, no Puppeteer)
     ).toLowerCase();
 
     switch (libraryName) {
@@ -26,9 +26,12 @@ export class WhatsAppServiceFactory {
 
       case 'whatsapp-web.js':
       case 'whatsappwebjs':
-      default:
         logger.info('Using WhatsApp library: whatsapp-web.js');
         return new WhatsAppServiceWebJS();
+
+      default:
+        logger.info('Using WhatsApp library: Baileys (default)');
+        return new WhatsAppServiceBaileys();
     }
   }
 

@@ -72,6 +72,10 @@ const initialConfig: ConfigState = {
         minDiscount: 20,
         maxPrice: 0,
     },
+    collection: {
+        sources: ["amazon", "aliexpress", "mercadolivre", "shopee", "rss"],
+        enabled: true,
+    },
     rss: [],
 };
 

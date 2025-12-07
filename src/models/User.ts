@@ -1,6 +1,12 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
+export interface IUserPreferences {
+  theme: 'dark' | 'light';
+  emailNotifications: boolean;
+  pushNotifications: boolean;
+}
+
 export interface IUser extends Document {
   username: string;
   email: string;
@@ -8,6 +14,10 @@ export interface IUser extends Document {
   role: 'admin' | 'user';
   isActive: boolean;
   lastLogin?: Date;
+  // Profile fields
+  displayName?: string;
+  avatarUrl?: string;
+  preferences: IUserPreferences;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -48,6 +58,31 @@ const UserSchema = new Schema<IUser>(
     },
     lastLogin: {
       type: Date,
+    },
+    // Profile fields
+    displayName: {
+      type: String,
+      trim: true,
+      maxlength: 50,
+    },
+    avatarUrl: {
+      type: String,
+      trim: true,
+    },
+    preferences: {
+      theme: {
+        type: String,
+        enum: ['dark', 'light'],
+        default: 'dark',
+      },
+      emailNotifications: {
+        type: Boolean,
+        default: true,
+      },
+      pushNotifications: {
+        type: Boolean,
+        default: true,
+      },
     },
   },
   {

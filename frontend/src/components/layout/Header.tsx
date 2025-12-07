@@ -3,6 +3,8 @@ import { Search, Plus, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NewProductModal } from "@/components/products/NewProductModal";
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
+import { ThemeToggle } from "@/components/theme";
+import { UserDropdown } from "./UserDropdown";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -48,11 +50,11 @@ export function Header({ onMenuClick, onProductAdded }: HeaderProps) {
               Novo Produto
             </Button>
 
+            <ThemeToggle />
+
             <NotificationDropdown />
 
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-info flex items-center justify-center">
-              <span className="text-primary-foreground font-semibold text-sm">VP</span>
-            </div>
+            <UserDropdown />
           </div>
         </div>
       </header>
@@ -66,3 +68,5 @@ export function Header({ onMenuClick, onProductAdded }: HeaderProps) {
     </>
   );
 }
+
+
