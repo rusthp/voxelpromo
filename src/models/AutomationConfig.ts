@@ -21,6 +21,7 @@ export interface AutomationConfigDocument extends Document {
     productTypes: string[]; // ['electronics', 'fashion', 'home', etc.]
     minDiscount: number; // Minimum discount % (default: 0)
     maxPrice: number; // Maximum price (default: 0 = no limit)
+    postsPerHour: number; // 0 = use intervalMinutes, >0 = smart random distribution
 
     // Prioritization
     prioritizeBestSellersInPeak: boolean; // Prioritize best sellers during peak hours
@@ -60,6 +61,7 @@ const AutomationConfigSchema = new Schema<AutomationConfigDocument>({
     productTypes: { type: [String], default: [] }, // Empty = all types
     minDiscount: { type: Number, default: 0, min: 0, max: 100 },
     maxPrice: { type: Number, default: 0, min: 0 }, // 0 = no limit
+    postsPerHour: { type: Number, default: 0, min: 0 }, // 0 = use intervalMinutes, >0 = smart random distribution
 
     // Prioritization
     prioritizeBestSellersInPeak: { type: Boolean, default: true },

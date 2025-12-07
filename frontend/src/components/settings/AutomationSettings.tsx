@@ -44,7 +44,7 @@ export function AutomationSettings({ config, setConfig, loading, onToggleAutomat
                 </Button>
             </CardHeader>
             <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="space-y-4">
                         <h3 className="text-sm font-medium flex items-center gap-2">
                             <Clock className="w-4 h-4" /> Horários
@@ -79,21 +79,85 @@ export function AutomationSettings({ config, setConfig, loading, onToggleAutomat
                                 />
                             </div>
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="interval">Intervalo (minutos)</Label>
-                            <select
-                                id="interval"
-                                className="w-full px-3 py-2 border border-input bg-background rounded-lg"
-                                value={config.automation.intervalMinutes}
-                                onChange={(e) => setConfig({
-                                    ...config,
-                                    automation: { ...config.automation, intervalMinutes: parseInt(e.target.value) || 30 }
-                                })}
-                            >
-                                {AUTOMATION_INTERVALS.map(({ value, label }) => (
-                                    <option key={value} value={value}>{label}</option>
-                                ))}
-                            </select>
+                        <div className="space-y-4 pt-2 border-t">
+                            <Label className="text-base font-semibold">Estratégia de Postagem</Label>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <Button
+                                    variant={(!config.automation.postsPerHour || config.automation.postsPerHour === 0) ? "secondary" : "outline"}
+                                    onClick={() => setConfig({
+                                        ...config,
+                                        automation: { ...config.automation, postsPerHour: 0 }
+                                    })}
+                                    className="justify-start h-auto py-3 px-4 flex-col items-start gap-1 w-full"
+                                >
+                                    <span className="font-semibold flex items-center gap-2">
+                                        <Clock className="w-4 h-4" /> Intervalo Fixo
+                                    </span>
+                                    <span className="text-xs text-muted-foreground text-left whitespace-normal">
+                                        Posta a cada X minutos cravados
+                                    </span>
+                                </Button>
+
+                                <Button
+                                    variant={(config.automation.postsPerHour && config.automation.postsPerHour > 0) ? "secondary" : "outline"}
+                                    onClick={() => setConfig({
+                                        ...config,
+                                        automation: { ...config.automation, postsPerHour: 5 } // Default to 5
+                                    })}
+                                    className="justify-start h-auto py-3 px-4 flex-col items-start gap-1 w-full"
+                                >
+                                    <span className="font-semibold flex items-center gap-2">
+                                        <Bot className="w-4 h-4" /> Smart Planner
+                                    </span>
+                                    <span className="text-xs text-muted-foreground text-left whitespace-normal">
+                                        Distribui N posts na hora (horários aleatórios)
+                                    </span>
+                                </Button>
+                            </div>
+
+                            {(!config.automation.postsPerHour || config.automation.postsPerHour === 0) ? (
+                                <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                    <Label htmlFor="interval">Intervalo entre Posts</Label>
+                                    <select
+                                        id="interval"
+                                        className="w-full px-3 py-2 border border-input bg-background rounded-lg"
+                                        value={config.automation.intervalMinutes}
+                                        onChange={(e) => setConfig({
+                                            ...config,
+                                            automation: { ...config.automation, intervalMinutes: parseInt(e.target.value) || 30 }
+                                        })}
+                                    >
+                                        {AUTOMATION_INTERVALS.map(({ value, label }) => (
+                                            <option key={value} value={value}>{label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            ) : (
+                                <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                    <Label htmlFor="postsPerHour">Quantidade de Posts por Hora</Label>
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                        <Input
+                                            id="postsPerHour"
+                                            type="number"
+                                            min="1"
+                                            max="60"
+                                            className="w-full sm:w-32"
+                                            value={config.automation.postsPerHour}
+                                            onChange={(e) => setConfig({
+                                                ...config,
+                                                automation: { ...config.automation, postsPerHour: parseInt(e.target.value) || 1 }
+                                            })}
+                                        />
+                                        <span className="text-sm text-muted-foreground">
+                                            posts/hora
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground pt-1">
+                                        O robô vai escolher {config.automation.postsPerHour} horários aleatórios dentro de cada hora.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
 

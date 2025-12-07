@@ -252,6 +252,12 @@ export class AutomationService {
                 return 0;
             }
 
+            // If Smart Planner is enabled, skip this legacy interval check
+            if (config.postsPerHour && config.postsPerHour > 0) {
+                logger.debug('⚙️ Smart Planner active: Skipping legacy interval check.');
+                return 0;
+            }
+
             // Check if we should post now
             if (!this.shouldPostNow(config)) {
                 logger.debug('⏰ Outside posting hours, skipping automation');
@@ -285,20 +291,39 @@ export class AutomationService {
             logger.info(`📤 Automation posting offer: ${offer.title.substring(0, 50)}...`);
             logger.info(`📝 Using message: ${message.substring(0, 100)}...`);
 
-            // TODO: Actually post to channels (will be implemented in next phase)
-            // For now, just mark as posted
-            await OfferModel.findByIdAndUpdate(offer._id, {
-                isPosted: true,
-                postedAt: new Date(),
-                postedChannels: config.enabledChannels,
-                aiGeneratedPost: message,
-            });
+            // Check if offer has specific channels override, otherwise use config
+            const channels = config.enabledChannels && config.enabledChannels.length > 0
+                ? config.enabledChannels
+                : ['telegram'];
 
-            // Update product stats
-            await this.updateProductStats(offer.productUrl, offer.source);
+            // Initialize OfferService dynamically to avoid circular dependencies
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const { OfferService } = require('../offer/OfferService');
+            const offerService = new OfferService();
 
-            logger.info('✅ Automation post successful');
-            return 1;
+            // Actually post using OfferService
+            // Note: OfferService handles history logging and status updates itself
+            const success = await offerService.postOffer(offer._id!.toString(), channels);
+
+            if (success) {
+                // Determine if we generated an AI post for this
+                // If message is different from default format, save it
+                if (message && !message.includes(offer.productUrl)) {
+                    // This is a naive check, but serves to detect if we used a template
+                    await OfferModel.findByIdAndUpdate(offer._id, {
+                        aiGeneratedPost: message
+                    });
+                }
+
+                // Update product stats
+                await this.updateProductStats(offer.productUrl, offer.source);
+
+                logger.info('✅ Automation post successful');
+                return 1;
+            } else {
+                logger.warn('⚠️ Automation post failed in OfferService');
+                return 0;
+            }
         } catch (error) {
             logger.error('❌ Error processing scheduled posts:', error);
             return 0;
@@ -367,6 +392,73 @@ export class AutomationService {
                 isActive: false,
                 error: 'Error getting status',
             };
+        }
+    }
+
+    /**
+     * Smart Hourly Planner: Distribute quantity of posts randomly within the current hour
+     * Example: Distribute 10 posts -> 09:05, 09:12, 09:27...
+     */
+    async distributeHourlyPosts(): Promise<number> {
+        try {
+            const config = await this.getActiveConfig();
+            if (!config || !config.isActive) return 0;
+
+            // Only run if Smart Planner is enabled (postsPerHour > 0)
+            if (!config.postsPerHour || config.postsPerHour <= 0) {
+                return 0;
+            }
+
+            // Check if we are inside working hours
+            if (!this.shouldPostNow(config)) {
+                logger.info('⏰ Smart Planner: Outside working hours, skipping distribution.');
+                return 0;
+            }
+
+            const quantity = config.postsPerHour;
+            logger.info(`📅 Smart Planner: Distributing ${quantity} posts for this hour...`);
+
+            // Get candidate offers (get 2x quantity to have backup)
+            const offers = await this.getNextScheduledOffers(config, quantity * 2);
+
+            // Filter offers that are NOT already scheduled
+            const availableOffers = offers.filter((o: any) => !o.scheduledAt);
+
+            if (availableOffers.length === 0) {
+                logger.warn('⚠️ Smart Planner: No offers available to distribute.');
+                return 0;
+            }
+
+            // Take the exact quantity needed
+            const selectedOffers = availableOffers.slice(0, quantity);
+
+            // Initialize OfferService
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const { OfferService } = require('../offer/OfferService');
+            const offerService = new OfferService();
+
+            const now = new Date();
+            let scheduledCount = 0;
+
+            for (const offer of selectedOffers) {
+                // Generate random minute (from now + 1min until end of hour - 1min)
+                // We leave 1min buffer at start and end
+                const remainingMinutes = 59 - now.getMinutes();
+                if (remainingMinutes < 2) break; // Not enough time left in this hour
+
+                const randomMinuteOffset = Math.floor(Math.random() * remainingMinutes) + 1;
+                const scheduleTime = new Date(now.getTime() + randomMinuteOffset * 60000);
+
+                // Schedule it
+                await offerService.scheduleOffer(offer._id!.toString(), scheduleTime);
+                scheduledCount++;
+            }
+
+            logger.info(`✅ Smart Planner: Successfully scheduled ${scheduledCount} offers for this hour.`);
+            return scheduledCount;
+        } catch (error) {
+            logger.error('❌ Error in Smart Planner:', error);
+            return 0;
         }
     }
 }

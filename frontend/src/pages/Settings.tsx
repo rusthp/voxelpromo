@@ -71,6 +71,7 @@ const initialConfig: ConfigState = {
         enabledChannels: ["telegram"],
         minDiscount: 20,
         maxPrice: 0,
+        postsPerHour: 0,
     },
     collection: {
         sources: ["amazon", "aliexpress", "mercadolivre", "shopee", "rss"],

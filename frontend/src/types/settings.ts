@@ -62,6 +62,7 @@ export interface AutomationConfig {
     enabledChannels: string[];
     minDiscount: number;
     maxPrice: number;
+    postsPerHour: number;
 }
 
 export interface CollectionConfig {

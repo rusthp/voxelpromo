@@ -95,10 +95,10 @@ export function setupCronJobs(): void {
     }
   });
 
-  // Process automation system every 30 minutes
+  // Process automation system every 30 minutes (Legacy/Interval Mode)
   cron.schedule('*/30 * * * *', async () => {
     logger.info('⚙️ ========================================');
-    logger.info('⚙️ Running automation system');
+    logger.info('⚙️ Running automation system (Interval Mode)');
     logger.info('⚙️ ========================================');
     try {
       const { AutomationService } = await import('../services/automation/AutomationService');
@@ -109,6 +109,23 @@ export function setupCronJobs(): void {
       }
     } catch (error) {
       logger.error('❌ Error in automation system:', error);
+    }
+  });
+
+  // Smart Planner: Distribute posts every hour (Smart Mode)
+  cron.schedule('0 * * * *', async () => {
+    logger.info('📅 ========================================');
+    logger.info('📅 Running Smart Planner Distribution');
+    logger.info('📅 ========================================');
+    try {
+      const { AutomationService } = await import('../services/automation/AutomationService');
+      const automationService = new AutomationService();
+      const scheduled = await automationService.distributeHourlyPosts();
+      if (scheduled > 0) {
+        logger.info(`✅ Smart Planner scheduled ${scheduled} posts for this hour`);
+      }
+    } catch (error) {
+      logger.error('❌ Error in Smart Planner job:', error);
     }
   });
 
