@@ -148,6 +148,7 @@ Para colocar o projeto no ar 24/7 (usando PM2 e Nginx), consulte o guia oficial:
 
 Este guia cobre:
 *   Requisitos de Hardware (VM Simples: 2 vCPU / 4GB RAM)
+*   **Instalação do Banco de Dados (MongoDB)**
 *   Instalação limpa no Ubuntu/Debian
 *   Configuração do PM2 para Backend e Frontend
 *   Otimizações de recurso
