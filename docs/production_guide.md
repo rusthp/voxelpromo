@@ -37,32 +37,50 @@ sudo apt install -y nodejs build-essential
 
 ## 3. Configuração do Banco de Dados (MongoDB)
 
-O banco de dados é **ESSENCIAL**. Sem ele, o sistema não inicia.
+O banco de dados é **ESSENCIAL**. Sem ele, o sistema não inicia. Escolha sua versão do Ubuntu abaixo:
+
+### A. Para Ubuntu 20.04 ou 22.04 (Padrão)
 
 ```bash
-# Ubuntu/Debian:
-# 1. Instalar gnupg
-sudo apt-get install gnupg curl
-
-# 2. Importar chave GPG do MongoDB
+# 1. Importar chave GPG
 curl -fsSL https://pgp.mongodb.com/server-7.0.asc | \
    sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg \
    --dearmor
 
-# 3. Criar arquivo de lista
+# 2. Adicionar repositório
+echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+
+# 3. Instalar e Iniciar
+sudo apt-get update
+sudo apt-get install -y mongodb-org
+sudo systemctl enable --now mongod
+```
+
+### B. Para Ubuntu 24.04 (Noble Numbat) ⚠️
+O Ubuntu 24.04 ainda não tem pacotes oficiais. Use estes passos para forçar o repositório compatível (Jammy):
+
+```bash
+# 1. Instalar dependências
+sudo apt install gnupg curl -y
+
+# 2. Importar chave GPG
+curl -fsSL https://pgp.mongodb.com/server-7.0.asc | \
+   sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg \
+   --dearmor
+
+# 3. Adicionar repositório (Forçando 'jammy')
 echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
 
 # 4. Instalar MongoDB
-sudo apt-get update
-sudo apt-get install -y mongodb-org
+sudo apt update
+sudo apt install -y mongodb-org
 
-# 5. Iniciar e Habilitar serviço (MUITO IMPORTANTE)
-sudo systemctl start mongod
-sudo systemctl enable mongod
-
-# 6. Verificar se está rodando
-sudo systemctl status mongod
+# 5. Iniciar serviço
+sudo systemctl enable --now mongod
+systemctl status mongod
 ```
+
+> **Alternativa:** Se preferir, você pode usar Docker (veja `docs/MONGODB_SETUP.md`).
 
 > **Nota:** Se tiver erros, consulte o guia detalhado: [`docs/MONGODB_SETUP.md`](./MONGODB_SETUP.md)
 
