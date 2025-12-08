@@ -23,6 +23,18 @@ Com a otimização removendo o Puppeteer (Chrome Headless), o projeto fica bem m
 
 ## 2. Preparação do Ambiente
 
+### 🚀 Opção Rápida: Script Automatizado
+
+Rode este comando para instalar **TUDO** automaticamente (Node.js, MongoDB, Puppeteer):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/seu-usuario/voxelpromo/main/scripts/setup-vps.sh | bash
+# OU se já clonou o projeto:
+chmod +x scripts/setup-vps.sh && ./scripts/setup-vps.sh
+```
+
+### 📝 Opção Manual
+
 Acesse sua VM via SSH e instale as dependências básicas:
 
 ```bash
@@ -111,25 +123,28 @@ npm run build:backend
 
 # Build do Frontend (Para arquivos estáticos)
 npm run build:frontend
+```
 
-# (OPCIONAL) Se você quer usar "Coletar de URL Personalizada" para Mercado Livre:
-# O scraping precisa do Chrome (Puppeteer), que requer bibliotecas extras no Linux:
+### (OPCIONAL) Dependências para Scraping (Puppeteer/Chrome)
+
+Se você quer usar **"Coletar de URL Personalizada"** para Mercado Livre, precisa instalar as bibliotecas do Chrome:
+
+**Ubuntu 20.04/22.04:**
+```bash
 sudo apt-get install -y \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libatspi2.0-0 \
-    libgtk-3-0
+    libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+    libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
+    libxrandr2 libgbm1 libasound2 libpango-1.0-0 \
+    libcairo2 libatspi2.0-0 libgtk-3-0
+```
+
+**Ubuntu 24.04 (Noble - pacotes t64):**
+```bash
+sudo apt-get install -y \
+    libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 \
+    libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
+    libxrandr2 libgbm1 libasound2t64 libpango-1.0-0 \
+    libcairo2 libatspi2.0-0t64 libgtk-3-0t64
 ```
 
 ## 5. Configuração do PM2
