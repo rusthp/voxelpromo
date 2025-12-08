@@ -68,9 +68,12 @@ export class MercadoLivreScraper {
             ];
 
             const proxyUrl = process.env.PROXY_URL;
-            if (proxyUrl) {
-                logger.info(`🌐 Using Proxy: ${proxyUrl}`);
+            // Only use proxy if it's a valid URL (not a placeholder like 'user:pass@host:port')
+            if (proxyUrl && !proxyUrl.includes('user:pass') && !proxyUrl.includes('host:port')) {
+                logger.info(`🌐 Using Proxy: ${proxyUrl.replace(/\/\/.*@/, '//***:***@')}`); // Mask credentials
                 args.push(`--proxy-server=${proxyUrl}`);
+            } else if (proxyUrl) {
+                logger.warn('⚠️ PROXY_URL appears to be a placeholder - ignoring. Set a real proxy or remove the variable.');
             }
 
             this.browser = await puppeteer.launch({
@@ -209,8 +212,15 @@ export class MercadoLivreScraper {
 
             if (result && typeof result === 'string') {
                 logger.info('✅ Affiliate link generated successfully');
+                // Rate limit protection: Wait 300ms between link generations
+                await new Promise(r => setTimeout(r, 300));
                 return result;
             } else if (result && result.error) {
+                // Check for rate limit error
+                if (result.error.includes('429') || result.error.includes('Too Many')) {
+                    logger.warn('⚠️ Rate limited by ML. Waiting 2 seconds before continuing...');
+                    await new Promise(r => setTimeout(r, 2000));
+                }
                 logger.warn(`⚠️ Link generation error: ${result.error}`);
             } else {
                 logger.warn('⚠️ Link generation returned unknown format');

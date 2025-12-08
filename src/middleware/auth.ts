@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { UserModel } from '../models/User';
 import { logger } from '../utils/logger';
 
@@ -38,43 +39,61 @@ export const authenticate = async (
 
     // Verify token
     const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-    const decoded = jwt.verify(token, jwtSecret) as any;
 
-    // Get user from database
-    const user = await UserModel.findById(decoded.id).select('-password');
+    // Debug: Log secret hash (not the secret itself) to verify consistency
+    const secretHash = crypto.createHash('sha256').update(jwtSecret).digest('hex').substring(0, 8);
 
-    if (!user) {
-      res.status(401).json({ error: 'Usuário não encontrado' });
-      return;
+    try {
+      const decoded = jwt.verify(token, jwtSecret) as any;
+
+      // Get user from database
+      const user = await UserModel.findById(decoded.id).select('-password');
+
+      if (!user) {
+        res.status(401).json({ error: 'Usuário não encontrado' });
+        return;
+      }
+
+      if (!user.isActive) {
+        res.status(401).json({ error: 'Usuário inativo' });
+        return;
+      }
+
+      // Attach user to request
+      req.user = {
+        id: String(user._id),
+        username: user.username,
+        email: user.email,
+        role: user.role,
+      };
+
+      next();
+    } catch (jwtError: any) {
+      // Detailed JWT error logging
+      const tokenPreview = token.substring(0, 20) + '...';
+
+      if (jwtError.name === 'JsonWebTokenError') {
+        logger.error(`❌ JWT Error: ${jwtError.message}`);
+        logger.error(`   Token preview: ${tokenPreview}`);
+        logger.error(`   Secret hash: ${secretHash}`);
+        logger.error(`   Tip: Token may have been created with a different JWT_SECRET`);
+        res.status(401).json({
+          error: 'Token inválido',
+          hint: 'Faça logout e login novamente'
+        });
+        return;
+      }
+
+      if (jwtError.name === 'TokenExpiredError') {
+        logger.warn(`⏰ Token expired at: ${jwtError.expiredAt}`);
+        res.status(401).json({ error: 'Token expirado', expiredAt: jwtError.expiredAt });
+        return;
+      }
+
+      throw jwtError; // Re-throw unknown errors
     }
-
-    if (!user.isActive) {
-      res.status(401).json({ error: 'Usuário inativo' });
-      return;
-    }
-
-    // Attach user to request
-    req.user = {
-      id: String(user._id),
-      username: user.username,
-      email: user.email,
-      role: user.role,
-    };
-
-    next();
   } catch (error: any) {
     logger.error('Authentication error:', error);
-
-    if (error.name === 'JsonWebTokenError') {
-      res.status(401).json({ error: 'Token inválido' });
-      return;
-    }
-
-    if (error.name === 'TokenExpiredError') {
-      res.status(401).json({ error: 'Token expirado' });
-      return;
-    }
-
     res.status(500).json({ error: 'Erro na autenticação' });
   }
 };
