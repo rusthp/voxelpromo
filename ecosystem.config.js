@@ -3,7 +3,7 @@ module.exports = {
         {
             name: "voxel-api",
             script: "./dist/server.js",
-            env_production: {
+            env: {
                 NODE_ENV: "production",
                 // Force Baileys (lightweight, no Chrome)
                 WHATSAPP_LIBRARY: "baileys",
