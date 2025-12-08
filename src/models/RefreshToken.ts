@@ -21,7 +21,7 @@ const RefreshTokenSchema = new Schema<RefreshTokenDocument>({
 });
 
 // Index for efficient queries
-RefreshTokenSchema.index({ token: 1 });
+// token index is already created by unique: true in schema
 RefreshTokenSchema.index({ userId: 1, isRevoked: 1 });
 RefreshTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL index for automatic cleanup
 
