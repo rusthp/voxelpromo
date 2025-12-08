@@ -32,26 +32,64 @@ export class MercadoLivreScraper {
         logger.info('🚀 Launching Stealth Browser for Mercado Livre...');
 
         let executablePath: string | undefined = undefined;
+        let chromeSource = 'bundled';
 
-        // Check for Windows Chrome in WSL (Common workaround for missing Linux libs)
-        const possiblePaths = [
+        // ✅ PRIORITY 1: Windows Chrome via WSL (most stable for stealth)
+        const windowsChromePaths = [
             '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe',
             '/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe',
-            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-            'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-            '/usr/bin/google-chrome',
-            '/usr/bin/google-chrome-stable',
-            '/usr/bin/chromium',
-            '/usr/bin/chromium-browser',
-            '/snap/bin/chromium'
         ];
 
-        for (const path of possiblePaths) {
+        // ✅ PRIORITY 2: Google Chrome on Linux (better than Chromium)
+        const linuxChromePaths = [
+            '/usr/bin/google-chrome',
+            '/usr/bin/google-chrome-stable',
+        ];
+
+        // ⚠️ PRIORITY 3: Chromium (may have issues with stealth plugin)
+        const chromiumPaths = [
+            '/usr/bin/chromium',
+            '/usr/bin/chromium-browser',
+            '/snap/bin/chromium',
+        ];
+
+        // Check Windows Chrome first (best for WSL environments)
+        for (const path of windowsChromePaths) {
             if (existsSync(path)) {
                 executablePath = path;
-                logger.info(`🖥️ Using Windows Chrome from WSL: ${executablePath}`);
+                chromeSource = 'Windows Chrome via WSL';
                 break;
             }
+        }
+
+        // If no Windows Chrome, try Google Chrome on Linux
+        if (!executablePath) {
+            for (const path of linuxChromePaths) {
+                if (existsSync(path)) {
+                    executablePath = path;
+                    chromeSource = 'Google Chrome (Linux)';
+                    break;
+                }
+            }
+        }
+
+        // Last resort: Chromium (may cause issues with stealth)
+        if (!executablePath) {
+            for (const path of chromiumPaths) {
+                if (existsSync(path)) {
+                    executablePath = path;
+                    chromeSource = 'Chromium (Linux) - may have stealth issues';
+                    logger.warn('⚠️ Using Chromium instead of Chrome. Stealth features may not work properly.');
+                    break;
+                }
+            }
+        }
+
+        if (executablePath) {
+            logger.info(`🖥️ Browser: ${chromeSource}`);
+            logger.info(`   Path: ${executablePath}`);
+        } else {
+            logger.info('🖥️ Using Puppeteer bundled Chromium');
         }
 
         try {
@@ -110,7 +148,19 @@ export class MercadoLivreScraper {
             if (meliLab) logger.debug(`   🍪 meli_lab: ${meliLab.value}`);
 
         } catch (error: any) {
-            logger.error(`❌ Failed to init scraper session: ${error.message}`);
+            const errMsg = error.message || String(error);
+            logger.error(`❌ Failed to init scraper session: ${errMsg}`);
+
+            // Provide helpful tips for common errors
+            if (errMsg.includes('Target closed') || errMsg.includes('Protocol error')) {
+                logger.error('   💡 This usually happens when using Chromium instead of Chrome.');
+                logger.error('   💡 Try installing Google Chrome: wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && sudo apt install ./google-chrome-stable_current_amd64.deb');
+            } else if (errMsg.includes('ERR_NO_SUPPORTED_PROXIES')) {
+                logger.error('   💡 Check your PROXY_URL environment variable. Remove it if not using a proxy.');
+            } else if (errMsg.includes('ENOENT') || errMsg.includes('spawn')) {
+                logger.error('   💡 Chrome/Chromium binary not found. Install Chrome or run: npx puppeteer browsers install chrome');
+            }
+
             await this.closeSession();
             throw error;
         }
