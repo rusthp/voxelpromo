@@ -469,6 +469,12 @@ const Settings = () => {
         try {
             setLoading(true);
             const action = config.automation.isActive ? 'stop' : 'start';
+
+            // If starting, save the current config first to ensure it exists in the database
+            if (action === 'start') {
+                await api.post('/automation/config', config.automation);
+            }
+
             await api.post(`/automation/${action}`);
 
             setConfig(prev => ({
