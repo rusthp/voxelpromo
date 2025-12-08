@@ -653,6 +653,19 @@ export class MercadoLivreService {
     try {
       logger.info(`🔗 Generating affiliate link via internal API for: ${productUrl.substring(0, 60)}...`);
 
+      // Sanitize cookies: remove line breaks and other invalid header characters
+      let sanitizedCookies = config.sessionCookies || '';
+      sanitizedCookies = sanitizedCookies
+        .replace(/[\r\n]+/g, '') // Remove line breaks
+        // eslint-disable-next-line no-control-regex
+        .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+        .trim();
+
+      if (!sanitizedCookies) {
+        logger.warn('⚠️ No valid session cookies found');
+        return null;
+      }
+
       const response = await axios.post(
         'https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink',
         {
@@ -663,7 +676,7 @@ export class MercadoLivreService {
           headers: {
             'Content-Type': 'application/json',
             'x-csrf-token': config.csrfToken,
-            'Cookie': config.sessionCookies,
+            'Cookie': sanitizedCookies,
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
             'Accept': 'application/json',
             'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
