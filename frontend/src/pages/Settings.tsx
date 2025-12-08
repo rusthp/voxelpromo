@@ -13,6 +13,7 @@ import {
     MessagingSettings,
     AffiliateSettings,
     CollectionSettings,
+    TemplatesSettings,
 } from "@/components/settings";
 
 // Initial config state
@@ -558,12 +559,13 @@ const Settings = () => {
                 </div>
 
                 <Tabs defaultValue="automation" className="space-y-6">
-                    <TabsList className="grid w-full grid-cols-5">
+                    <TabsList className="grid w-full grid-cols-6">
                         <TabsTrigger value="automation">Automação</TabsTrigger>
                         <TabsTrigger value="ai">IA</TabsTrigger>
                         <TabsTrigger value="messaging">Mensageria</TabsTrigger>
                         <TabsTrigger value="affiliate">Afiliados</TabsTrigger>
                         <TabsTrigger value="collection">Coleta</TabsTrigger>
+                        <TabsTrigger value="templates">Templates</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="automation">
@@ -631,6 +633,10 @@ const Settings = () => {
                             onAddRssFeed={addRssFeed}
                             onRemoveRssFeed={removeRssFeed}
                         />
+                    </TabsContent>
+
+                    <TabsContent value="templates">
+                        <TemplatesSettings />
                     </TabsContent>
                 </Tabs>
             </div>

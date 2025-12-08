@@ -1,5 +1,6 @@
 import { OfferModel } from '../../models/Offer';
 import { PostHistoryModel } from '../../models/PostHistory';
+import { AutomationConfigModel } from '../../models/AutomationConfig';
 import { Offer, FilterOptions } from '../../types';
 import { logger } from '../../utils/logger';
 import { AIService } from '../ai/AIService';
@@ -447,7 +448,7 @@ export class OfferService {
       const postContent = offer.aiGeneratedPost || `${offer.title}\n\nPreço: R$ ${offer.currentPrice}\nDesconto: ${offer.discountPercentage}%\n\n${offer.productUrl}`;
 
       // Send to Telegram
-      if (channels.includes('telegram')) {
+      if (channels.includes('telegram') && !offer.postedChannels?.includes('telegram')) {
         try {
           const telegramSuccess = await this.getTelegramService().sendOffer(offer);
           if (telegramSuccess) {
@@ -484,7 +485,7 @@ export class OfferService {
       }
 
       // Send to WhatsApp
-      if (channels.includes('whatsapp')) {
+      if (channels.includes('whatsapp') && !offer.postedChannels?.includes('whatsapp')) {
         try {
           const whatsappSuccess = await this.getWhatsAppService().sendOffer(offer);
           if (whatsappSuccess) {
@@ -521,7 +522,9 @@ export class OfferService {
       }
 
       // Send to X (Twitter)
-      if (channels.includes('x') || channels.includes('twitter')) {
+      if ((channels.includes('x') || channels.includes('twitter')) &&
+        !offer.postedChannels?.includes('x') &&
+        !offer.postedChannels?.includes('twitter')) {
         try {
           logger.info(`📤 Attempting to post offer ${offerId} to X (Twitter)`);
           const xSuccess = await this.getXService().sendOffer(offer);
@@ -720,8 +723,14 @@ export class OfferService {
 
       for (const offer of scheduledOffers) {
         try {
-          // Post to all configured channels
-          const success = await this.postOffer(offer._id.toString(), ['telegram', 'x', 'whatsapp']);
+          // Fetch automation config to get enabled channels
+          const config = await AutomationConfigModel.findOne({}).lean();
+          const enabledChannels = config?.enabledChannels && config.enabledChannels.length > 0
+            ? config.enabledChannels
+            : ['telegram']; // Default to telegram if no config
+
+          // Post to configured channels
+          const success = await this.postOffer(offer._id.toString(), enabledChannels);
 
           if (success) {
             // Clear scheduledAt after successful posting

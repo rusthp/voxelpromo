@@ -1,16 +1,20 @@
+
 import Groq from 'groq-sdk';
 import OpenAI from 'openai';
 import { AIPostRequest, AIPostResponse, Offer } from '../../types';
 import { logger } from '../../utils/logger';
+import { TemplateService } from '../automation/TemplateService';
 
 export class AIService {
   private groqClient: Groq | null = null;
   private openaiClient: OpenAI | null = null;
   private deepseekClient: OpenAI | null = null; // DeepSeek uses OpenAI-compatible API
   private provider: 'groq' | 'openai' | 'deepseek';
+  private templateService: TemplateService;
 
   constructor() {
     this.provider = (process.env.AI_PROVIDER || 'groq') as 'groq' | 'openai' | 'deepseek';
+    this.templateService = new TemplateService();
 
     if (this.provider === 'groq' && process.env.GROQ_API_KEY) {
       this.groqClient = new Groq({
@@ -111,7 +115,9 @@ export class AIService {
       } else if (this.provider === 'deepseek' && this.deepseekClient) {
         return await this.generateWithDeepSeek(prompt, request);
       } else {
-        throw new Error('No AI provider configured');
+        // No provider configured is a valid state - use fallback without error
+        logger.debug('ℹ️ No AI provider configured, using fallback templates.');
+        return this.generateFallbackPost(request.offer);
       }
     } catch (error) {
       logger.error('Error generating AI post:', error);
@@ -127,8 +133,8 @@ export class AIService {
     const { offer, tone, maxLength, includeEmojis, includeHashtags } = request;
 
     const toneInstructions: Record<string, string> = {
-      casual: 'Use linguagem casual e descontraída, como se estivesse conversando com um amigo.',
-      professional: 'Use linguagem profissional e informativa.',
+      casual: 'Use linguagem casual, divertida e com humor leve. Faça piadas sutis se apropriado, como um amigo recomendando algo.',
+      professional: 'Use linguagem profissional, direta e informativa, focando nos benefícios técnicos.',
       viral:
         'Crie um post que seja irresistível e viralizável, use gatilhos mentais como urgência e escassez.',
       urgent: 'Crie senso de urgência, mostre que a oferta é limitada e imperdível.',
@@ -220,15 +226,15 @@ Retorne APENAS um JSON válido com esta estrutura:
       const category = offer.category || 'produto';
       const price = offer.currentPrice.toFixed(2).replace('.', ',');
 
-      const prompt = `Crie UMA frase de impacto curta e poderosa (máximo 8 palavras) para uma oferta de ${category} com ${discount.toFixed(0)}% de desconto, preço R$ ${price}.
+      const prompt = `Crie UMA frase de impacto curta e poderosa(máximo 8 palavras) para uma oferta de ${category} com ${discount.toFixed(0)}% de desconto, preço R$ ${price}.
 
 A frase deve:
 - Ser impactante e chamar atenção
-- Criar urgência ou desejo
-- Ser em MAIÚSCULAS
-- Ser curta e direta (ex: "NUNCA VI TÃO BARATO ASSIM", "PROMOÇÃO IMPERDÍVEL", "DESCONTO INSANO")
-- Não usar emojis
-- Não usar pontuação final
+  - Criar urgência ou desejo
+    - Ser em MAIÚSCULAS
+      - Ser curta e direta(ex: "NUNCA VI TÃO BARATO ASSIM", "PROMOÇÃO IMPERDÍVEL", "DESCONTO INSANO")
+        - Não usar emojis
+          - Não usar pontuação final
 
 Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional.`;
 
@@ -269,7 +275,7 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
       // Fallback if AI response is invalid
       return this.getFallbackImpactPhrase(offer);
     } catch (error: any) {
-      logger.debug(`⚠️ Failed to generate impact phrase with Groq: ${error.message}`);
+      logger.debug(`⚠️ Failed to generate impact phrase with Groq: ${error.message} `);
       // Silent fallback - don't log as error since this is optional
       return this.getFallbackImpactPhrase(offer);
     }
@@ -343,7 +349,7 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
     });
 
     const content = completion.choices[0]?.message?.content || '{}';
-    return this.parseAIResponse(content, request.offer);
+    return await this.parseAIResponse(content, request.offer);
   }
 
   /**
@@ -376,7 +382,7 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
     });
 
     const content = completion.choices[0]?.message?.content || '{}';
-    return this.parseAIResponse(content, request.offer);
+    return await this.parseAIResponse(content, request.offer);
   }
 
   /**
@@ -408,20 +414,20 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
     });
 
     const content = completion.choices[0]?.message?.content || '{}';
-    return this.parseAIResponse(content, request.offer);
+    return await this.parseAIResponse(content, request.offer);
   }
 
   /**
    * Parse AI response
    * Handles JSON with control characters and newlines robustly
    */
-  private parseAIResponse(content: string, offer: Offer): AIPostResponse {
+  private async parseAIResponse(content: string, offer: Offer): Promise<AIPostResponse> {
     try {
       // Clean the content first
       let cleanedContent = content.trim();
 
       // Remove markdown code blocks if present
-      cleanedContent = cleanedContent.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+      cleanedContent = cleanedContent.replace(/```json\s * /g, '').replace(/```\s*/g, '');
 
       // Try to extract JSON from response
       const jsonMatch = cleanedContent.match(/\{[\s\S]*\}/);
@@ -434,7 +440,7 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
       try {
         parsed = JSON.parse(jsonContent);
       } catch (error1: any) {
-        logger.debug(`Parse attempt 1 failed: ${error1.message}`);
+        logger.debug(`Parse attempt 1 failed: ${error1.message} `);
 
         // Strategy 2: Fix newlines and control characters in string values
         try {
@@ -443,13 +449,13 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
           jsonContent = this.fixJsonString(jsonContent);
           parsed = JSON.parse(jsonContent);
         } catch (error2: any) {
-          logger.debug(`Parse attempt 2 failed: ${error2.message}`);
+          logger.debug(`Parse attempt 2 failed: ${error2.message} `);
 
           // Strategy 3: Try to manually extract fields using regex
           try {
             parsed = this.extractJsonFields(jsonContent);
           } catch (error3: any) {
-            logger.debug(`Parse attempt 3 failed: ${error3.message}`);
+            logger.debug(`Parse attempt 3 failed: ${error3.message} `);
             throw error3; // Give up and use fallback
           }
         }
@@ -477,7 +483,7 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
         description: cleanString(parsed.description) || offer.description,
         hashtags: cleanArray(parsed.hashtags || []),
         emojis: cleanArray(parsed.emojis || ['🔥', '💰']),
-        fullPost: cleanString(parsed.fullPost) || this.generateFallbackPost(offer).fullPost,
+        fullPost: cleanString(parsed.fullPost) || (await this.generateFallbackPost(offer)).fullPost,
       };
     } catch (error: any) {
       logger.error('Error parsing AI response:', {
@@ -485,7 +491,7 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
         contentPreview: content.substring(0, 200),
       });
       logger.debug('Full AI response content:', content);
-      return this.generateFallbackPost(offer);
+      return await this.generateFallbackPost(offer);
     }
   }
 
@@ -584,99 +590,58 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
    * Generate fallback post if AI fails
    * Uses same format as TelegramService for consistency
    */
-  private generateFallbackPost(offer: Offer): AIPostResponse {
-    // Get impact phrase based on discount
-    const discount = offer.discountPercentage;
-    let impactPhrase = 'OFERTA DISPONÍVEL';
-
-    if (discount >= 50) {
-      impactPhrase = 'NUNCA VI TÃO BARATO ASSIM';
-    } else if (discount >= 30) {
-      impactPhrase = 'SUPER PROMOÇÃO';
-    } else if (discount >= 15) {
-      impactPhrase = 'ÓTIMA OFERTA';
+  private async generateFallbackPost(offer: Offer): Promise<AIPostResponse> {
+    // 1. Try to get default template from DB
+    try {
+      const defaultTemplate = await this.templateService.getDefaultTemplate();
+      if (defaultTemplate) {
+        const rendered = this.templateService.renderTemplate(defaultTemplate, offer);
+        const cleanContent = rendered.replace(/^["']|["']$/g, '').trim();
+        return {
+          title: offer.title,
+          description: offer.description,
+          hashtags: [],
+          emojis: [],
+          fullPost: cleanContent,
+        };
+      }
+    } catch (error) {
+      logger.warn('Failed to use default template for fallback, using hardcoded fallback', error);
     }
 
-    // Get category emoji
-    const categoryEmojis: Record<string, string> = {
-      electronics: '📱',
-      fashion: '👕',
-      home: '🏠',
-      beauty: '💄',
-      sports: '⚽',
-      toys: '🧸',
-      books: '📚',
-      automotive: '🚗',
-      pets: '🐾',
-      food: '🍔',
-      health: '💊',
-      other: '📦',
+    // 2. Hardcoded Fallback logic (using "Standard Viral" style)
+    const originalPrice = `R$ ${offer.originalPrice.toFixed(2).replace('.', ',')}`;
+    const price = `R$ ${offer.currentPrice.toFixed(2).replace('.', ',')}`;
+    const discountPercent = `${offer.discountPercentage.toFixed(0)}%`;
+    const sourceMap: Record<string, string> = {
+      amazon: 'Amazon',
+      aliexpress: 'AliExpress',
+      shopee: 'Shopee',
+      mercadolivre: 'Mercado Livre'
     };
-    const categoryEmoji = categoryEmojis[offer.category?.toLowerCase() || ''] || '🔥';
+    const source = sourceMap[offer.source] || offer.source;
 
-    const priceFormatted = offer.currentPrice.toFixed(2).replace('.', ',');
-    const hasDiscount = offer.discountPercentage >= 5 && offer.originalPrice > offer.currentPrice;
-    const parts: string[] = [];
+    const fullPost = `🚨 <b>IMPERDÍVEL! BAIXOU MUITO!</b> 🚨
 
-    // Use HTML for bold, not Markdown - with spacious formatting
-    parts.push(`<b>${impactPhrase}</b>`);
-    parts.push(''); // Empty line for spacing
-    parts.push(''); // Extra empty line for more spacing
+📦 <b>${offer.title}</b>
 
-    parts.push(`${categoryEmoji} <b>${offer.title}</b>`);
-    parts.push(''); // Empty line for spacing
-    parts.push(''); // Extra empty line for more spacing
+🔥 De: <del>${originalPrice}</del>
+💰 <b>Por: ${price}</b>
+📉 <b>${discountPercent} OFF</b>
 
-    // Price - NO duplication: if has discount, show only discount format
-    if (hasDiscount) {
-      // If has discount, show ONLY discount format (no "🔥 POR" line)
-      const originalFormatted = offer.originalPrice.toFixed(2).replace('.', ',');
-      parts.push(`💰 De R$ ${originalFormatted} por apenas R$ ${priceFormatted}`);
-      parts.push(''); // Empty line
-      parts.push(`🎯 ${offer.discountPercentage.toFixed(0)}% OFF`);
-    } else {
-      // If no discount, show simple price (don't show 0% OFF)
-      parts.push(`🔥 POR ${priceFormatted}`);
-    }
+💳 <i>Pagamento seguro via ${source}</i>
 
-    // Coupons
-    if (offer.coupons && offer.coupons.length > 0) {
-      parts.push(''); // Empty line before coupon
-      parts.push(''); // Extra empty line
-      parts.push(`🎟️ CUPOM: <b>${offer.coupons[0]}</b>`);
-    }
+🏃‍♂️ Corra antes que acabe:
+👉 ${offer.affiliateUrl}
 
-    // Link
-    parts.push(''); // Empty line before link
-    parts.push(''); // Extra empty line for more spacing
-    parts.push(`🔗 ${offer.affiliateUrl}`);
-
-    // Hashtags
-    parts.push(''); // Empty line before hashtags
-    const hashtagList: string[] = [];
-    if (offer.category) {
-      hashtagList.push(`#${offer.category.toLowerCase().replace(/\s+/g, '')}`);
-    }
-    if (offer.discountPercentage >= 50) {
-      hashtagList.push('#superdesconto');
-    } else if (offer.discountPercentage >= 30) {
-      hashtagList.push('#megaoferta');
-    } else if (offer.discountPercentage >= 15) {
-      hashtagList.push('#promocao');
-    }
-    hashtagList.push('#oferta', '#promocao', '#desconto');
-    const uniqueHashtags = Array.from(new Set(hashtagList));
-    parts.push(uniqueHashtags.join(' '));
-
-    const fullPost = parts.join('\n');
-    const hashtags = uniqueHashtags;
+#${source.replace(/\s+/g, '')} #Ofertas #Promoção`;
 
     return {
       title: offer.title,
-      description: `Oferta de ${offer.discountPercentage.toFixed(0)}% OFF`,
-      hashtags,
-      emojis: [categoryEmoji, '🔥', '💰', '🎯'],
-      fullPost,
+      description: `Oferta de ${discountPercent} OFF`,
+      hashtags: ['#Ofertas', '#Promoção'],
+      emojis: ['🚨', '📦', '🔥', '💰', '📉', '🏃‍♂️'],
+      fullPost: fullPost,
     };
   }
 }

@@ -190,6 +190,41 @@ ${offer.rating ? `⭐ ${offer.rating.toFixed(1)} ${offer.reviewsCount ? `(${offe
     }
 
     /**
+     * Initialize default templates
+     */
+    async initializeDefaults(): Promise<void> {
+        try {
+            const count = await MessageTemplateModel.countDocuments();
+            if (count > 0) return;
+
+            const defaults = [
+                {
+                    name: 'Standard Viral',
+                    tone: 'viral',
+                    content: '🚨 <b>IMPERDÍVEL! BAIXOU MUITO!</b> 🚨\n\n📦 <b>{title}</b>\n\n🔥 De: <del>{originalPrice}</del>\n💰 <b>Por: {price}</b>\n📉 <b>{discountPercent} OFF</b>\n\n💳 <i>Pagamento seguro via {source}</i>\n\n🏃‍♂️ Corra antes que acabe:\n👉 {url}\n\n#{source} #Ofertas #Promoção',
+                    isActive: true,
+                    isDefault: true
+                },
+                {
+                    name: 'Casual Friendly',
+                    tone: 'casual',
+                    content: 'Gente, olha o que eu achei! 😱\n\n{title} tá com um preço surreal hoje!\n\nTava {originalPrice}, mas agora tá saindo por só <b>{price}</b>!\nIsso é {discountPercent} de desconto! 🤯\n\nAproveita aqui: {url}\n\nCorre que o estoque voa!',
+                    isActive: true,
+                    isDefault: false
+                }
+            ];
+
+            for (const t of defaults) {
+                await new MessageTemplateModel(t).save();
+            }
+            logger.info('✅ Default templates initialized');
+        } catch (error) {
+            logger.error('Error initializing default templates:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Get available variables for templates
      */
     getAvailableVariables(): Array<{ variable: string; description: string; example: string }> {

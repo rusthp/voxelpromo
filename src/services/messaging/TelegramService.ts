@@ -1,12 +1,12 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { Offer } from '../../types';
 import { logger } from '../../utils/logger';
-import { AIService } from '../ai/AIService';
+
 
 export class TelegramService {
   private bot: TelegramBot | null = null;
   private chatId: string;
-  private aiService: AIService | null = null;
+
 
   constructor() {
     // Don't initialize bot on startup - lazy initialization
@@ -20,15 +20,7 @@ export class TelegramService {
     }
   }
 
-  /**
-   * Get AI service (lazy initialization)
-   */
-  private getAIService(): AIService {
-    if (!this.aiService) {
-      this.aiService = new AIService();
-    }
-    return this.aiService;
-  }
+
 
   /**
    * Initialize bot if not already done
@@ -127,7 +119,9 @@ export class TelegramService {
     let cleaned = text
       .replace(/<br\s*\/?>/gi, '\n') // Replace <br> with newline
       .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>') // **bold** to <b>bold</b>
-      .replace(/\*([^*]+)\*/g, '<b>$1</b>'); // *bold* to <b>bold</b>
+      .replace(/\*([^*]+)\*/g, '<b>$1</b>') // *bold* to <b>bold</b>
+      .replace(/<\s*b\s*>/g, '<b>') // Fix broken < b > tags
+      .replace(/<\s*\/b\s*>/g, '</b>'); // Fix broken </ b > tags
 
     // Preserve spacing - don't collapse too many newlines (keep at least 2 for spacing)
     // But limit to max 3 consecutive newlines to avoid excessive spacing
@@ -136,110 +130,11 @@ export class TelegramService {
     return cleaned;
   }
 
-  /**
-   * Generate dynamic impact phrase using AI (Groq) or fallback
-   * Tries to use AI first, falls back to static phrases if AI fails
-   */
-  private async getImpactPhrase(offer: Offer): Promise<string> {
-    try {
-      // Try to use AI to generate a creative phrase
-      // Use timeout to avoid delays (max 2 seconds)
-      const aiPhrase = await Promise.race([
-        this.getAIService().generateImpactPhrase(offer),
-        new Promise<string>((resolve) => {
-          setTimeout(() => resolve(''), 2000); // 2 second timeout
-        }),
-      ]);
 
-      if (aiPhrase && aiPhrase.length > 0) {
-        logger.debug(`✅ Using AI-generated impact phrase: "${aiPhrase}"`);
-        return aiPhrase;
-      }
-    } catch (error: any) {
-      logger.debug(`⚠️ AI phrase generation failed, using fallback: ${error.message}`);
-    }
 
-    // Fallback to static phrases
-    return this.getFallbackImpactPhrase(offer);
-  }
 
-  /**
-   * Get fallback impact phrase (static phrases)
-   */
-  private getFallbackImpactPhrase(offer: Offer): string {
-    const discount = offer.discountPercentage;
 
-    // High discount phrases (50%+)
-    if (discount >= 50) {
-      const phrases = [
-        'NUNCA VI TÃO BARATO ASSIM',
-        'PROMOÇÃO IMPERDÍVEL',
-        'DESCONTO INSANO',
-        'OPORTUNIDADE ÚNICA',
-        'PREÇO IMBATÍVEL',
-        'OFERTA DO ANO',
-        'NÃO VAI TER OUTRA CHANCE',
-      ];
-      return phrases[Math.floor(Math.random() * phrases.length)];
-    }
 
-    // Medium-high discount (30-49%)
-    if (discount >= 30) {
-      const phrases = [
-        'SUPER PROMOÇÃO',
-        'OFERTA ESPECIAL',
-        'DESCONTO IMPERDÍVEL',
-        'PROMOÇÃO RELÂMPAGO',
-        'OPORTUNIDADE RARA',
-        'PREÇO BOM DEMAIS',
-        'NÃO PERCA ESSA',
-      ];
-      return phrases[Math.floor(Math.random() * phrases.length)];
-    }
-
-    // Medium discount (15-29%)
-    if (discount >= 15) {
-      const phrases = [
-        'ÓTIMA OFERTA',
-        'PROMOÇÃO EM ANDAMENTO',
-        'DESCONTO BOM',
-        'VALE A PENA',
-        'OPORTUNIDADE',
-        'PREÇO EM CONTA',
-      ];
-      return phrases[Math.floor(Math.random() * phrases.length)];
-    }
-
-    // Low discount (5-14%)
-    if (discount >= 5) {
-      const phrases = ['EM PROMOÇÃO', 'COM DESCONTO', 'OFERTA DISPONÍVEL', 'PREÇO ESPECIAL'];
-      return phrases[Math.floor(Math.random() * phrases.length)];
-    }
-
-    // No discount or very low
-    return 'OFERTA DISPONÍVEL';
-  }
-
-  /**
-   * Get emoji for category
-   */
-  private getCategoryEmoji(category: string): string {
-    const categoryEmojis: Record<string, string> = {
-      electronics: '📱',
-      fashion: '👕',
-      home: '🏠',
-      beauty: '💄',
-      sports: '⚽',
-      toys: '🧸',
-      books: '📚',
-      automotive: '🚗',
-      pets: '🐾',
-      food: '🍔',
-      health: '💊',
-      other: '📦',
-    };
-    return categoryEmojis[category.toLowerCase()] || '🔥';
-  }
 
   /**
    * Generate default post if AI didn't generate one
@@ -247,59 +142,31 @@ export class TelegramService {
    * Spacious format with proper line breaks
    */
   private async generateDefaultPost(offer: Offer): Promise<string> {
-    const impactPhrase = await this.getImpactPhrase(offer);
-    const categoryEmoji = this.getCategoryEmoji(offer.category || '');
+    const originalPrice = `R$ ${offer.originalPrice.toFixed(2).replace('.', ',')}`;
+    const price = `R$ ${offer.currentPrice.toFixed(2).replace('.', ',')}`;
+    const discountPercent = `${offer.discountPercentage.toFixed(0)}%`;
+    const sourceMap: Record<string, string> = {
+      amazon: 'Amazon',
+      aliexpress: 'AliExpress',
+      shopee: 'Shopee',
+      mercadolivre: 'Mercado Livre'
+    };
+    const source = sourceMap[offer.source.toLowerCase()] || offer.source;
 
-    // Format price
-    const priceFormatted = offer.currentPrice.toFixed(2).replace('.', ',');
-    const hasDiscount = offer.discountPercentage >= 5 && offer.originalPrice > offer.currentPrice;
+    return `🚨 <b>IMPERDÍVEL! BAIXOU MUITO!</b> 🚨
 
-    // Build message parts with spacious formatting
-    const parts: string[] = [];
+📦 <b>${offer.title}</b>
 
-    // Impact phrase (bold, uppercase style) - use HTML for Telegram
-    parts.push(`<b>${impactPhrase}</b>`);
-    parts.push(''); // Empty line for spacing
-    parts.push(''); // Extra empty line for more spacing
+🔥 De: <del>${originalPrice}</del>
+💰 <b>Por: ${price}</b>
+📉 <b>${discountPercent} OFF</b>
 
-    // Product title with category emoji - use HTML for Telegram
-    parts.push(`${categoryEmoji} <b>${offer.title}</b>`);
-    parts.push(''); // Empty line for spacing
-    parts.push(''); // Extra empty line for more spacing
+💳 <i>Pagamento seguro via ${source}</i>
 
-    // Price - NO duplication: if has discount, show only discount format
-    if (hasDiscount) {
-      // If has discount, show ONLY discount format (no "🔥 POR" line)
-      const originalFormatted = offer.originalPrice.toFixed(2).replace('.', ',');
-      parts.push(`💰 De R$ ${originalFormatted} por apenas R$ ${priceFormatted}`);
-      parts.push(''); // Empty line
-      parts.push(`🎯 ${offer.discountPercentage.toFixed(0)}% OFF`);
-    } else {
-      // If no discount, show simple price (don't show 0% OFF)
-      parts.push(`🔥 POR ${priceFormatted}`);
-    }
+🏃‍♂️ Corra antes que acabe:
+👉 ${offer.affiliateUrl}
 
-    // Coupons (if available) - show prominently
-    if (offer.coupons && offer.coupons.length > 0) {
-      parts.push(''); // Empty line before coupon
-      parts.push(''); // Extra empty line
-      const couponCode = offer.coupons[0]; // Use first coupon
-      parts.push(`🎟️ CUPOM: <b>${couponCode}</b>`);
-    }
-
-    // Link directly in the message
-    parts.push(''); // Empty line before link
-    parts.push(''); // Extra empty line for more spacing
-    parts.push(`🔗 ${offer.affiliateUrl}`);
-
-    // Hashtags
-    parts.push(''); // Empty line before hashtags
-    const hashtags = this.generateHashtags(offer);
-    if (hashtags.length > 0) {
-      parts.push(hashtags.join(' '));
-    }
-
-    return parts.join('\n');
+#${source.replace(/\s+/g, '')} #Ofertas #Promoção`;
   }
 
   /**

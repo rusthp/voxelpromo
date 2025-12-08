@@ -7,6 +7,7 @@ import { ConfigState } from "@/types/settings";
 import { AI_PROVIDERS, AI_PROVIDER_LABELS } from "@/constants/channels";
 import { toast } from "sonner";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
+import api from "@/services/api";
 
 interface AISettingsProps {
     config: ConfigState;
@@ -14,11 +15,9 @@ interface AISettingsProps {
 }
 
 export function AISettings({ config, setConfig }: AISettingsProps) {
-    const [testing, setTesting] = useState(false);
-    const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+    const [testingProvider, setTestingProvider] = useState<string | null>(null);
 
-    const testConnection = async () => {
-        const provider = config.ai.provider;
+    const testConnection = async (provider: string) => {
         let apiKey = '';
 
         // Get the current API key based on provider
@@ -27,35 +26,25 @@ export function AISettings({ config, setConfig }: AISettingsProps) {
         else if (provider === 'deepseek') apiKey = config.ai.deepseekApiKey || '';
 
         if (!apiKey || apiKey === '***') {
-            toast.error('Por favor, insira a API Key antes de testar');
+            toast.error(`Por favor, insira a API Key do ${AI_PROVIDER_LABELS[provider]} antes de testar`);
             return;
         }
 
-        setTesting(true);
-        setTestResult(null);
+        setTestingProvider(provider);
 
         try {
-            const response = await fetch('/api/ai/test', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ provider, apiKey }),
-            });
-
-            const data = await response.json();
+            const { data } = await api.post('/ai/test', { provider, apiKey });
 
             if (data.success) {
-                setTestResult({ success: true, message: data.message });
                 toast.success(data.message);
             } else {
-                setTestResult({ success: false, message: data.error || 'Erro desconhecido' });
                 toast.error(data.error || 'Falha na conexão');
             }
         } catch (error: any) {
-            const message = error.message || 'Erro ao testar conexão';
-            setTestResult({ success: false, message });
+            const message = error.response?.data?.error || error.message || 'Erro ao testar conexão';
             toast.error(message);
         } finally {
-            setTesting(false);
+            setTestingProvider(null);
         }
     };
 
@@ -67,16 +56,18 @@ export function AISettings({ config, setConfig }: AISettingsProps) {
                     Configure os provedores de Inteligência Artificial para geração de posts
                 </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
                 <div className="space-y-2">
                     <Label htmlFor="ai-provider">Provedor Padrão</Label>
+                    <div className="p-3 bg-muted/50 rounded-lg border text-sm text-muted-foreground">
+                        O sistema usará este provedor para gerar os posts. Se falhar, usará templates padrão.
+                    </div>
                     <select
                         id="ai-provider"
-                        className="w-full px-3 py-2 border border-input bg-background rounded-lg"
+                        className="w-full px-3 py-2 border border-input bg-background rounded-lg mt-2"
                         value={config.ai.provider}
                         onChange={(e) => {
                             setConfig({ ...config, ai: { ...config.ai, provider: e.target.value } });
-                            setTestResult(null);
                         }}
                     >
                         {Object.values(AI_PROVIDERS).map(provider => (
@@ -87,74 +78,87 @@ export function AISettings({ config, setConfig }: AISettingsProps) {
                     </select>
                 </div>
 
-                {/* Groq API Key */}
-                <div className="space-y-2">
-                    <Label htmlFor="groqApiKey">Groq API Key</Label>
-                    <Input
-                        id="groqApiKey"
-                        type="password"
-                        value={config.ai.groqApiKey}
-                        onChange={(e) => setConfig({ ...config, ai: { ...config.ai, groqApiKey: e.target.value } })}
-                        placeholder="gsk_..."
-                    />
-                    <p className="text-xs text-muted-foreground">
-                        Obtenha sua chave em <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">console.groq.com</a>
-                    </p>
-                </div>
-
-                {/* OpenAI API Key */}
-                <div className="space-y-2">
-                    <Label htmlFor="openaiApiKey">OpenAI API Key</Label>
-                    <Input
-                        id="openaiApiKey"
-                        type="password"
-                        value={config.ai.openaiApiKey}
-                        onChange={(e) => setConfig({ ...config, ai: { ...config.ai, openaiApiKey: e.target.value } })}
-                        placeholder="sk-..."
-                    />
-                </div>
-
-                {/* DeepSeek API Key */}
-                <div className="space-y-2">
-                    <Label htmlFor="deepseekApiKey">DeepSeek API Key</Label>
-                    <Input
-                        id="deepseekApiKey"
-                        type="password"
-                        value={config.ai.deepseekApiKey || ''}
-                        onChange={(e) => setConfig({ ...config, ai: { ...config.ai, deepseekApiKey: e.target.value } })}
-                        placeholder="sk-..."
-                    />
-                    <p className="text-xs text-muted-foreground">
-                        Obtenha sua chave em <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">platform.deepseek.com</a>
-                    </p>
-                </div>
-
-                {/* Test Connection Button */}
-                <div className="pt-2 flex items-center gap-4">
-                    <Button
-                        onClick={testConnection}
-                        disabled={testing}
-                        variant="outline"
-                    >
-                        {testing ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Testando...
-                            </>
-                        ) : (
-                            'Testar Conexão'
-                        )}
-                    </Button>
-                    {testResult && (
-                        <div className={`flex items-center gap-2 text-sm ${testResult.success ? 'text-green-600' : 'text-red-600'}`}>
-                            {testResult.success ? (
-                                <CheckCircle className="h-4 w-4" />
-                            ) : (
-                                <XCircle className="h-4 w-4" />
-                            )}
-                            <span>{testResult.message}</span>
+                <div className="grid gap-6">
+                    {/* Groq Setting */}
+                    <div className="space-y-3 p-4 border rounded-lg">
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="groqApiKey" className="font-semibold text-base">Groq (Recomendado)</Label>
+                            {config.ai.provider === 'groq' && <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">Ativo</span>}
                         </div>
-                    )}
+                        <div className="flex gap-2">
+                            <Input
+                                id="groqApiKey"
+                                type="password"
+                                value={config.ai.groqApiKey}
+                                onChange={(e) => setConfig({ ...config, ai: { ...config.ai, groqApiKey: e.target.value } })}
+                                placeholder="gsk_..."
+                                className="flex-1"
+                            />
+                            <Button
+                                variant="outline"
+                                onClick={() => testConnection('groq')}
+                                disabled={testingProvider === 'groq'}
+                            >
+                                {testingProvider === 'groq' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Testar'}
+                            </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Rápido e gratuito. Obtenha sua chave em <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">console.groq.com</a>
+                        </p>
+                    </div>
+
+                    {/* OpenAI Setting */}
+                    <div className="space-y-3 p-4 border rounded-lg">
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="openaiApiKey" className="font-semibold text-base">OpenAI (GPT)</Label>
+                            {config.ai.provider === 'openai' && <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">Ativo</span>}
+                        </div>
+                        <div className="flex gap-2">
+                            <Input
+                                id="openaiApiKey"
+                                type="password"
+                                value={config.ai.openaiApiKey}
+                                onChange={(e) => setConfig({ ...config, ai: { ...config.ai, openaiApiKey: e.target.value } })}
+                                placeholder="sk-..."
+                                className="flex-1"
+                            />
+                            <Button
+                                variant="outline"
+                                onClick={() => testConnection('openai')}
+                                disabled={testingProvider === 'openai'}
+                            >
+                                {testingProvider === 'openai' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Testar'}
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* DeepSeek Setting */}
+                    <div className="space-y-3 p-4 border rounded-lg">
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="deepseekApiKey" className="font-semibold text-base">DeepSeek</Label>
+                            {config.ai.provider === 'deepseek' && <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">Ativo</span>}
+                        </div>
+                        <div className="flex gap-2">
+                            <Input
+                                id="deepseekApiKey"
+                                type="password"
+                                value={config.ai.deepseekApiKey || ''}
+                                onChange={(e) => setConfig({ ...config, ai: { ...config.ai, deepseekApiKey: e.target.value } })}
+                                placeholder="sk-..."
+                                className="flex-1"
+                            />
+                            <Button
+                                variant="outline"
+                                onClick={() => testConnection('deepseek')}
+                                disabled={testingProvider === 'deepseek'}
+                            >
+                                {testingProvider === 'deepseek' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Testar'}
+                            </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Obtenha sua chave em <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">platform.deepseek.com</a>
+                        </p>
+                    </div>
                 </div>
             </CardContent>
         </Card>

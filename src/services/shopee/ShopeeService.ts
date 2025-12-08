@@ -8,6 +8,7 @@ import { join } from 'path';
 interface ShopeeProduct {
   image_link: string;
   itemid: string;
+  shopid?: string;
   price: number;
   sale_price?: number;
   discount_percentage?: number;
@@ -265,26 +266,25 @@ export class ShopeeService {
             continue;
           }
 
-          if (record.itemid && record.title && price > 0) {
-            products.push({
-              image_link: record.image_link || record.image_link_3 || '',
-              itemid: record.itemid || '',
-              price: price, // Keep original price
-              sale_price: salePrice < price ? salePrice : undefined,
-              discount_percentage: discountPercentage > 0 ? discountPercentage : undefined,
-              title: record.title || '',
-              description: record.description || record.title || '',
-              product_link: record.product_link || '',
-              product_short_link: record['product_short link'] || record.product_short_link || record.product_link || '',
-              global_category1: record.global_category1 || 'electronics',
-              global_category2: record.global_category2,
-              item_rating: record.item_rating
-                ? parseFloat(record.item_rating.toString())
-                : undefined,
-              global_catid1: record.global_catid1,
-              global_catid2: record.global_catid2,
-            });
-          }
+          products.push({
+            image_link: record.image_link || record.image_link_3 || '',
+            itemid: record.itemid || '',
+            shopid: record.shopid || record.shop_id || undefined,
+            price: price, // Keep original price
+            sale_price: salePrice < price ? salePrice : undefined,
+            discount_percentage: discountPercentage > 0 ? discountPercentage : undefined,
+            title: record.title || '',
+            description: record.description || record.title || '',
+            product_link: record.product_link || '',
+            product_short_link: record['product_short link'] || record.product_short_link || record.product_link || '',
+            global_category1: record.global_category1 || 'electronics',
+            global_category2: record.global_category2,
+            item_rating: record.item_rating
+              ? parseFloat(record.item_rating.toString())
+              : undefined,
+            global_catid1: record.global_catid1,
+            global_catid2: record.global_catid2,
+          });
         } catch (error: any) {
           logger.debug(`Error parsing product record: ${error.message}`);
         }
@@ -465,9 +465,27 @@ export class ShopeeService {
         productUrl = rawProductLink; // Fallback
       }
 
+      // Get config for affiliate settings
+      const config = this.getConfig();
+
       // If we still don't have an affiliate link, use the raw one if it looks suspicious/short, otherwise empty
       if (!affiliateUrl && rawAffiliateLink && rawAffiliateLink !== productUrl) {
-        affiliateUrl = rawAffiliateLink;
+        // Check if it's an an_redir link - if so, it MIGHT be valid, but if user complains, we prefer Universal Link
+        // If we have shopid and affiliateCode, generate Universal Link
+        if (config.affiliateCode && product.shopid && product.itemid) {
+          // Universal Link Format: https://shopee.com.br/universal-link/product/{shopid}/{itemid}?utm_source={affiliateCode}
+          // Note: Standard Universal Link usually wraps the URL, but this is the deep link format
+          // The format "https://shopee.com.br/universal-link/product/i/{shopid}/{itemid}" is often used.
+          affiliateUrl = `https://shopee.com.br/universal-link/product/i/${product.shopid}/${product.itemid}?utm_source=${config.affiliateCode}&utm_medium=affiliate&utm_campaign=voxelpromo`;
+          logger.debug(`Generated Universal Link for item ${product.itemid}`);
+        } else {
+          affiliateUrl = rawAffiliateLink;
+        }
+      }
+
+      // If we STILL have an an_redir link effectively, and user provided affiliateCode, try to force Universal Link conversion if shopid is available
+      if (affiliateUrl.includes('an_redir') && config.affiliateCode && product.shopid && product.itemid) {
+        affiliateUrl = `https://shopee.com.br/universal-link/product/i/${product.shopid}/${product.itemid}?utm_source=${config.affiliateCode}&utm_medium=affiliate&utm_campaign=voxelpromo`;
       }
 
       // Build tags

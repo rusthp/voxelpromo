@@ -59,6 +59,28 @@ router.get('/variables', async (_req: Request, res: Response) => {
 
 /**
  * @swagger
+ * /api/templates/init:
+ *   post:
+ *     summary: Initialize default templates
+ *     tags: [Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Templates initialized
+ */
+router.post('/init', async (_req: Request, res: Response) => {
+    try {
+        await templateService.initializeDefaults();
+        return res.json({ success: true, message: 'Default templates initialized' });
+    } catch (error: any) {
+        logger.error('Error initializing templates:', error);
+        return res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
+/**
+ * @swagger
  * /api/templates/{id}:
  *   get:
  *     summary: Get template by ID

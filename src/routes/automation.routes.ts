@@ -107,8 +107,19 @@ router.post('/start', async (_req: Request, res: Response) => {
         // Set config as active
         await automationService.saveConfig({ ...config, isActive: true });
 
+        // Trigger immediate distribution for Smart Planner (if enabled)
+        let scheduledCount = 0;
+        if (config.postsPerHour && config.postsPerHour > 0) {
+            logger.info('📅 Triggering initial Smart Planner distribution...');
+            scheduledCount = await automationService.distributeHourlyPosts();
+        }
+
         logger.info('✅ Automation started');
-        return res.json({ success: true, message: 'Automation started successfully' });
+        return res.json({
+            success: true,
+            message: 'Automation started successfully',
+            initialScheduledPosts: scheduledCount,
+        });
     } catch (error: any) {
         logger.error('Error starting automation:', error);
         return res.status(500).json({ error: error.message || 'Internal server error' });

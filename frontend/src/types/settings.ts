@@ -112,3 +112,17 @@ export interface AutomationStatus {
     };
     message?: string;
 }
+
+export type TemplateTone = 'casual' | 'professional' | 'urgent' | 'viral';
+
+export interface MessageTemplate {
+    _id: string;
+    name: string;
+    tone: TemplateTone;
+    content: string;
+    isActive: boolean;
+    isDefault: boolean;
+    timesUsed: number;
+    createdAt: string;
+    updatedAt: string;
+}

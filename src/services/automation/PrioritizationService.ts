@@ -1,5 +1,73 @@
 import { PeakHour } from '../../models/AutomationConfig';
 
+interface SeasonalEvent {
+    name: string;
+    startMonth: number; // 0-11 (Jan=0, Dec=11)
+    startDay: number;
+    endMonth: number;
+    endDay: number;
+    keywords: string[];
+}
+
+const SEASONAL_EVENTS: SeasonalEvent[] = [
+    {
+        name: 'Natal',
+        startMonth: 11, // Dezembro
+        startDay: 1,
+        endMonth: 11,
+        endDay: 25,
+        keywords: ['natal', 'christmas', 'presente', 'papai noel', 'arvore', 'enfeite', 'brinquedo', 'lego', 'boneca', 'jogo', 'perfume', 'chocolate', 'panetone'],
+    },
+    {
+        name: 'Black Friday',
+        startMonth: 10, // Novembro
+        startDay: 1,
+        endMonth: 10,
+        endDay: 30,
+        keywords: ['black friday', 'black', 'friday', 'oferta', 'desconto', 'tech', 'iphone', 'samsung', 'tv', 'smart', 'celular', 'notebook', 'pc', 'gamer'],
+    },
+    {
+        name: 'Dia das Mães',
+        startMonth: 4, // Maio
+        startDay: 1,
+        endMonth: 4,
+        endDay: 15, // Primeira quinzena aprox
+        keywords: ['mãe', 'mae', 'mulher', 'perfume', 'bolsa', 'beleza', 'maquiagem', 'cozinha', 'casa', 'flor'],
+    },
+    {
+        name: 'Dia dos Pais',
+        startMonth: 7, // Agosto
+        startDay: 1,
+        endMonth: 7,
+        endDay: 15,
+        keywords: ['pai', 'homem', 'ferramenta', 'bebida', 'churrasco', 'relógio', 'carteira', 'perfume'],
+    },
+    {
+        name: 'Dia dos Namorados',
+        startMonth: 5, // Junho
+        startDay: 1,
+        endMonth: 5,
+        endDay: 12,
+        keywords: ['namorado', 'namorada', 'amor', 'casal', 'perfume', 'chocolate', 'aliança', 'presente', 'sexy'],
+    },
+    {
+        name: 'Páscoa',
+        startMonth: 2, // Março
+        startDay: 15,
+        endMonth: 3, // Abril
+        endDay: 30, // Janela ampla
+        keywords: ['pascoa', 'páscoa', 'chocolate', 'ovo', 'bombom', 'coelho'],
+    },
+    {
+        name: 'Dia das Crianças',
+        startMonth: 9, // Outubro
+        startDay: 1,
+        endMonth: 9,
+        endDay: 12,
+        keywords: ['criança', 'brinquedo', 'jogo', 'infantil', 'boneca', 'carrinho', 'lego', 'nerf', 'patinete', 'bicicleta'],
+    }
+];
+
 export class PrioritizationService {
     /**
      * Calculate peak hour score (0-100)
@@ -60,6 +128,8 @@ export class PrioritizationService {
             peakScore: number;
             salesScore: number;
             discountScore: number;
+            priceScore?: number; // 0-100 (100 = cheap, 0 = expensive)
+            seasonalScore?: number; // 0-100 (100 = highly seasonal match)
         },
         context: {
             isPeakHour: boolean;
@@ -68,7 +138,7 @@ export class PrioritizationService {
             discountWeightVsSales: number; // 0-100
         }
     ): number {
-        const { peakScore, salesScore, discountScore } = scores;
+        const { peakScore, salesScore, discountScore, priceScore = 0, seasonalScore = 0 } = scores;
         const {
             isPeakHour,
             prioritizeBestSellersInPeak,
@@ -76,35 +146,72 @@ export class PrioritizationService {
             discountWeightVsSales,
         } = context;
 
-        // Base weights (when not in peak hour)
+        // Base weights
         let salesWeight = (100 - discountWeightVsSales) / 100; // 0-1
         let discountWeight = discountWeightVsSales / 100; // 0-1
-        let peakWeight = 0.1; // Small weight for peak hour bonus
+        let peakWeight = 0.1;
+        let priceWeight = 0.1; // New weight for price
+        let seasonalWeight = 0.05; // Base weight for seasons
 
-        // Adjust weights during peak hours
+        // STRATEGY: Smart "Robin Hood" Prioritization
+
         if (isPeakHour) {
-            peakWeight = 0.3; // Increase peak hour weight
+            // == PEAK HOUR STRATEGY (PRIME TIME) ==
+            // Goal: Maximize revenue/conversions immediately.
+            // Show the absolute BEST offers (high sales, big discounts).
+
+            peakWeight = 0.4; // Massive boost for being in peak hour
 
             if (prioritizeBestSellersInPeak) {
-                // Increase sales weight during peak
-                salesWeight = salesWeight * 1.5;
+                salesWeight *= 2.0; // Double importance of sales history
             }
 
             if (prioritizeBigDiscountsInPeak) {
-                // Increase discount weight during peak
-                discountWeight = discountWeight * 1.5;
+                discountWeight *= 1.5; // Boost high discounts
             }
+
+            // Reduce price importance in peak (people buy expensive stuff in prime time too)
+            priceWeight = 0.05;
+
+            // SEASONAL BOOST IN PEAK
+            if (seasonalScore > 50) {
+                // If it's a seasonal item in peak time, IT IS KING.
+                seasonalWeight = 0.5; // Huge weight
+                // Reduce others slightly
+                peakWeight = 0.3;
+            }
+        } else {
+            // == OFF-PEAK STRATEGY (VALLEY) ==
+            // Goal: "Clean stock" and preserve best offers for Prime Time.
+            // Prioritize: Low ticket items, new items, ok discounts.
+            // Penalize: Top Tier items (don't waste them now).
+
+            // 1. Preservation Penalty: If it's a "Top Tier" offer, reduce its score
+            // Top Tier = High Sales Score OR High Discount
+            if (salesScore > 70 || discountScore > 70) {
+                // Artificial penalty to save it for later
+                // We return a lower score so it appears less likely in the shuffle
+                return (salesScore * salesWeight + discountScore * discountWeight) * 0.4;
+            }
+
+            // 2. Low Ticket Boost: Cheap items get priority now
+            priceWeight = 0.4; // High importance on low price
+
+            // Adjust other weights down to accommodate price weight
+            salesWeight *= 0.5;
+            discountWeight *= 0.5;
         }
 
-        // Normalize weights to sum to 1
-        const totalWeight = salesWeight + discountWeight + peakWeight;
-        salesWeight = salesWeight / totalWeight;
-        discountWeight = discountWeight / totalWeight;
-        peakWeight = peakWeight / totalWeight;
+        // Normalize weights to sum to ~1 (approximate is fine for scoring)
+        const totalWeight = salesWeight + discountWeight + peakWeight + priceWeight + seasonalWeight;
 
         // Calculate weighted score
         const finalScore =
-            salesScore * salesWeight + discountScore * discountWeight + peakScore * peakWeight;
+            (salesScore * salesWeight +
+                discountScore * discountWeight +
+                peakScore * peakWeight +
+                priceScore * priceWeight +
+                seasonalScore * seasonalWeight) / totalWeight;
 
         return Math.min(100, Math.max(0, finalScore));
     }
@@ -132,5 +239,49 @@ export class PrioritizationService {
         }
 
         return bestRate > 0 ? bestHour : null;
+    }
+
+    /**
+     * Calculate seasonal score (0-100)
+     * Checks if current date matches any event and if offer contains keywords
+     */
+    getSeasonalScore(offer: { title: string; category?: string; description?: string }): number {
+        const now = new Date();
+        const month = now.getMonth(); // 0-11
+        const day = now.getDate();
+
+        // 1. Check active events
+        const activeEvents = SEASONAL_EVENTS.filter(event => {
+            if (event.startMonth === event.endMonth) {
+                return month === event.startMonth && day >= event.startDay && day <= event.endDay;
+            } else {
+                // Cross-month logic (simple version)
+                if (month === event.startMonth) return day >= event.startDay;
+                if (month === event.endMonth) return day <= event.endDay;
+                return month > event.startMonth && month < event.endMonth;
+            }
+        });
+
+        if (activeEvents.length === 0) {
+            return 0; // No seasonal event active
+        }
+
+        // 2. Check keywords match
+        const text = `${offer.title} ${offer.category || ''} ${offer.description || ''}`.toLowerCase();
+
+
+
+        for (const event of activeEvents) {
+            // Check if ANY keyword matches
+            const hasMatch = event.keywords.some(keyword => text.includes(keyword.toLowerCase()));
+
+            if (hasMatch) {
+                // Found a match!
+                // Score depends on strictness? For now, flat high score.
+                return 100;
+            }
+        }
+
+        return 0;
     }
 }

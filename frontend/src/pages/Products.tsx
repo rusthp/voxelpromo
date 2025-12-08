@@ -3,9 +3,16 @@ import { Layout } from "@/components/layout/Layout";
 import { ProductCard } from "@/components/dashboard/ProductCard";
 import { PublishModal } from "@/components/products/PublishModal";
 import api from "@/services/api";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, Filter, SortAsc } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 interface Offer {
     _id: string;
@@ -27,6 +34,7 @@ const Products = () => {
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const [sortBy, setSortBy] = useState('newest');
+    const [selectedSource, setSelectedSource] = useState('all');
     const [selectedOffers, setSelectedOffers] = useState<Set<string>>(new Set());
 
     // Publish Modal State
@@ -36,7 +44,13 @@ const Products = () => {
     const fetchProducts = async () => {
         try {
             setLoading(true);
-            const response = await api.get(`/offers?limit=20&skip=${(page - 1) * 20}&sortBy=${sortBy}`);
+            let url = `/offers?limit=20&skip=${(page - 1) * 20}&sortBy=${sortBy}`;
+
+            if (selectedSource !== 'all') {
+                url += `&sources=${selectedSource}`;
+            }
+
+            const response = await api.get(url);
             const newProducts = response.data;
 
             if (newProducts.length < 20) {
@@ -54,10 +68,16 @@ const Products = () => {
 
     useEffect(() => {
         fetchProducts();
-    }, [page, sortBy]);
+    }, [page, sortBy, selectedSource]);
 
-    const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        setSortBy(e.target.value);
+    const handleSortChange = (value: string) => {
+        setSortBy(value);
+        setPage(1);
+        setProducts([]);
+    };
+
+    const handleSourceChange = (value: string) => {
+        setSelectedSource(value);
         setPage(1);
         setProducts([]);
     };
@@ -171,20 +191,40 @@ const Products = () => {
         <Layout>
             <div className="p-6 space-y-6">
                 <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 flex-wrap">
                         <h1 className="text-2xl font-bold text-foreground">Produtos Coletados</h1>
-                        <div className="flex items-center gap-2 bg-secondary/50 p-1 rounded-lg">
-                            <span className="text-sm text-muted-foreground pl-2">Ordenar:</span>
-                            <select
-                                value={sortBy}
-                                onChange={handleSortChange}
-                                className="bg-transparent border-none text-sm focus:ring-0 cursor-pointer text-foreground [&>option]:text-black"
-                            >
-                                <option value="newest">Mais Recentes</option>
-                                <option value="discount">Maior Desconto</option>
-                                <option value="price_asc">Menor Preço</option>
-                                <option value="price_desc">Maior Preço</option>
-                            </select>
+
+                        <div className="flex gap-3">
+                            <div className="hidden md:flex items-center gap-2">
+                                <Select value={selectedSource} onValueChange={handleSourceChange}>
+                                    <SelectTrigger className="w-[180px] bg-background">
+                                        <Filter className="w-4 h-4 mr-2 text-muted-foreground" />
+                                        <SelectValue placeholder="Filtrar por Fonte" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todas as Fontes</SelectItem>
+                                        <SelectItem value="amazon">Amazon</SelectItem>
+                                        <SelectItem value="shopee">Shopee</SelectItem>
+                                        <SelectItem value="aliexpress">AliExpress</SelectItem>
+                                        <SelectItem value="mercadolivre">Mercado Livre</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <Select value={sortBy} onValueChange={handleSortChange}>
+                                    <SelectTrigger className="w-[180px] bg-background">
+                                        <SortAsc className="w-4 h-4 mr-2 text-muted-foreground" />
+                                        <SelectValue placeholder="Ordenar por" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="newest">Mais Recentes</SelectItem>
+                                        <SelectItem value="discount">Maior Desconto</SelectItem>
+                                        <SelectItem value="price_asc">Menor Preço</SelectItem>
+                                        <SelectItem value="price_desc">Maior Preço</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
                     </div>
 

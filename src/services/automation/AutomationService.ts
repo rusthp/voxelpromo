@@ -31,7 +31,10 @@ export class AutomationService {
             }
 
             // Cache miss - fetch from database
-            const config = await AutomationConfigModel.findOne({ isActive: true })
+            // Note: We fetch the config regardless of active status, as we follow a singleton pattern
+            // The caller is responsible for checking config.isActive if needed
+            const config = await AutomationConfigModel.findOne({})
+                .sort({ updatedAt: -1 }) // Get the most recently updated one just in case
                 .populate('messageTemplateId')
                 .lean();
 
@@ -207,12 +210,32 @@ export class AutomationService {
             config.minDiscount || 20
         );
 
+        // NEW: Calculate seasonal score
+        const seasonalScore = this.prioritizationService.getSeasonalScore(offer);
+
+        // Calculate price score (0-100) for "Cheap Item Boost" strategy
+        // Favor cheap items (< 50 = 100 score, > 200 = 0 score) for off-peak times
+        let priceScore = 0;
+        if (offer.currentPrice && offer.currentPrice > 0) {
+            if (offer.currentPrice < 50) priceScore = 100;
+            else if (offer.currentPrice > 200) priceScore = 0;
+            else {
+                // Linear interpolation between 50 and 200: (200 - price) / 1.5
+                // 50 -> 150/1.5 = 100
+                // 125 -> 75/1.5 = 50
+                // 200 -> 0
+                priceScore = (200 - offer.currentPrice) / 1.5;
+            }
+        }
+
         // Calculate final score
         const finalScore = this.prioritizationService.calculateFinalScore(
             {
                 peakScore,
                 salesScore,
                 discountScore,
+                priceScore,
+                seasonalScore,
             },
             {
                 isPeakHour: peakScore > 50,
@@ -427,26 +450,43 @@ export class AutomationService {
 
     /**
      * Smart Hourly Planner: Distribute quantity of posts randomly within the current hour
-     * Example: Distribute 10 posts -> 09:05, 09:12, 09:27...
+     * Uses unique random minutes to avoid collisions - more human-like behavior
+     * Example: postsPerHour=5 -> posts at 09:05, 09:12, 09:27, 09:38, 09:51
      */
     async distributeHourlyPosts(): Promise<number> {
         try {
             const config = await this.getActiveConfig();
-            if (!config || !config.isActive) return 0;
+            if (!config || !config.isActive) {
+                logger.debug('📅 Smart Planner: Config not active, skipping.');
+                return 0;
+            }
 
             // Only run if Smart Planner is enabled (postsPerHour > 0)
             if (!config.postsPerHour || config.postsPerHour <= 0) {
+                logger.debug('📅 Smart Planner: Disabled (postsPerHour <= 0).');
                 return 0;
             }
 
             // Check if we are inside working hours
             if (!this.shouldPostNow(config)) {
-                logger.info('⏰ Smart Planner: Outside working hours, skipping distribution.');
+                const now = new Date();
+                logger.info(`⏰ Smart Planner: Outside working hours (${config.startHour}h-${config.endHour}h), current: ${now.getHours()}h. Skipping.`);
                 return 0;
             }
 
             const quantity = config.postsPerHour;
-            logger.info(`📅 Smart Planner: Distributing ${quantity} posts for this hour...`);
+            const now = new Date();
+            const currentMinute = now.getMinutes();
+            const remainingMinutes = 59 - currentMinute;
+
+            logger.info(`📅 Smart Planner: Distributing up to ${quantity} posts for hour ${now.getHours()}:00...`);
+            logger.info(`   Current time: ${now.getHours()}:${String(currentMinute).padStart(2, '0')}, ${remainingMinutes} minutes remaining.`);
+
+            // Check if we have enough time
+            if (remainingMinutes < 1) {
+                logger.warn('⚠️ Smart Planner: Not enough time left in this hour.');
+                return 0;
+            }
 
             // Get candidate offers (get 2x quantity to have backup)
             const offers = await this.getNextScheduledOffers(config, quantity * 2);
@@ -459,32 +499,55 @@ export class AutomationService {
                 return 0;
             }
 
-            // Take the exact quantity needed
-            const selectedOffers = availableOffers.slice(0, quantity);
+            // Take the exact quantity needed (limited by available offers and remaining time)
+            const maxPosts = Math.min(quantity, availableOffers.length, remainingMinutes);
+            const selectedOffers = availableOffers.slice(0, maxPosts);
+
+            if (maxPosts < quantity) {
+                logger.info(`   Adjusted to ${maxPosts} posts (offers: ${availableOffers.length}, time: ${remainingMinutes}min).`);
+            }
+
+            // Generate unique random minutes using Fisher-Yates shuffle
+            // Create array of available minutes (1 to remainingMinutes)
+            const availableMinuteSlots: number[] = [];
+            for (let i = 1; i <= remainingMinutes; i++) {
+                availableMinuteSlots.push(i);
+            }
+
+            // Fisher-Yates shuffle for true randomness
+            for (let i = availableMinuteSlots.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [availableMinuteSlots[i], availableMinuteSlots[j]] = [availableMinuteSlots[j], availableMinuteSlots[i]];
+            }
+
+            // Take first N minutes and sort for readable logs
+            const selectedMinutes = availableMinuteSlots
+                .slice(0, selectedOffers.length)
+                .sort((a, b) => a - b);
 
             // Initialize OfferService
             // eslint-disable-next-line @typescript-eslint/no-var-requires
             const { OfferService } = require('../offer/OfferService');
             const offerService = new OfferService();
 
-            const now = new Date();
             let scheduledCount = 0;
 
-            for (const offer of selectedOffers) {
-                // Generate random minute (from now + 1min until end of hour - 1min)
-                // We leave 1min buffer at start and end
-                const remainingMinutes = 59 - now.getMinutes();
-                if (remainingMinutes < 2) break; // Not enough time left in this hour
-
-                const randomMinuteOffset = Math.floor(Math.random() * remainingMinutes) + 1;
-                const scheduleTime = new Date(now.getTime() + randomMinuteOffset * 60000);
+            for (let i = 0; i < selectedOffers.length && i < selectedMinutes.length; i++) {
+                const offer = selectedOffers[i];
+                const minuteOffset = selectedMinutes[i];
+                const scheduleTime = new Date(now.getTime() + minuteOffset * 60000);
 
                 // Schedule it
                 await offerService.scheduleOffer(offer._id!.toString(), scheduleTime);
+
+                const timeStr = `${String(scheduleTime.getHours()).padStart(2, '0')}:${String(scheduleTime.getMinutes()).padStart(2, '0')}`;
+                const titlePreview = offer.title.length > 35 ? offer.title.substring(0, 35) + '...' : offer.title;
+                logger.info(`   📍 Scheduled: "${titlePreview}" → ${timeStr}`);
+
                 scheduledCount++;
             }
 
-            logger.info(`✅ Smart Planner: Successfully scheduled ${scheduledCount} offers for this hour.`);
+            logger.info(`✅ Smart Planner: Successfully scheduled ${scheduledCount} posts for this hour.`);
             return scheduledCount;
         } catch (error) {
             logger.error('❌ Error in Smart Planner:', error);
