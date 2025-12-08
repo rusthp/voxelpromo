@@ -414,27 +414,31 @@ const Settings = () => {
     const handleSave = async () => {
         try {
             setLoading(true);
-            console.log("Saving main config...", config);
-            await api.post('/config', config);
-            console.log("Main config saved.");
+            console.log("Saving configs in parallel...");
 
-            try {
-                console.log("Saving automation config...", config.automation);
-                await api.post('/automation/config', config.automation);
-                console.log("Automation config saved.");
-            } catch (autoError) {
-                console.error("Error saving automation config:", autoError);
-                toast.warning("Configurações principais salvas, mas houve erro ao salvar automação.");
+            // Make both saves in parallel instead of sequential
+            const [configResult, automationResult] = await Promise.allSettled([
+                api.post('/config', config),
+                api.post('/automation/config', config.automation)
+            ]);
+
+            // Check results
+            if (configResult.status === 'rejected') {
+                console.error("Error saving main config:", configResult.reason);
+                toast.error("Erro ao salvar configurações principais.");
+                return;
+            }
+
+            if (automationResult.status === 'rejected') {
+                console.warn("Error saving automation config:", automationResult.reason);
+                toast.warning("Configurações salvas, mas houve erro na automação.");
             }
 
             toast.success("Configurações salvas com sucesso!");
+            console.log("All configs saved.");
 
-            try {
-                await fetchConfig();
-                await fetchAutomationStatus();
-            } catch (reloadError) {
-                console.error("Error reloading after save:", reloadError);
-            }
+            // DON'T refetch immediately - the UI already has the latest state
+            // This was causing extra lag. Only refetch if user navigates away and back.
         } catch (error) {
             console.error("Error saving config:", error);
             toast.error(getErrorMessage(error, "Erro ao salvar configurações."));
