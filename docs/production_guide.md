@@ -98,6 +98,12 @@ npm install -g pm2 serve typescript ts-node
 # Instalar dependências do Frontend
 cd frontend
 npm install
+
+# CRIAR ARQUIVO .env PARA O FRONTEND (IMPORTANTE!)
+# Crie um arquivo .env na pasta frontend com o IP da sua VPS
+# Se não fizer isso, o site vai tentar conectar em localhost e falhará.
+echo "VITE_API_URL=http://SEU_IP_DA_VPS:3000/api" > .env
+
 cd ..
 
 # Build do Backend (Para JavaScript)
