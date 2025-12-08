@@ -122,8 +122,9 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         PORT: 3000,
-        WHATSAPP_LIBRARY: "baileys", // Usa biblioteca leve (sem Chrome)
-        // Adicione suas variáveis aqui ou use .env
+        WHATSAPP_LIBRARY: "baileys",
+        // IMPORTANTE: Adicione seu IP/Domínio para permitir conexão
+        ALLOWED_ORIGINS: "http://SEU_IP_DA_VPS:3001,http://seu-dominio.com" 
       },
       instances: 1,
       autorestart: true,
