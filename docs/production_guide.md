@@ -111,6 +111,25 @@ npm run build:backend
 
 # Build do Frontend (Para arquivos estáticos)
 npm run build:frontend
+
+# (OPCIONAL) Se você quer usar "Coletar de URL Personalizada" para Mercado Livre:
+# O scraping precisa do Chrome (Puppeteer), que requer bibliotecas extras no Linux:
+sudo apt-get install -y \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libatspi2.0-0 \
+    libgtk-3-0
 ```
 
 ## 5. Configuração do PM2
