@@ -97,4 +97,18 @@ export interface MlAuthStatus {
 export interface AutomationStatus {
     isActive: boolean;
     shouldPost: boolean;
+    currentHour?: number;
+    lastPostedAt?: string | null;
+    lastPostedTitle?: string | null;
+    postsToday?: number;
+    totalPosted?: number;
+    pendingCount?: number;
+    config?: {
+        startHour: number;
+        endHour: number;
+        intervalMinutes: number;
+        postsPerHour?: number;
+        enabledChannels: string[];
+    };
+    message?: string;
 }

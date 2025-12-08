@@ -3,8 +3,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Bot, Play, Pause, Clock } from "lucide-react";
-import { ConfigState } from "@/types/settings";
+import { Loader2, Bot, Play, Pause, Clock, Activity, Send, Package } from "lucide-react";
+import { ConfigState, AutomationStatus } from "@/types/settings";
 import { MESSAGING_CHANNELS, MESSAGING_CHANNEL_LABELS, AUTOMATION_INTERVALS } from "@/constants/channels";
 
 interface AutomationSettingsProps {
@@ -12,9 +12,26 @@ interface AutomationSettingsProps {
     setConfig: React.Dispatch<React.SetStateAction<ConfigState>>;
     loading: boolean;
     onToggleAutomation: () => void;
+    automationStatus?: AutomationStatus;
 }
 
-export function AutomationSettings({ config, setConfig, loading, onToggleAutomation }: AutomationSettingsProps) {
+export function AutomationSettings({ config, setConfig, loading, onToggleAutomation, automationStatus }: AutomationSettingsProps) {
+    // Format relative time
+    const formatRelativeTime = (dateString: string | null | undefined) => {
+        if (!dateString) return "Nunca";
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMins / 60);
+        const diffDays = Math.floor(diffHours / 24);
+
+        if (diffMins < 1) return "Agora";
+        if (diffMins < 60) return `${diffMins} min atrás`;
+        if (diffHours < 24) return `${diffHours}h atrás`;
+        return `${diffDays}d atrás`;
+    };
+
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -43,6 +60,60 @@ export function AutomationSettings({ config, setConfig, loading, onToggleAutomat
                     {config.automation.isActive ? "Parar Robô" : "Iniciar Robô"}
                 </Button>
             </CardHeader>
+
+            {/* Status Indicator */}
+            {automationStatus && (
+                <div className="px-6 pb-4">
+                    <div className="rounded-lg border bg-muted/30 p-4">
+                        <div className="flex flex-wrap items-center gap-4">
+                            {/* Status Badge */}
+                            <div className="flex items-center gap-2">
+                                <div className={`w-3 h-3 rounded-full ${automationStatus.isActive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                                <span className={`text-sm font-medium ${automationStatus.isActive ? 'text-green-500' : 'text-muted-foreground'}`}>
+                                    {automationStatus.isActive ? 'ATIVO' : 'INATIVO'}
+                                </span>
+                            </div>
+
+                            {/* Separator */}
+                            <div className="h-4 w-px bg-border hidden sm:block" />
+
+                            {/* Last Post */}
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Send className="w-4 h-4" />
+                                <span>Último post:</span>
+                                <span className="font-medium text-foreground">
+                                    {formatRelativeTime(automationStatus.lastPostedAt)}
+                                </span>
+                            </div>
+
+                            {/* Separator */}
+                            <div className="h-4 w-px bg-border hidden sm:block" />
+
+                            {/* Posts Today */}
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Activity className="w-4 h-4" />
+                                <span>Hoje:</span>
+                                <span className="font-medium text-foreground">
+                                    {automationStatus.postsToday ?? 0} posts
+                                </span>
+                            </div>
+
+                            {/* Separator */}
+                            <div className="h-4 w-px bg-border hidden sm:block" />
+
+                            {/* Pending */}
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Package className="w-4 h-4" />
+                                <span>Fila:</span>
+                                <span className="font-medium text-foreground">
+                                    {automationStatus.pendingCount ?? 0} ofertas
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="space-y-4">

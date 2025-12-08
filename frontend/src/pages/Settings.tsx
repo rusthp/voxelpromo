@@ -572,6 +572,7 @@ const Settings = () => {
                             setConfig={setConfig}
                             loading={loading}
                             onToggleAutomation={toggleAutomation}
+                            automationStatus={automationStatus}
                         />
                     </TabsContent>
 

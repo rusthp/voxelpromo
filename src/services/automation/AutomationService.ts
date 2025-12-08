@@ -369,10 +369,39 @@ export class AutomationService {
             const shouldPost = this.shouldPostNow(config);
             const nextOffers = await this.getNextScheduledOffers(config, 5);
 
+            // Get last posted offer
+            const lastPostedOffer = await OfferModel.findOne({ isPosted: true })
+                .sort({ updatedAt: -1 })
+                .select('title updatedAt')
+                .lean();
+
+            // Get today's post count
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const postsToday = await OfferModel.countDocuments({
+                isPosted: true,
+                updatedAt: { $gte: today },
+            });
+
+            // Get total posted
+            const totalPosted = await OfferModel.countDocuments({ isPosted: true });
+
+            // Get pending offers count
+            const pendingCount = await OfferModel.countDocuments({
+                isActive: true,
+                isPosted: false,
+                discountPercentage: { $gte: config.minDiscountPercentage || 0 },
+            });
+
             return {
                 isActive: config.isActive,
                 shouldPost,
                 currentHour: new Date().getHours(),
+                lastPostedAt: lastPostedOffer?.updatedAt || null,
+                lastPostedTitle: lastPostedOffer?.title || null,
+                postsToday,
+                totalPosted,
+                pendingCount,
                 nextOffers: nextOffers.map((o) => ({
                     id: o._id,
                     title: o.title,
@@ -383,6 +412,7 @@ export class AutomationService {
                     startHour: config.startHour,
                     endHour: config.endHour,
                     intervalMinutes: config.intervalMinutes,
+                    postsPerHour: config.postsPerHour,
                     enabledChannels: config.enabledChannels,
                 },
             };
