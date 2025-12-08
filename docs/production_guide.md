@@ -35,7 +35,38 @@ sudo apt install -y nodejs build-essential
 
 ```
 
-## 3. Instalação e Build do Projeto
+## 3. Configuração do Banco de Dados (MongoDB)
+
+O banco de dados é **ESSENCIAL**. Sem ele, o sistema não inicia.
+
+```bash
+# Ubuntu/Debian:
+# 1. Instalar gnupg
+sudo apt-get install gnupg curl
+
+# 2. Importar chave GPG do MongoDB
+curl -fsSL https://pgp.mongodb.com/server-7.0.asc | \
+   sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg \
+   --dearmor
+
+# 3. Criar arquivo de lista
+echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+
+# 4. Instalar MongoDB
+sudo apt-get update
+sudo apt-get install -y mongodb-org
+
+# 5. Iniciar e Habilitar serviço (MUITO IMPORTANTE)
+sudo systemctl start mongod
+sudo systemctl enable mongod
+
+# 6. Verificar se está rodando
+sudo systemctl status mongod
+```
+
+> **Nota:** Se tiver erros, consulte o guia detalhado: [`docs/MONGODB_SETUP.md`](./MONGODB_SETUP.md)
+
+## 4. Instalação e Build do Projeto
 
 ```bash
 # Clone ou copie seu projeto para a VM (ex: /var/www/voxelpromo)
@@ -58,7 +89,7 @@ npm run build:backend
 npm run build:frontend
 ```
 
-## 4. Configuração do PM2
+## 5. Configuração do PM2
 
 O PM2 vai gerenciar os processos, reiniciar em caso de erro e iniciar com o sistema.
 
@@ -95,7 +126,7 @@ module.exports = {
 };
 ```
 
-## 5. Iniciando a Aplicação
+## 6. Iniciando a Aplicação
 
 ```bash
 # Iniciar todos os processos
@@ -107,7 +138,7 @@ pm2 startup
 # (Rode o comando que o pm2 startup gerar)
 ```
 
-## 6. Configuração de Nginx (Recomendado para HTTPS)
+## 7. Configuração de Nginx (Recomendado para HTTPS)
 
 Para produção real, não exponha as portas 3000/3001 diretamente. Use Nginx como Proxy Reverso com Certificado SSL (Certbot).
 
@@ -134,7 +165,7 @@ server {
 }
 ```
 
-## 7. Manutenção
+## 8. Manutenção
 
 *   **Logs**: `pm2 logs`
 *   **Monitoramento**: `pm2 monit`
