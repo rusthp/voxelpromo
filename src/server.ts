@@ -25,6 +25,9 @@ if (process.env.MONGODB_URI) {
 }
 
 const app = express();
+// Enable trust proxy to correctly identify client IPs behind Nginx/Docker
+app.set('trust proxy', 1);
+
 const PORT = process.env.PORT || 3000;
 
 // Security: Helmet.js for security headers
@@ -45,7 +48,7 @@ app.use(
 // Security: Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 1000, // Increased limit to 1000 requests per windowMs to allow for dashboard polling
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
