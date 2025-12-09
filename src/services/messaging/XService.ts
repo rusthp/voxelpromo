@@ -2,6 +2,7 @@ import { TwitterApi } from 'twitter-api-v2';
 import { Offer } from '../../types';
 import { logger } from '../../utils/logger';
 import { AIService } from '../ai/AIService';
+import { PostHistoryModel } from '../../models/PostHistory';
 import axios from 'axios';
 import crypto from 'crypto';
 import { readFileSync, existsSync } from 'fs';
@@ -338,6 +339,17 @@ export class XService {
       return false;
     }
 
+    // Check rate limits logic
+    try {
+      const rateLimit = await this.checkRateLimit();
+      if (!rateLimit.allowed) {
+        logger.warn(`⚠️ Skipping X (Twitter) post due to internal rate limiting: ${rateLimit.reason}`);
+        return false;
+      }
+    } catch (err: any) {
+      logger.warn(`⚠️ Failed to check rate limits, proceeding anyway: ${err.message}`);
+    }
+
     try {
       logger.info(`📤 Sending offer to X (Twitter) - Title: ${offer.title}`);
 
@@ -408,7 +420,12 @@ export class XService {
         return true;
       }
     } catch (error: any) {
-      logger.error(`❌ Error sending offer to X (Twitter): ${error.message}`, error);
+      if (error.code === 429 || error.message?.includes('429') || error.message?.includes('Too Many Requests')) {
+        logger.error(`❌ X (Twitter) Rate Limit exceeded (429). You have hit the daily/monthly limit.`);
+        logger.warn(`   Note: Free tier allows ~50 tweets/24h. Check Developer Portal for usage.`);
+      } else {
+        logger.error(`❌ Error sending offer to X (Twitter): ${error.message}`, error);
+      }
       logger.error(`   Offer details - ID: ${offer._id}, Title: ${offer.title}`);
       return false;
     }
@@ -590,6 +607,60 @@ export class XService {
 
     // Remove duplicates and return
     return Array.from(new Set(hashtags));
+  }
+
+  /**
+   * Check if we can post to X (Twitter) based on rate limits
+   * - Max ~50 posts per 24h (Free Tier)
+   * - Enforce minimum interval to spread posts
+   */
+  private async checkRateLimit(): Promise<{ allowed: boolean; reason?: string }> {
+    try {
+      const MAX_DAILY_POSTS = 48; // Leave a small buffer below 50
+      const MIN_INTERVAL_MINUTES = 30; // Spread posts to cover 24h (24h * 60m / 48 = 30m)
+
+      const now = new Date();
+      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      // Check daily count
+      const dailyCount = await PostHistoryModel.countDocuments({
+        platform: { $in: ['x', 'twitter'] },
+        postedAt: { $gt: oneDayAgo },
+        status: 'success'
+      });
+
+      if (dailyCount >= MAX_DAILY_POSTS) {
+        return {
+          allowed: false,
+          reason: `Daily limit reached (${dailyCount}/${MAX_DAILY_POSTS} posts in last 24h)`
+        };
+      }
+
+      // Check interval
+      const lastPost = await PostHistoryModel.findOne({
+        platform: { $in: ['x', 'twitter'] },
+        status: 'success'
+      }).sort({ postedAt: -1 });
+
+      if (lastPost) {
+        const lastPostTime = new Date(lastPost.postedAt).getTime();
+        const minutesSinceLastPost = (now.getTime() - lastPostTime) / (1000 * 60);
+
+        if (minutesSinceLastPost < MIN_INTERVAL_MINUTES) {
+          return {
+            allowed: false,
+            reason: `Minimum interval not reached (${minutesSinceLastPost.toFixed(1)}/${MIN_INTERVAL_MINUTES} mins)`
+          };
+        }
+      }
+
+      return { allowed: true };
+    } catch (error: any) {
+      logger.error('Error checking rate limits:', error);
+      // Fail safe - allow if DB error, or maybe deny? Let's allow to not block completely if DB is flaky
+      // But safer to deny if we want to be strict. Let's allow with warning.
+      return { allowed: true, reason: 'Error checking limits' };
+    }
   }
 
   /**

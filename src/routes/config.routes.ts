@@ -713,6 +713,11 @@ router.post('/test', async (req, res) => {
                   success: false,
                   message: `⚠️ Autenticação OK (@${username}), mas sem permissão para postar. Verifique as permissões do app no Twitter Developer Portal.`,
                 };
+              } else if (postErrorMsg.includes('429') || postErrorMsg.includes('Too Many Requests') || (postError as any).code === 429) {
+                results.x = {
+                  success: false,
+                  message: `⚠️ Autenticação OK (@${username}), mas você atingiu o limite de postagens do Twitter (Rate Limit). O plano Grátis permite ~50 tweets/24h.`,
+                };
               } else {
                 results.x = {
                   success: false,

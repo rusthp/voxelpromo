@@ -1,12 +1,12 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { Offer } from '../../types';
 import { logger } from '../../utils/logger';
-
+import { AIService } from '../ai/AIService';
 
 export class TelegramService {
   private bot: TelegramBot | null = null;
   private chatId: string;
-
+  private aiService: AIService | null = null;
 
   constructor() {
     // Don't initialize bot on startup - lazy initialization
@@ -20,7 +20,15 @@ export class TelegramService {
     }
   }
 
-
+  /**
+   * Get AI service (lazy initialization)
+   */
+  private getAIService(): AIService {
+    if (!this.aiService) {
+      this.aiService = new AIService();
+    }
+    return this.aiService;
+  }
 
   /**
    * Initialize bot if not already done
@@ -84,89 +92,129 @@ export class TelegramService {
   }
 
   /**
-   * Format offer message for Telegram
+   * Format offer message for Telegram (Standardized with X style)
    */
   private async formatMessage(offer: Offer): Promise<string> {
-    let post = offer.aiGeneratedPost || (await this.generateDefaultPost(offer));
+    const impactPhrase = await this.getImpactPhrase(offer);
+    const categoryEmoji = this.getCategoryEmoji(offer.category || '');
 
-    // Convert Markdown to HTML if needed (IA might return Markdown)
-    post = this.convertMarkdownToHtml(post);
+    // Format price
+    const priceFormatted = offer.currentPrice.toFixed(2).replace('.', ',');
+    const hasDiscount = offer.discountPercentage >= 5 && offer.originalPrice > offer.currentPrice;
 
-    // If AI generated post doesn't have hashtags, add them
-    if (offer.aiGeneratedPost && !post.includes('#')) {
-      const hashtags = this.generateHashtags(offer);
-      if (hashtags.length > 0) {
-        post += '\n\n' + hashtags.join(' ');
-      }
+    // Build message parts
+    const parts: string[] = [];
+
+    // Impact phrase (Bold)
+    parts.push(`<b>${impactPhrase}!</b>`);
+
+    // Product title with category emoji
+    parts.push(`${categoryEmoji} ${offer.title}`);
+
+    // Price
+    if (hasDiscount) {
+      const originalFormatted = offer.originalPrice.toFixed(2).replace('.', ',');
+      parts.push(`💰 De R$ ${originalFormatted} por <b>R$ ${priceFormatted}</b>`);
+      parts.push(`🎯 ${offer.discountPercentage.toFixed(0)}% OFF`);
+    } else {
+      parts.push(`🔥 POR <b>R$ ${priceFormatted}</b>`);
     }
 
-    // Preserve spacing - don't collapse newlines (keep the spacing we added)
-    // Only limit excessive newlines (more than 4) to avoid spam
-    post = post.replace(/\n{5,}/g, '\n\n\n'); // Max 3 newlines for spacing
+    // Coupons
+    if (offer.coupons && offer.coupons.length > 0) {
+      parts.push(`🎟️ CUPOM: <b>${offer.coupons[0]}</b>`);
+    }
 
-    // Include link directly in the message, not as a separate "Ver oferta" link
-    return post;
+    // Link
+    parts.push(`🔗 ${offer.affiliateUrl}`);
+
+    // Hashtags
+    const hashtags = this.generateHashtags(offer);
+    if (hashtags.length > 0) {
+      parts.push(hashtags.join(' '));
+    }
+
+    // Join with double newlines for spacing
+    return parts.join('\n\n');
   }
 
   /**
-   * Convert Markdown bold (*text*) to HTML bold (<b>text</b>)
-   * Telegram uses HTML, not Markdown
-   * Also removes <br> tags (Telegram doesn't support them in HTML mode)
-   * Preserves spacing between sections
+   * Generate dynamic impact phrase using AI (Groq) or fallback
+   * (Mirrors XService logic)
    */
-  private convertMarkdownToHtml(text: string): string {
-    // Remove <br> and <br/> tags (Telegram doesn't support them)
-    let cleaned = text
-      .replace(/<br\s*\/?>/gi, '\n') // Replace <br> with newline
-      .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>') // **bold** to <b>bold</b>
-      .replace(/\*([^*]+)\*/g, '<b>$1</b>') // *bold* to <b>bold</b>
-      .replace(/<\s*b\s*>/g, '<b>') // Fix broken < b > tags
-      .replace(/<\s*\/b\s*>/g, '</b>'); // Fix broken </ b > tags
+  private async getImpactPhrase(offer: Offer): Promise<string> {
+    try {
+      // Try to use AI to generate a creative phrase
+      const aiPhrase = await Promise.race([
+        this.getAIService().generateImpactPhrase(offer),
+        new Promise<string>((resolve) => {
+          setTimeout(() => resolve(''), 2000); // 2 second timeout
+        }),
+      ]);
 
-    // Preserve spacing - don't collapse too many newlines (keep at least 2 for spacing)
-    // But limit to max 3 consecutive newlines to avoid excessive spacing
-    cleaned = cleaned.replace(/\n{4,}/g, '\n\n\n'); // Max 3 newlines
+      if (aiPhrase && aiPhrase.length > 0) {
+        logger.debug(`✅ Using AI-generated impact phrase: "${aiPhrase}"`);
+        return aiPhrase;
+      }
+    } catch (error: any) {
+      logger.debug(`⚠️ AI phrase generation failed, using fallback: ${error.message}`);
+    }
 
-    return cleaned;
+    // Fallback to static phrases
+    return this.getFallbackImpactPhrase(offer);
   }
 
+  /**
+   * Get fallback impact phrase (static phrases)
+   */
+  private getFallbackImpactPhrase(offer: Offer): string {
+    const discount = offer.discountPercentage;
 
+    if (discount >= 50) {
+      const phrases = [
+        'NUNCA VI TÃO BARATO',
+        'PROMOÇÃO IMPERDÍVEL',
+        'DESCONTO INSANO',
+        'OPORTUNIDADE ÚNICA',
+      ];
+      return phrases[Math.floor(Math.random() * phrases.length)];
+    }
 
+    if (discount >= 30) {
+      const phrases = ['SUPER PROMOÇÃO', 'OFERTA ESPECIAL', 'DESCONTO IMPERDÍVEL'];
+      return phrases[Math.floor(Math.random() * phrases.length)];
+    }
 
+    if (discount >= 15) {
+      return 'ÓTIMA OFERTA';
+    }
 
+    if (discount >= 5) {
+      return 'EM PROMOÇÃO';
+    }
 
+    return 'OFERTA DISPONÍVEL';
+  }
 
   /**
-   * Generate default post if AI didn't generate one
-   * Format: Dynamic impact phrase + Product + Price + Coupon + Link + Hashtags
-   * Spacious format with proper line breaks
+   * Get emoji for category
    */
-  private async generateDefaultPost(offer: Offer): Promise<string> {
-    const originalPrice = `R$ ${offer.originalPrice.toFixed(2).replace('.', ',')}`;
-    const price = `R$ ${offer.currentPrice.toFixed(2).replace('.', ',')}`;
-    const discountPercent = `${offer.discountPercentage.toFixed(0)}%`;
-    const sourceMap: Record<string, string> = {
-      amazon: 'Amazon',
-      aliexpress: 'AliExpress',
-      shopee: 'Shopee',
-      mercadolivre: 'Mercado Livre'
+  private getCategoryEmoji(category: string): string {
+    const categoryEmojis: Record<string, string> = {
+      electronics: '📱',
+      fashion: '👕',
+      home: '🏠',
+      beauty: '💄',
+      sports: '⚽',
+      toys: '🧸',
+      books: '📚',
+      automotive: '🚗',
+      pets: '🐾',
+      food: '🍔',
+      health: '💊',
+      other: '📦',
     };
-    const source = sourceMap[offer.source.toLowerCase()] || offer.source;
-
-    return `🚨 <b>IMPERDÍVEL! BAIXOU MUITO!</b> 🚨
-
-📦 <b>${offer.title}</b>
-
-🔥 De: <del>${originalPrice}</del>
-💰 <b>Por: ${price}</b>
-📉 <b>${discountPercent} OFF</b>
-
-💳 <i>Pagamento seguro via ${source}</i>
-
-🏃‍♂️ Corra antes que acabe:
-👉 ${offer.affiliateUrl}
-
-#${source.replace(/\s+/g, '')} #Ofertas #Promoção`;
+    return categoryEmojis[category.toLowerCase()] || '🔥';
   }
 
   /**
@@ -283,3 +331,4 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
+
