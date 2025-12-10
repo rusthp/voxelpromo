@@ -129,5 +129,50 @@ export function setupCronJobs(): void {
     }
   });
 
+  // Awin Feed Sync: Refresh cached feeds every 6 hours
+  cron.schedule('30 */6 * * *', async () => {
+    logger.info('🔄 ========================================');
+    logger.info('🔄 Running Awin Feed Sync');
+    logger.info('🔄 ========================================');
+    try {
+      const { AwinFeedManager } = await import('../services/awin/AwinFeedManager');
+      const { AwinService } = await import('../services/awin/AwinService');
+      const awinService = new AwinService();
+
+      if (!awinService.isConfigured() || !awinService.hasDataFeedApiKey()) {
+        logger.debug('⏭️ Awin not configured, skipping feed sync');
+        return;
+      }
+
+      const feedManager = new AwinFeedManager();
+      const cachedFeeds = feedManager.getCachedFeeds();
+
+      if (cachedFeeds.length === 0) {
+        logger.info('ℹ️ No cached feeds to refresh');
+        return;
+      }
+
+      let refreshedCount = 0;
+      for (const feed of cachedFeeds) {
+        try {
+          await feedManager.getProducts(feed.advertiserId, {
+            locale: feed.locale,
+            forceRefresh: true,
+          });
+          refreshedCount++;
+          // Rate limit: max 5 requests per minute
+          await new Promise(resolve => setTimeout(resolve, 15000));
+        } catch (error) {
+          logger.error(`❌ Error refreshing feed ${feed.advertiserId}:`, error);
+        }
+      }
+
+      logger.info(`✅ Awin Feed Sync: Refreshed ${refreshedCount}/${cachedFeeds.length} feeds`);
+    } catch (error) {
+      logger.error('❌ Error in Awin Feed Sync:', error);
+    }
+  });
+
   logger.info('Cron jobs scheduled');
 }
+

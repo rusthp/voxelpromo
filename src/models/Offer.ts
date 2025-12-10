@@ -19,7 +19,7 @@ const OfferSchema = new Schema<OfferDocument>(
     affiliateUrl: { type: String, required: true },
     source: {
       type: String,
-      enum: ['amazon', 'aliexpress', 'shopee', 'mercadolivre', 'rss', 'manual'],
+      enum: ['amazon', 'aliexpress', 'shopee', 'mercadolivre', 'rss', 'manual', 'awin'],
       required: true,
       index: true,
     },

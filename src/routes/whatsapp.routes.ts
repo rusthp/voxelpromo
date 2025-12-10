@@ -325,14 +325,20 @@ router.get('/groups', async (_req, res) => {
     const library = process.env.WHATSAPP_LIBRARY || 'whatsapp-web.js';
 
     if (library === 'baileys') {
-      // For Baileys, we need to access the socket
-      // This would require exposing a method to get groups
-      return res.json({
-        success: false,
-        error:
-          'Listagem de grupos ainda não implementada para Baileys. Use o formato: 120363123456789012@g.us',
-        groups: [],
-      });
+      try {
+        const groups = await service.listGroups();
+        return res.json({
+          success: true,
+          groups: groups,
+          count: groups.length
+        });
+      } catch (error: any) {
+        return res.json({
+          success: false,
+          error: error.message || 'Erro ao listar grupos do Baileys',
+          groups: []
+        });
+      }
     } else {
       // For whatsapp-web.js, we can get chats
       // This would require exposing the client

@@ -10,7 +10,7 @@ export interface Offer {
   imageUrl: string;
   productUrl: string;
   affiliateUrl: string;
-  source: 'amazon' | 'aliexpress' | 'shopee' | 'rss' | 'manual' | 'mercadolivre';
+  source: 'amazon' | 'aliexpress' | 'shopee' | 'rss' | 'manual' | 'mercadolivre' | 'awin' | 'lomadee' | 'afilio' | 'rakuten';
   category: string;
   subcategory?: string;
   rating?: number;

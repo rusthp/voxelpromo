@@ -3,6 +3,8 @@ import { AliExpressService } from '../aliexpress/AliExpressService';
 import { MercadoLivreService } from '../mercadolivre/MercadoLivreService';
 import { ShopeeService } from '../shopee/ShopeeService';
 import { RSSService } from '../rss/RSSService';
+import { AwinService } from '../awin/AwinService';
+import { AwinFeedManager } from '../awin/AwinFeedManager';
 import { OfferService } from '../offer/OfferService';
 import { BlacklistService } from '../blacklist/BlacklistService';
 import { logger } from '../../utils/logger';
@@ -654,6 +656,153 @@ export class CollectorService {
   }
 
   /**
+   * Collect offers from Awin Product Feeds
+   */
+  async collectFromAwin(): Promise<number> {
+    try {
+      logger.info('🔗 Starting Awin collection from Product Feeds...');
+
+      const awinService = new AwinService();
+
+      if (!awinService.isConfigured()) {
+        logger.warn('⚠️ Awin not configured, skipping collection');
+        return 0;
+      }
+
+      const feedManager = new AwinFeedManager();
+
+      // Get cached feeds stats
+      const stats = feedManager.getStats();
+
+      if (stats.totalCached === 0) {
+        logger.info('📦 No cached feeds yet, trying to fetch from active feeds...');
+
+        // Try to get feed list and download top advertisers
+        const feedList = await awinService.fetchFeedList();
+
+        if (feedList.length === 0) {
+          logger.warn('⚠️ No product feeds available from Awin');
+          return 0;
+        }
+
+        // Log first feed structure to debug column names
+        if (feedList.length > 0) {
+          logger.debug('📋 Feed list columns:', Object.keys(feedList[0]));
+        }
+
+        // Filter for ACTIVE advertisers only - can't download feeds without membership
+        // Awin uses "active" for joined advertisers, "Not Joined" for others
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const joinedFeeds = feedList.filter((f: any) => {
+          const status = f['Membership Status'] || f.membership_status || '';
+          return status.toLowerCase() === 'active';
+        });
+
+        logger.info(`📋 Found ${joinedFeeds.length} joined advertisers (out of ${feedList.length} total)`);
+
+        if (joinedFeeds.length === 0) {
+          logger.warn('⚠️ No joined advertisers found. You need to join advertisers in Awin dashboard first.');
+          logger.warn('⚠️ Go to Awin > Advertisers > Join Programs to get access to their product feeds.');
+          return 0;
+        }
+
+        // Filter for recently updated feeds (last 7 days) to avoid stale pricing
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const recentFeeds = joinedFeeds.filter((f: any) => {
+          const lastImported = f['Last Imported'] || f['last_imported'] || '';
+          if (!lastImported) return false;
+
+          const importDate = new Date(lastImported);
+          return importDate >= sevenDaysAgo;
+        });
+
+        logger.info(`📅 Found ${recentFeeds.length} feeds updated in the last 7 days (out of ${joinedFeeds.length} joined)`);
+
+        if (recentFeeds.length === 0) {
+          logger.warn('⚠️ No recently updated feeds found. All feeds are older than 7 days.');
+          logger.info('📋 Skipping Awin collection to avoid stale pricing data.');
+          return 0;
+        }
+
+        // Just collect the first few feeds to start
+        const topFeeds = recentFeeds.slice(0, 5);
+        let totalProducts = 0;
+
+        for (const feed of topFeeds) {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const f = feed as any;
+            const advertiserId = f['Advertiser ID'] || f['advertiser_id'] || f.merchant_id;
+            const feedUrl = f['URL'] || f.url || f.feed_url;
+            const advertiserName = f['Advertiser Name'] || f['advertiser_name'] || 'Unknown';
+
+            if (!advertiserId) {
+              logger.debug('⚠️ No advertiserId found in feed');
+              continue;
+            }
+
+            if (!feedUrl) {
+              logger.debug(`⚠️ No feed URL for advertiser ${advertiserId}`);
+              continue;
+            }
+
+            logger.info(`📡 Downloading feed for ${advertiserName} (ID: ${advertiserId})...`);
+
+            // Download directly from the feed URL
+            const offers = await awinService.downloadFeed(feedUrl, 100);
+
+            if (offers.length > 0) {
+              // Save all offers - Awin feeds often don't have original price so no discount filter
+              const savedCount = await this.offerService.saveOffers(offers);
+              totalProducts += savedCount;
+              logger.info(`✅ Collected ${savedCount} products from ${advertiserName}`);
+            } else {
+              logger.info(`📦 ${advertiserName}: No products found in feed`);
+            }
+          } catch (error: any) {
+            logger.warn(`⚠️ Error collecting from feed: ${error.message}`);
+          }
+        }
+
+        logger.info(`💾 Saved ${totalProducts} offers from Awin`);
+        return totalProducts;
+      }
+
+      // Use cached feeds
+      logger.info(`📦 Using ${stats.totalCached} cached feeds with ${stats.totalProducts} products`);
+
+      let totalSaved = 0;
+      const cachedFeeds = feedManager.getCachedFeeds();
+
+      for (const entry of cachedFeeds) {
+        try {
+          // getProducts already returns Offer[] - just save directly
+          const offers = await feedManager.getProducts(entry.advertiserId, {
+            maxProducts: 100,
+            minDiscount: 10,
+          });
+
+          if (offers.length > 0) {
+            const savedCount = await this.offerService.saveOffers(offers);
+            totalSaved += savedCount;
+          }
+        } catch (error: any) {
+          logger.warn(`⚠️ Error processing cached feed ${entry.advertiserId}: ${error.message}`);
+        }
+      }
+
+      logger.info(`💾 Saved ${totalSaved} offers from Awin cached feeds`);
+      return totalSaved;
+    } catch (error: any) {
+      logger.error(`❌ Error collecting from Awin: ${error.message}`, error);
+      return 0;
+    }
+  }
+
+  /**
    * Get config from config.json or environment
    */
   private getConfig(): { sources?: string[]; enabled?: boolean } {
@@ -674,7 +823,7 @@ export class CollectorService {
 
     // Fallback: read from environment or use all sources
     return {
-      sources: process.env.COLLECTION_SOURCES?.split(',') || ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'rss'],
+      sources: process.env.COLLECTION_SOURCES?.split(',') || ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'awin', 'rss'],
       enabled: true
     };
   }
@@ -687,11 +836,12 @@ export class CollectorService {
     aliexpress: number;
     mercadolivre: number;
     shopee: number;
+    awin: number;
     rss: number;
     total: number;
   }> {
     const config = this.getConfig();
-    const enabledSources = config.sources || ['amazon', 'aliexpress', 'shopee', 'rss'];
+    const enabledSources = config.sources || ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'awin', 'rss'];
 
     logger.info('🚀 ========================================');
     logger.info('🚀 Starting collection from configured sources');
@@ -726,6 +876,13 @@ export class CollectorService {
       enabledSources.includes('shopee')
         ? this.collectFromShopee('electronics').catch((error) => {
           logger.error('Shopee collection failed:', error);
+          return 0;
+        })
+        : Promise.resolve(0),
+
+      enabledSources.includes('awin')
+        ? this.collectFromAwin().catch((error) => {
+          logger.error('Awin collection failed:', error);
           return 0;
         })
         : Promise.resolve(0),
@@ -777,8 +934,8 @@ export class CollectorService {
         : Promise.resolve(0),
     ]);
 
-    const [amazon, aliexpress, mercadolivre, shopee, rss] = collectPromises;
-    const total = amazon + aliexpress + mercadolivre + shopee + rss;
+    const [amazon, aliexpress, mercadolivre, shopee, awin, rss] = collectPromises;
+    const total = amazon + aliexpress + mercadolivre + shopee + awin + rss;
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
     logger.info('🚀 ========================================');
@@ -788,6 +945,7 @@ export class CollectorService {
     logger.info(`   - AliExpress: ${aliexpress} offers`);
     logger.info(`   - Mercado Livre: ${mercadolivre} offers`);
     logger.info(`   - Shopee: ${shopee} offers`);
+    logger.info(`   - Awin: ${awin} offers`);
     logger.info(`   - RSS: ${rss} offers`);
     logger.info(`   - TOTAL: ${total} offers`);
     logger.info('🚀 ========================================');
@@ -797,6 +955,7 @@ export class CollectorService {
       aliexpress,
       mercadolivre,
       shopee,
+      awin,
       rss,
       total,
     };

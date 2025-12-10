@@ -18,6 +18,7 @@ interface Offer {
     _id: string;
     title: string;
     source: string;
+    brand?: string;
     currentPrice: number;
     originalPrice: number;
     discountPercentage: number;
@@ -207,6 +208,7 @@ const Products = () => {
                                         <SelectItem value="shopee">Shopee</SelectItem>
                                         <SelectItem value="aliexpress">AliExpress</SelectItem>
                                         <SelectItem value="mercadolivre">Mercado Livre</SelectItem>
+                                        <SelectItem value="awin">Awin</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -282,6 +284,7 @@ const Products = () => {
                                 id={product._id}
                                 name={product.title}
                                 company={product.source}
+                                brand={product.brand}
                                 price={`R$ ${product.currentPrice.toFixed(2)}`}
                                 originalPrice={product.originalPrice ? `R$ ${product.originalPrice.toFixed(2)}` : undefined}
                                 discount={`-${Math.round(product.discountPercentage)}%`}

@@ -19,6 +19,10 @@ import { healthRoutes } from './health.routes';
 import { automationRoutes } from './automation.routes';
 import { templatesRoutes } from './templates.routes';
 import { aiRoutes } from './ai.routes';
+import awinRoutes from './awin.routes';
+import lomadeeRoutes from './lomadee.routes';
+import afilioRoutes from './afilio.routes';
+import rakutenRoutes from './rakuten.routes';
 import {
   collectionLimiter,
   configLimiter,
@@ -79,6 +83,10 @@ export function setupRoutes(app: Express): void {
   app.use('/api/posts', authenticate, apiLimiter, postsRoutes); // Post history
   app.use('/api/automation', authenticate, apiLimiter, automationRoutes); // Automation system
   app.use('/api/templates', authenticate, apiLimiter, templatesRoutes); // Message templates
+  app.use('/api/awin', authenticate, apiLimiter, awinRoutes); // Awin affiliate network
+  app.use('/api/lomadee', authenticate, apiLimiter, lomadeeRoutes); // Lomadee affiliate network
+  app.use('/api/afilio', authenticate, apiLimiter, afilioRoutes); // Afilio affiliate network
+  app.use('/api/rakuten', authenticate, apiLimiter, rakutenRoutes); // Rakuten affiliate network
   app.use('/api/profile', authenticate, apiLimiter, profileRoutes); // User profile
   app.use('/api/fix', authenticate, fixRoutes); // Temporary fix endpoints
 }

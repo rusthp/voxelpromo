@@ -112,27 +112,35 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
     this.lastError = null;
 
     try {
+      logger.debug('📦 Importing Baileys...');
       // Dynamically import Baileys (ESM module)
-      const baileys = await import('baileys');
+      // Use new Function to bypass ts-node transpilation of dynamic import to require()
+      const baileys: any = await (new Function('return import("baileys")')());
       const makeWASocket = baileys.default;
       const { useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = baileys;
 
+      logger.debug('🔐 Loading auth state...');
       const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+
+      logger.debug('📡 Fetching latest Baileys version...');
       const { version } = await fetchLatestBaileysVersion();
+      logger.debug(`✅ Baileys version: ${version.join('.')}`);
 
       // Mark as initialized only after we start creating the socket
       this.initialized = true;
 
+      logger.debug('🔌 Creating socket...');
       this.sock = makeWASocket({
         version,
         printQRInTerminal: true,
         auth: state,
         browser: ['VoxelPromo', 'Chrome', '1.0.0'],
       });
+      logger.debug('✅ Socket created!');
 
-      this.sock.ev.on('creds.update', saveCreds);
+      this.sock!.ev.on('creds.update', saveCreds);
 
-      this.sock.ev.on('connection.update', (update: Partial<ConnectionState>) => {
+      this.sock!.ev.on('connection.update', (update: Partial<ConnectionState>) => {
         const { connection, lastDisconnect, qr, receivedPendingNotifications } = update;
 
         // Track connection state with detailed logging
@@ -401,12 +409,22 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
       });
 
       // Listen for messages to help identify group IDs
-      this.sock.ev.on('messages.upsert', (m) => {
+      this.sock!.ev.on('messages.upsert', (m) => {
         const messages = m.messages || [];
         for (const msg of messages) {
           if (msg.key?.remoteJid && msg.key.remoteJid.includes('@g.us')) {
-            logger.info(`📱 💡 Grupo detectado! ID do grupo: ${msg.key.remoteJid}`);
-            logger.info(`   Use este ID na configuração: ${msg.key.remoteJid}`);
+            const groupId = msg.key.remoteJid;
+            logger.info(`📱 💡 Grupo detectado! ID do grupo: ${groupId}`);
+            logger.info(`   Use este ID na configuração: ${groupId}`);
+
+            // Store detected group
+            if (!this.detectedGroups.has(groupId)) {
+              this.detectedGroups.set(groupId, {
+                id: groupId,
+                name: `Grupo Detectado (${groupId.substring(0, 8)}...)`, // Placeholder name
+                timestamp: Date.now()
+              });
+            }
           }
         }
       });
@@ -495,7 +513,10 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
       if (existsSync(configPath)) {
         const config = JSON.parse(readFileSync(configPath, 'utf-8'));
         if (config.whatsapp?.enabled !== undefined) {
-          enabled = config.whatsapp.enabled === true;
+          // Config overrides env unless env is explicitly 'true' (forced enabled)
+          if (process.env.WHATSAPP_ENABLED !== 'true') {
+            enabled = config.whatsapp.enabled === true;
+          }
           process.env.WHATSAPP_ENABLED = enabled.toString();
           logger.debug(`WhatsApp enabled status loaded from config: ${enabled}`);
         }
@@ -590,8 +611,13 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
     return this._isReady;
   }
 
+  private detectedGroups: Map<string, { id: string; name: string; timestamp: number }> = new Map();
+
+  // ... (inside class, replacing existing listGroups and updating message listener)
+
   /**
-   * Lista todos os grupos WhatsApp disponíveis
+   * List all available WhatsApp groups
+   * Merges groups fetched from server with locally detected groups
    */
   async listGroups(): Promise<import('./IWhatsAppService').WhatsAppGroup[]> {
     if (!this.sock || !this._isReady) {
@@ -602,17 +628,40 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
       const groups = await this.sock.groupFetchAllParticipating();
       const groupList = Object.values(groups);
 
-      logger.info(`Found ${groupList.length} WhatsApp groups`);
+      logger.info(`Found ${groupList.length} WhatsApp groups via fetch`);
 
-      return groupList.map((group: any) => ({
+      // Map fetched groups
+      const mappedGroups = groupList.map((group: any) => ({
         id: group.id,
         name: group.subject,
         participantCount: group.participants?.length || 0,
         isActive: this.targetGroups.includes(group.id),
       }));
+
+      // Merge with detected groups (if not already present)
+      const groupIds = new Set(mappedGroups.map(g => g.id));
+
+      this.detectedGroups.forEach((group) => {
+        if (!groupIds.has(group.id)) {
+          mappedGroups.push({
+            id: group.id,
+            name: group.name || `Grupo Detectado ${group.id.substring(0, 6)}...`,
+            participantCount: 0, // Unknown
+            isActive: this.targetGroups.includes(group.id),
+          });
+        }
+      });
+
+      return mappedGroups;
     } catch (error) {
       logger.error('Error listing WhatsApp groups:', error);
-      throw error;
+      // Fallback to detected groups if fetch fails
+      return Array.from(this.detectedGroups.values()).map(group => ({
+        id: group.id,
+        name: group.name,
+        participantCount: 0,
+        isActive: this.targetGroups.includes(group.id)
+      }));
     }
   }
 
@@ -631,6 +680,21 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
     if (!this.sock) {
       logger.error('WhatsApp (Baileys) socket not initialized');
       return false;
+    }
+
+    // Verify link before sending
+    if (offer.affiliateUrl) {
+      try {
+        const { LinkVerifier } = require('../link/LinkVerifier'); // eslint-disable-line @typescript-eslint/no-var-requires
+        const isValid = await LinkVerifier.verify(offer.affiliateUrl);
+        if (!isValid) {
+          logger.warn(`🛑 Skipping WhatsApp offer due to invalid link: ${offer.affiliateUrl}`);
+          return false;
+        }
+      } catch (e) {
+        // Warning only if verification module fails hard, but checking logic inside verify catches most
+        logger.warn('Error validating link for WhatsApp:', e);
+      }
     }
 
     try {

@@ -18,6 +18,7 @@ interface Offer {
   _id: string;
   title: string;
   source: string;
+  brand?: string;
   currentPrice: number;
   originalPrice: number;
   discountPercentage: number;
@@ -106,11 +107,12 @@ const Index = () => {
                   id={product._id}
                   name={product.title}
                   company={product.source}
+                  brand={product.brand}
                   price={`R$ ${product.currentPrice.toFixed(2)}`}
                   originalPrice={product.originalPrice ? `R$ ${product.originalPrice.toFixed(2)}` : undefined}
                   discount={`-${Math.round(product.discountPercentage)}%`}
                   image={product.imageUrl}
-                  platforms={[]} // TODO: Add platforms if available
+                  platforms={[]}
                   delay={index * 100}
                 />
               ))}

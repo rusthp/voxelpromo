@@ -553,6 +553,122 @@ export function AffiliateSettings({
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Awin Affiliate Network */}
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle className="flex items-center gap-2">
+                            <span className="text-xl">🔗</span>
+                            Awin Affiliate Network
+                        </CardTitle>
+                        <CardDescription>Configure sua conta de publisher Awin para acessar feeds de produtos</CardDescription>
+                    </div>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onTest('awin')}
+                        disabled={testing === 'awin'}
+                        className="gap-2"
+                    >
+                        {testing === 'awin' ? <Loader2 className="w-4 h-4 animate-spin" /> : <TestTube2 className="w-4 h-4" />}
+                        Testar
+                    </Button>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                        <p className="text-xs text-blue-600 dark:text-blue-400">
+                            💡 <strong>Dica:</strong> A Awin oferece Product Feeds com links de afiliados prontos!
+                            Configure sua API Key e acesse milhares de produtos de anunciantes como Kabum, oBoticário, Magazine Luiza e mais.
+                        </p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="awinEnabled" className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                id="awinEnabled"
+                                checked={config.awin?.enabled || false}
+                                onChange={(e) => setConfig({
+                                    ...config,
+                                    awin: { ...config.awin, enabled: e.target.checked }
+                                })}
+                                className="rounded"
+                            />
+                            Habilitar Awin
+                        </Label>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="awinApiToken">API Token</Label>
+                        <Input
+                            id="awinApiToken"
+                            type="password"
+                            value={config.awin?.apiToken || ""}
+                            onChange={(e) => setConfig({
+                                ...config,
+                                awin: { ...config.awin, apiToken: e.target.value }
+                            })}
+                            placeholder="Seu token de API da Awin"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Encontre em: Awin → Toolbox → API Credentials
+                        </p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="awinPublisherId">Publisher ID</Label>
+                        <Input
+                            id="awinPublisherId"
+                            value={config.awin?.publisherId || ""}
+                            onChange={(e) => setConfig({
+                                ...config,
+                                awin: { ...config.awin, publisherId: e.target.value }
+                            })}
+                            placeholder="Ex: 2676068"
+                        />
+                    </div>
+
+                    <div className="border-t pt-4 mt-4">
+                        <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                            📦 Product Feeds (Recomendado)
+                        </h4>
+                        <p className="text-xs text-muted-foreground mb-3">
+                            Acesse feeds CSV completos com produtos e links de afiliados prontos.
+                        </p>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="awinDataFeedApiKey">Data Feed API Key</Label>
+                            <Input
+                                id="awinDataFeedApiKey"
+                                type="password"
+                                value={config.awin?.dataFeedApiKey || ""}
+                                onChange={(e) => setConfig({
+                                    ...config,
+                                    awin: { ...config.awin, dataFeedApiKey: e.target.value }
+                                })}
+                                placeholder="Chave para acessar Product Feeds"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Encontre em: Awin → Toolbox → Create-a-Feed → API Key
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Instructions Dropdown */}
+                    <details className="mt-4 p-3 bg-muted/50 rounded-lg">
+                        <summary className="text-sm font-medium cursor-pointer">📋 Como configurar a Awin</summary>
+                        <ol className="mt-2 text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+                            <li>Acesse <a href="https://ui.awin.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">ui.awin.com</a> e faça login</li>
+                            <li>Vá em Toolbox → API Credentials para obter o API Token</li>
+                            <li>Seu Publisher ID está no canto superior direito</li>
+                            <li>Para Product Feeds: Toolbox → Create-a-Feed → copie a API Key</li>
+                            <li>Após configurar, use os endpoints /api/awin/feeds para listar feeds</li>
+                        </ol>
+                    </details>
+                </CardContent>
+            </Card>
         </div>
     );
 }
+

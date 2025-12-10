@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Rss, Plus, Trash2, Package } from "lucide-react";
+import { Loader2, Rss, Plus, Trash2, Package, Link } from "lucide-react";
 import { FaAmazon } from "react-icons/fa";
 import { SiAliexpress, SiMercadopago } from "react-icons/si";
 import { ConfigState } from "@/types/settings";
@@ -22,6 +22,7 @@ const COLLECTION_SOURCES = [
     { id: 'aliexpress', name: 'AliExpress', icon: SiAliexpress, color: 'text-[#E62E04]' },
     { id: 'mercadolivre', name: 'Mercado Livre', icon: SiMercadopago, color: 'text-[#FFE600]' },
     { id: 'shopee', name: 'Shopee', icon: Package, color: 'text-[#EE4D2D]' },
+    { id: 'awin', name: 'Awin', icon: Link, color: 'text-blue-500' },
     { id: 'rss', name: 'RSS Feeds', icon: Rss, color: 'text-orange-500' },
 ];
 
@@ -34,10 +35,10 @@ export function CollectionSettings({
     onRemoveRssFeed
 }: CollectionSettingsProps) {
     // Get current sources from config or use all by default
-    const enabledSources = config.collection?.sources || ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'rss'];
+    const enabledSources = config.collection?.sources || ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'awin', 'rss'];
 
     const toggleSource = (sourceId: string) => {
-        const currentSources = config.collection?.sources || ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'rss'];
+        const currentSources = config.collection?.sources || ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'awin', 'rss'];
         const newSources = currentSources.includes(sourceId)
             ? currentSources.filter(s => s !== sourceId)
             : [...currentSources, sourceId];
@@ -93,6 +94,33 @@ export function CollectionSettings({
                     <p className="text-xs text-muted-foreground">
                         💡 Desabilite fontes que não deseja coletar para economizar tempo e recursos.
                     </p>
+                </div>
+
+                {/* Schedule Configuration */}
+                <div className="space-y-4 pt-4 border-t">
+                    <h3 className="text-sm font-medium flex items-center gap-2">
+                        <span className="w-4 h-4 flex items-center justify-center">🕒</span> Agendamento
+                    </h3>
+                    <div className="space-y-2">
+                        <Label htmlFor="collectionSchedule">Cronograma (Cron Expression)</Label>
+                        <div className="flex gap-2">
+                            <Input
+                                id="collectionSchedule"
+                                value={config.collection?.schedule || '0 */6 * * *'}
+                                onChange={(e) => setConfig({
+                                    ...config,
+                                    collection: {
+                                        ...config.collection,
+                                        schedule: e.target.value
+                                    }
+                                })}
+                                placeholder="0 */6 * * *"
+                            />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Define a frequência da coleta automática (ex: <code>0 */6 * * *</code> para a cada 6 horas).
+                        </p>
+                    </div>
                 </div>
 
                 {/* RSS Feeds (only show if RSS is enabled) */}

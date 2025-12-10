@@ -14,6 +14,7 @@ export interface TelegramConfig {
 export interface WhatsAppConfig {
     enabled: boolean;
     targetNumber: string;
+    targetGroups?: string[];
     library: string;
 }
 
@@ -54,6 +55,31 @@ export interface ShopeeConfig {
     minDiscount: number;
 }
 
+export interface AwinConfig {
+    enabled: boolean;
+    apiToken: string;
+    publisherId: string;
+    dataFeedApiKey?: string;
+}
+
+export interface LomadeeConfig {
+    enabled: boolean;
+    appToken: string;
+    sourceId: string;
+}
+
+export interface AfilioConfig {
+    enabled: boolean;
+    apiToken: string;
+}
+
+export interface RakutenConfig {
+    enabled: boolean;
+    clientId: string;
+    clientSecret: string;
+    sid: string;
+}
+
 export interface AutomationConfig {
     isActive: boolean;
     startHour: number;
@@ -68,6 +94,7 @@ export interface AutomationConfig {
 export interface CollectionConfig {
     sources: string[];
     enabled: boolean;
+    schedule: string;
 }
 
 export interface ConfigState {
@@ -79,6 +106,10 @@ export interface ConfigState {
     aliexpress: AliExpressConfig;
     mercadolivre: MercadoLivreConfig;
     shopee: ShopeeConfig;
+    awin?: AwinConfig;
+    lomadee?: LomadeeConfig;
+    afilio?: AfilioConfig;
+    rakuten?: RakutenConfig;
     automation: AutomationConfig;
     collection: CollectionConfig;
     rss: string[];

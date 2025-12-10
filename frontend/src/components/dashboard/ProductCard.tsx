@@ -9,6 +9,7 @@ const sourceConfig: Record<string, { color: string; bg: string; label: string }>
   aliexpress: { color: "text-red-500", bg: "bg-red-500/10 border-red-500/20", label: "ALIEXPRESS" },
   amazon: { color: "text-orange-400", bg: "bg-orange-400/10 border-orange-400/20", label: "AMAZON" },
   rss: { color: "text-blue-500", bg: "bg-blue-500/10 border-blue-500/20", label: "RSS" },
+  awin: { color: "text-purple-500", bg: "bg-purple-500/10 border-purple-500/20", label: "AWIN" },
   default: { color: "text-muted-foreground", bg: "bg-secondary", label: "OUTRO" },
 };
 
@@ -16,6 +17,7 @@ interface ProductCardProps {
   id: string;
   name: string;
   company: string;
+  brand?: string;
   price: string;
   originalPrice?: string;
   discount: string;
@@ -33,6 +35,7 @@ export function ProductCard({
   id,
   name,
   company,
+  brand,
   price,
   originalPrice,
   discount,
@@ -90,9 +93,16 @@ export function ProductCard({
       {/* Content */}
       <div className="p-5">
         {/* Source Badge with Color */}
-        <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${config.bg} ${config.color}`}>
-          <Package className="w-3 h-3" />
-          {config.label}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${config.bg} ${config.color}`}>
+            <Package className="w-3 h-3" />
+            {config.label}
+          </div>
+          {brand && (
+            <span className="text-xs text-muted-foreground truncate max-w-[150px]" title={brand}>
+              {brand}
+            </span>
+          )}
         </div>
 
         <h3 className="text-foreground font-semibold mt-2 line-clamp-2 h-12" title={name}>{name}</h3>

@@ -63,6 +63,7 @@ router.get('/', (_req, res) => {
           ? {
             enabled: config.whatsapp.enabled || false,
             targetNumber: config.whatsapp.targetNumber || '',
+            targetGroups: config.whatsapp.targetGroups || [],
             library: config.whatsapp.library || 'whatsapp-web.js',
           }
           : {},
@@ -434,6 +435,27 @@ router.post('/', (req, res) => {
         minPrice: config.shopee?.minPrice || existingConfig.shopee?.minPrice,
         cacheEnabled: config.shopee?.cacheEnabled !== undefined ? config.shopee.cacheEnabled : existingConfig.shopee?.cacheEnabled,
       },
+      awin: {
+        ...existingConfig.awin,
+        ...config.awin,
+        enabled: config.awin?.enabled !== undefined ? config.awin.enabled : existingConfig.awin?.enabled ?? false,
+        apiToken:
+          config.awin?.apiToken !== undefined
+            ? config.awin.apiToken === '***'
+              ? existingConfig.awin?.apiToken || ''
+              : config.awin.apiToken || ''
+            : existingConfig.awin?.apiToken || '',
+        publisherId:
+          config.awin?.publisherId !== undefined
+            ? config.awin.publisherId || ''
+            : existingConfig.awin?.publisherId || '',
+        dataFeedApiKey:
+          config.awin?.dataFeedApiKey !== undefined
+            ? config.awin.dataFeedApiKey === '***'
+              ? existingConfig.awin?.dataFeedApiKey || ''
+              : config.awin.dataFeedApiKey || ''
+            : existingConfig.awin?.dataFeedApiKey || '',
+      },
     };
 
     // Save config to file
@@ -486,6 +508,7 @@ router.post('/', (req, res) => {
     if (mergedConfig.whatsapp?.enabled) {
       process.env.WHATSAPP_ENABLED = mergedConfig.whatsapp.enabled.toString();
       process.env.WHATSAPP_TARGET_NUMBER = mergedConfig.whatsapp.targetNumber;
+      // targetGroups are loaded directly from config.json by the service, no need for env var unless we want to serialize it
       process.env.WHATSAPP_LIBRARY = mergedConfig.whatsapp.library || 'whatsapp-web.js';
     }
 
@@ -1044,6 +1067,51 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
           }
           logger.error(`Mercado Livre test failed: ${errorMsg}`);
           results.mercadolivre = { success: false, message: `❌ ${friendlyMsg}` };
+        }
+      }
+
+      // Test Awin
+      if (service === 'awin' || !service) {
+        try {
+          if (!testConfig.awin?.apiToken || !testConfig.awin?.publisherId) {
+            results.awin = {
+              success: false,
+              message: 'API Token ou Publisher ID não configurados',
+            };
+          } else {
+            const { AwinService } = await import('../services/awin/AwinService');
+            const awinService = new AwinService();
+            const connectionResult = await awinService.testConnection();
+
+            if (connectionResult.success) {
+              const hasDataFeed = awinService.hasDataFeedApiKey();
+              results.awin = {
+                success: true,
+                message: `✅ Conexão com Awin OK! Publisher ID: ${testConfig.awin.publisherId}${hasDataFeed ? ' (Product Feeds habilitado)' : ''}`,
+              };
+            } else {
+              results.awin = {
+                success: false,
+                message: `❌ ${connectionResult.message || 'Erro de conexão com Awin'}`,
+              };
+            }
+          }
+        } catch (error: any) {
+          const errorMsg = error.message || 'Erro desconhecido';
+          let friendlyMsg = errorMsg;
+          if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
+            friendlyMsg = 'API Token inválido';
+          } else if (errorMsg.includes('403') || errorMsg.includes('Forbidden')) {
+            friendlyMsg = 'Acesso negado - verifique permissões';
+          } else if (
+            errorMsg.includes('network') ||
+            errorMsg.includes('ECONNREFUSED') ||
+            errorMsg.includes('timeout')
+          ) {
+            friendlyMsg = 'Erro de conexão - verifique internet';
+          }
+          logger.error(`Awin test failed: ${errorMsg}`);
+          results.awin = { success: false, message: `❌ ${friendlyMsg}` };
         }
       }
     } finally {

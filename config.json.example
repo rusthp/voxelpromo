@@ -49,6 +49,49 @@
     "groqApiKey": "",
     "openaiApiKey": ""
   },
+  "awin": {
+    "enabled": false,
+    "apiToken": "",
+    "publisherId": "",
+    "dataFeedApiKey": "",
+    "apiLinks": {
+      "campaigns": "https://api.awin.com/publishers/{publisherId}/programmes",
+      "coupons": "https://api.awin.com/publishers/{publisherId}/promotions",
+      "deeplink": "https://api.awin.com/publishers/{publisherId}/linkbuilder",
+      "feedList": "https://ui.awin.com/productdata-darwin-download/publisher/{publisherId}/{dataFeedApiKey}/1/feedList"
+    }
+  },
+  "afilio": {
+    "enabled": false,
+    "apiToken": "",
+    "apiLinks": {
+      "campaigns": "https://api.afilio.com.br/feed/affiliate/v2/campaigns?token={token}",
+      "coupons": "https://api.afilio.com.br/feed/affiliate/v2/coupons?token={token}",
+      "deeplink": "https://api.afilio.com.br/feed/affiliate/v2/deeplink?token={token}&url={url}"
+    }
+  },
+  "lomadee": {
+    "enabled": false,
+    "appToken": "",
+    "sourceId": "",
+    "apiLinks": {
+      "campaigns": "https://api.lomadee.com/v3/{appToken}/advertiser/_all?sourceId={sourceId}",
+      "coupons": "https://api.lomadee.com/v3/{appToken}/coupon/_all?sourceId={sourceId}",
+      "offers": "https://api.lomadee.com/v3/{appToken}/offer/_search?sourceId={sourceId}&keyword={keyword}",
+      "deeplink": "https://api.lomadee.com/v2/{appToken}/deeplink/_create?sourceId={sourceId}&url={url}"
+    }
+  },
+  "rakuten": {
+    "enabled": false,
+    "clientId": "",
+    "clientSecret": "",
+    "sid": "",
+    "apiLinks": {
+      "campaigns": "https://api.linksynergy.com/v1/advertisers",
+      "coupons": "https://api.linksynergy.com/coupon/1.0/json/promotionTypes/promoCode,sale",
+      "deeplink": "https://api.linksynergy.com/v1/deeplink"
+    }
+  },
   "shopee": {
     "feedUrls": [],
     "affiliateCode": "",
@@ -65,6 +108,8 @@
       "amazon",
       "aliexpress",
       "mercadolivre",
+      "awin",
+      "lomadee",
       "rss"
     ]
   }

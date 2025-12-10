@@ -15,6 +15,7 @@ import {
     CollectionSettings,
     TemplatesSettings,
 } from "@/components/settings";
+import { AffiliateNetworksCard } from "@/components/settings/AffiliateNetworksCard";
 
 // Initial config state
 const initialConfig: ConfigState = {
@@ -64,6 +65,27 @@ const initialConfig: ConfigState = {
         affiliateCode: "",
         minDiscount: 0,
     },
+    awin: {
+        enabled: false,
+        apiToken: "",
+        publisherId: "",
+        dataFeedApiKey: "",
+    },
+    lomadee: {
+        enabled: false,
+        appToken: "",
+        sourceId: "",
+    },
+    afilio: {
+        enabled: false,
+        apiToken: "",
+    },
+    rakuten: {
+        enabled: false,
+        clientId: "",
+        clientSecret: "",
+        sid: "",
+    },
     automation: {
         isActive: false,
         startHour: 8,
@@ -75,7 +97,7 @@ const initialConfig: ConfigState = {
         postsPerHour: 0,
     },
     collection: {
-        sources: ["amazon", "aliexpress", "mercadolivre", "shopee", "rss"],
+        sources: ["amazon", "aliexpress", "mercadolivre", "shopee", "awin", "lomadee", "rss"],
         enabled: true,
     },
     rss: [],
@@ -621,6 +643,14 @@ const Settings = () => {
                             setNewShopeeFeed={setNewShopeeFeed}
                             onAddShopeeFeed={addShopeeFeed}
                             onRemoveShopeeFeed={removeShopeeFeed}
+                        />
+
+                        {/* Affiliate Networks: Awin, Lomadee, Afilio, Rakuten */}
+                        <AffiliateNetworksCard
+                            config={config}
+                            setConfig={setConfig}
+                            testing={testing}
+                            onTest={handleTest}
                         />
                     </TabsContent>
 

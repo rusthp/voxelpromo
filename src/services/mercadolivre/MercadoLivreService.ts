@@ -737,6 +737,13 @@ export class MercadoLivreService {
 
       // If it's just a code, append as 'a' param (legacy/standard behavior)
       const url = new URL(productUrl);
+
+      // Critical check for placeholder
+      if (affiliateCode === 'your-affiliate-code-or-url' || affiliateCode.includes('your-affiliate')) {
+        logger.warn(`⚠️ Affiliate code is set to default placeholder '${affiliateCode}'. Returning original URL.`);
+        return productUrl;
+      }
+
       url.searchParams.set('a', affiliateCode);
       return url.toString();
     } catch (error) {

@@ -79,3 +79,6 @@ scripts/.exchange-rate-cache.json
 out/
 temp/
 tmp/
+
+# Baileys Auth
+auth_info_baileys/

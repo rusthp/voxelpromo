@@ -351,6 +351,20 @@ export class XService {
     }
 
     try {
+      // Verify link before sending
+      if (offer.affiliateUrl) {
+        try {
+          const { LinkVerifier } = require('../link/LinkVerifier'); // eslint-disable-line @typescript-eslint/no-var-requires
+          const isValid = await LinkVerifier.verify(offer.affiliateUrl);
+          if (!isValid) {
+            logger.warn(`🛑 Skipping X (Twitter) offer due to invalid link: ${offer.affiliateUrl}`);
+            return false;
+          }
+        } catch (e) {
+          logger.warn('Error validating link for X:', e);
+        }
+      }
+
       logger.info(`📤 Sending offer to X (Twitter) - Title: ${offer.title}`);
 
       // Format message for X (Twitter has 280 char limit, but we'll try to keep it concise)
