@@ -205,7 +205,7 @@ export class AfilioService extends NetworkApiAbstract {
                 let resolvedLink = coupon.shortened || '';
 
                 try {
-                    resolvedLink = await this.resolveShortenedUrl(coupon.shortened) || coupon.shortened;
+                    resolvedLink = await this.resolveShortenedUrl(coupon.shortened, true) || coupon.shortened;
                 } catch {
                     // Keep original
                 }
@@ -256,27 +256,10 @@ export class AfilioService extends NetworkApiAbstract {
             }
 
             // Fallback: resolve shortened URL
-            return await this.resolveShortenedUrl(destinationUrl);
+            return await this.resolveShortenedUrl(destinationUrl, true);
         } catch (error: any) {
             logger.error(`❌ Error generating Afilio deeplink: ${error.message}`);
             return null;
-        }
-    }
-
-    /**
-     * Resolve shortened URLs to final destination
-     */
-    private async resolveShortenedUrl(shortUrl: string, maxRedirects: number = 5): Promise<string | null> {
-        if (!shortUrl) return null;
-
-        try {
-            const response = await axios.head(shortUrl, {
-                maxRedirects: maxRedirects,
-                validateStatus: () => true,
-            });
-            return response.request?.res?.responseUrl || shortUrl;
-        } catch {
-            return shortUrl;
         }
     }
 }

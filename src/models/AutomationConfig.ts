@@ -31,6 +31,12 @@ export interface AutomationConfigDocument extends Document {
     // Channels
     enabledChannels: string[]; // ['telegram', 'whatsapp', 'x']
 
+    // High Ticket Configuration
+    prioritizeHighTicket: boolean;
+    highTicketThreshold: number;
+    minPriceForHighTicket: number;
+    minDiscountForHighTicket: number; // Minimum discount required for high ticket scoring
+
     // Template
     messageTemplateId?: mongoose.Types.ObjectId; // Reference to MessageTemplate
 
@@ -70,6 +76,12 @@ const AutomationConfigSchema = new Schema<AutomationConfigDocument>({
 
     // Channels
     enabledChannels: { type: [String], default: ['telegram'] },
+
+    // High Ticket Configuration
+    prioritizeHighTicket: { type: Boolean, default: false },
+    highTicketThreshold: { type: Number, default: 5000 }, // Avoid items above this price
+    minPriceForHighTicket: { type: Number, default: 100 }, // Minimum price to be considered for high ticket formula
+    minDiscountForHighTicket: { type: Number, default: 10 }, // Minimum discount % required
 
     // Template
     messageTemplateId: { type: Schema.Types.ObjectId, ref: 'MessageTemplate' },

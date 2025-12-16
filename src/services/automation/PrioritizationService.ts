@@ -121,6 +121,15 @@ export class PrioritizationService {
     }
 
     /**
+     * Calculate revenue score based on user formula: (Discount% * 10) + (Price * 100)
+     * This favors high ticket items significantly.
+     */
+    getRevenueScore(discountPercent: number, currentPrice: number): number {
+        // Formula: (Discount% * 10) + (Price * 100)
+        return (discountPercent * 10) + (currentPrice * 100);
+    }
+
+    /**
      * Calculate final priority score combining all factors
      */
     calculateFinalScore(
@@ -130,21 +139,60 @@ export class PrioritizationService {
             discountScore: number;
             priceScore?: number; // 0-100 (100 = cheap, 0 = expensive)
             seasonalScore?: number; // 0-100 (100 = highly seasonal match)
+            revenueScore?: number; // Custom formula for High Ticket
         },
         context: {
             isPeakHour: boolean;
             prioritizeBestSellersInPeak: boolean;
             prioritizeBigDiscountsInPeak: boolean;
             discountWeightVsSales: number; // 0-100
+            prioritizeHighTicket?: boolean;
+            highTicketThreshold?: number;
+            minPriceForHighTicket?: number;
+            minDiscountForHighTicket?: number;
+            currentPrice?: number;
+            discountPercent?: number;
         }
     ): number {
-        const { peakScore, salesScore, discountScore, priceScore = 0, seasonalScore = 0 } = scores;
+        const { peakScore, salesScore, discountScore, priceScore = 0, seasonalScore = 0, revenueScore = 0 } = scores;
         const {
             isPeakHour,
             prioritizeBestSellersInPeak,
             prioritizeBigDiscountsInPeak,
             discountWeightVsSales,
+            prioritizeHighTicket = false,
+            highTicketThreshold = 5000,
+            currentPrice = 0
         } = context;
+
+        // == HIGH TICKET STRATEGY ==
+        if (prioritizeHighTicket) {
+            // Get additional thresholds from context
+            const minPriceForHighTicket = context.minPriceForHighTicket ?? 100;
+            const minDiscountForHighTicket = context.minDiscountForHighTicket ?? 10;
+            const discountPercent = context.discountPercent ?? 0;
+
+            // 1. If price is above threshold (e.g., 5k), filter out (possible pricing error)
+            if (currentPrice > highTicketThreshold) {
+                return 0;
+            }
+
+            // 2. If price is below minimum (e.g., < 100), use standard scoring (not "high ticket")
+            if (currentPrice < minPriceForHighTicket) {
+                // Fall through to standard scoring below
+            }
+            // 3. If price is in high ticket range but discount is too low, use standard scoring
+            else if (discountPercent < minDiscountForHighTicket) {
+                // Fall through to standard scoring below
+            }
+            // 4. Price is high enough AND discount is good enough → Apply High Ticket formula
+            else {
+                // Revenue-focused score: favors high price items with decent discount
+                return revenueScore + (salesScore * 0.1) + (seasonalScore * 10);
+            }
+        }
+
+        // == STANDARD STRATEGY ==
 
         // Base weights
         let salesWeight = (100 - discountWeightVsSales) / 100; // 0-1

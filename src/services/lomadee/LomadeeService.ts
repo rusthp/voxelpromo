@@ -189,7 +189,7 @@ export class LomadeeService extends NetworkApiAbstract {
 
                     // Try to resolve shortened URL
                     try {
-                        finalUrl = await this.resolveShortenedUrl(store.link) || store.link;
+                        finalUrl = await this.resolveShortenedUrl(store.link, true) || store.link;
                     } catch {
                         // Keep original URL
                     }
@@ -235,7 +235,7 @@ export class LomadeeService extends NetworkApiAbstract {
                 let resolvedLink = coupon.link;
 
                 try {
-                    resolvedLink = await this.resolveShortenedUrl(coupon.link) || coupon.link;
+                    resolvedLink = await this.resolveShortenedUrl(coupon.link, true) || coupon.link;
                 } catch {
                     // Keep original
                 }
@@ -354,22 +354,5 @@ export class LomadeeService extends NetworkApiAbstract {
     private calculateDiscount(originalPrice: number, currentPrice: number): number {
         if (!originalPrice || originalPrice <= currentPrice) return 0;
         return Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
-    }
-
-    /**
-     * Resolve shortened URLs to final destination
-     */
-    private async resolveShortenedUrl(shortUrl: string, maxRedirects: number = 5): Promise<string | null> {
-        if (!shortUrl) return null;
-
-        try {
-            const response = await axios.head(shortUrl, {
-                maxRedirects: maxRedirects,
-                validateStatus: () => true,
-            });
-            return response.request?.res?.responseUrl || shortUrl;
-        } catch {
-            return shortUrl;
-        }
     }
 }

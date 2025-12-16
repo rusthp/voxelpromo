@@ -841,6 +841,21 @@ export class CollectorService {
     total: number;
   }> {
     const config = this.getConfig();
+
+    // Check if collection is disabled
+    if (config.enabled === false) {
+      logger.info('⚠️ Collection is disabled in config. Skipping all sources.');
+      return {
+        amazon: 0,
+        aliexpress: 0,
+        mercadolivre: 0,
+        shopee: 0,
+        awin: 0,
+        rss: 0,
+        total: 0,
+      };
+    }
+
     const enabledSources = config.sources || ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'awin', 'rss'];
 
     logger.info('🚀 ========================================');

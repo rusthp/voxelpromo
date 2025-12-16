@@ -213,6 +213,12 @@ export class AutomationService {
         // NEW: Calculate seasonal score
         const seasonalScore = this.prioritizationService.getSeasonalScore(offer);
 
+        // NEW: Calculate revenue score (High Ticket Strategy)
+        const revenueScore = this.prioritizationService.getRevenueScore(
+            offer.discountPercentage,
+            offer.currentPrice || 0
+        );
+
         // Calculate price score (0-100) for "Cheap Item Boost" strategy
         // Favor cheap items (< 50 = 100 score, > 200 = 0 score) for off-peak times
         let priceScore = 0;
@@ -236,12 +242,19 @@ export class AutomationService {
                 discountScore,
                 priceScore,
                 seasonalScore,
+                revenueScore,
             },
             {
                 isPeakHour: peakScore > 50,
                 prioritizeBestSellersInPeak: config.prioritizeBestSellersInPeak,
                 prioritizeBigDiscountsInPeak: config.prioritizeBigDiscountsInPeak,
                 discountWeightVsSales: config.discountWeightVsSales,
+                prioritizeHighTicket: config.prioritizeHighTicket,
+                highTicketThreshold: config.highTicketThreshold,
+                minPriceForHighTicket: config.minPriceForHighTicket,
+                minDiscountForHighTicket: config.minDiscountForHighTicket,
+                currentPrice: offer.currentPrice || 0,
+                discountPercent: offer.discountPercentage || 0,
             }
         );
 
