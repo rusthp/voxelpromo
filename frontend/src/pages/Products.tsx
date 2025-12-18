@@ -3,9 +3,10 @@ import { Layout } from "@/components/layout/Layout";
 import { ProductCard } from "@/components/dashboard/ProductCard";
 import { PublishModal } from "@/components/products/PublishModal";
 import api from "@/services/api";
-import { Loader2, RefreshCw, Filter, SortAsc } from "lucide-react";
+import { Loader2, RefreshCw, Filter, SortAsc, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
     Select,
     SelectContent,
@@ -37,6 +38,7 @@ const Products = () => {
     const [sortBy, setSortBy] = useState('newest');
     const [selectedSource, setSelectedSource] = useState('all');
     const [selectedOffers, setSelectedOffers] = useState<Set<string>>(new Set());
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Publish Modal State
     const [publishModalOpen, setPublishModalOpen] = useState(false);
@@ -110,9 +112,20 @@ const Products = () => {
             setLoading(true);
             await api.delete('/offers', { data: { offerIds: Array.from(selectedOffers) } });
 
-            setProducts(prev => prev.filter(p => !selectedOffers.has(p._id)));
             setSelectedOffers(new Set());
-            toast.success("Ofertas selecionadas excluídas com sucesso.");
+            toast.success("Ofertas excluídas! Atualizando lista...");
+
+            // Force refresh: directly fetch page 1 from server
+            setPage(1);
+            setHasMore(true);
+
+            const url = `/offers?limit=20&skip=0&sortBy=${sortBy}${selectedSource !== 'all' ? `&sources=${selectedSource}` : ''}`;
+            const productsResponse = await api.get(url);
+            setProducts(productsResponse.data);
+
+            if (productsResponse.data.length < 20) {
+                setHasMore(false);
+            }
         } catch (error) {
             console.error("Error deleting selected offers:", error);
             toast.error("Erro ao excluir ofertas selecionadas.");
@@ -131,9 +144,19 @@ const Products = () => {
 
             toast.success(`Coleta finalizada! ${result.total} novos produtos encontrados.`);
 
-            // Refresh list
+            // Force refresh: directly fetch page 1 from server
             setPage(1);
-            fetchProducts();
+            setHasMore(true);
+            setSelectedOffers(new Set());
+
+            // Fetch directly with page 1 to avoid stale closure
+            const url = `/offers?limit=20&skip=0&sortBy=${sortBy}${selectedSource !== 'all' ? `&sources=${selectedSource}` : ''}`;
+            const productsResponse = await api.get(url);
+            setProducts(productsResponse.data);
+
+            if (productsResponse.data.length < 20) {
+                setHasMore(false);
+            }
         } catch (error) {
             console.error("Error collecting products:", error);
             toast.error("Erro ao coletar produtos.");
@@ -191,46 +214,54 @@ const Products = () => {
     return (
         <Layout>
             <div className="p-6 space-y-6">
-                <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex flex-col gap-4">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                         <h1 className="text-2xl font-bold text-foreground">Produtos Coletados</h1>
 
-                        <div className="flex gap-3">
-                            <div className="hidden md:flex items-center gap-2">
-                                <Select value={selectedSource} onValueChange={handleSourceChange}>
-                                    <SelectTrigger className="w-[180px] bg-background">
-                                        <Filter className="w-4 h-4 mr-2 text-muted-foreground" />
-                                        <SelectValue placeholder="Filtrar por Fonte" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Todas as Fontes</SelectItem>
-                                        <SelectItem value="amazon">Amazon</SelectItem>
-                                        <SelectItem value="shopee">Shopee</SelectItem>
-                                        <SelectItem value="aliexpress">AliExpress</SelectItem>
-                                        <SelectItem value="mercadolivre">Mercado Livre</SelectItem>
-                                        <SelectItem value="awin">Awin</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                        <div className="flex gap-2 w-full md:w-auto flex-wrap">
+                            {/* Search Input */}
+                            <div className="relative flex-1 md:flex-none md:w-64">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    type="text"
+                                    placeholder="Buscar produtos..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-9 bg-background"
+                                />
                             </div>
 
-                            <div className="flex items-center gap-2">
-                                <Select value={sortBy} onValueChange={handleSortChange}>
-                                    <SelectTrigger className="w-[180px] bg-background">
-                                        <SortAsc className="w-4 h-4 mr-2 text-muted-foreground" />
-                                        <SelectValue placeholder="Ordenar por" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="newest">Mais Recentes</SelectItem>
-                                        <SelectItem value="discount">Maior Desconto</SelectItem>
-                                        <SelectItem value="price_asc">Menor Preço</SelectItem>
-                                        <SelectItem value="price_desc">Maior Preço</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                            <Select value={selectedSource} onValueChange={handleSourceChange}>
+                                <SelectTrigger className="w-[140px] bg-background">
+                                    <Filter className="w-4 h-4 mr-2 text-muted-foreground" />
+                                    <SelectValue placeholder="Fonte" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Todas</SelectItem>
+                                    <SelectItem value="amazon">Amazon</SelectItem>
+                                    <SelectItem value="shopee">Shopee</SelectItem>
+                                    <SelectItem value="aliexpress">AliExpress</SelectItem>
+                                    <SelectItem value="mercadolivre">M. Livre</SelectItem>
+                                    <SelectItem value="awin">Awin</SelectItem>
+                                </SelectContent>
+                            </Select>
+
+                            <Select value={sortBy} onValueChange={handleSortChange}>
+                                <SelectTrigger className="w-[140px] bg-background">
+                                    <SortAsc className="w-4 h-4 mr-2 text-muted-foreground" />
+                                    <SelectValue placeholder="Ordenar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="newest">Recentes</SelectItem>
+                                    <SelectItem value="discount">Desconto</SelectItem>
+                                    <SelectItem value="price_asc">Menor Preço</SelectItem>
+                                    <SelectItem value="price_desc">Maior Preço</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
 
-                    <div className="flex gap-2 w-full md:w-auto">
+                    <div className="flex gap-2 flex-wrap">
                         {selectedOffers.size > 0 && (
                             <Button
                                 variant="destructive"
@@ -277,28 +308,51 @@ const Products = () => {
                         Nenhum produto encontrado.
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {products.map((product, index) => (
-                            <ProductCard
-                                key={product._id}
-                                id={product._id}
-                                name={product.title}
-                                company={product.source}
-                                brand={product.brand}
-                                price={`R$ ${product.currentPrice.toFixed(2)}`}
-                                originalPrice={product.originalPrice ? `R$ ${product.originalPrice.toFixed(2)}` : undefined}
-                                discount={`-${Math.round(product.discountPercentage)}%`}
-                                image={product.imageUrl}
-                                platforms={product.isPosted ? ['Enviado'] : []}
-                                delay={index % 10 * 50}
-                                onDelete={handleDelete}
-                                onPublish={handlePublishClick}
-                                productUrl={product.affiliateUrl || product.productUrl}
-                                selected={selectedOffers.has(product._id)}
-                                onSelect={handleSelect}
-                            />
-                        ))}
-                    </div>
+                    <>
+                        {/* Filter products by search term */}
+                        {(() => {
+                            const filteredProducts = searchTerm
+                                ? products.filter(p =>
+                                    p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    p.source.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    (p.brand && p.brand.toLowerCase().includes(searchTerm.toLowerCase()))
+                                )
+                                : products;
+
+                            if (filteredProducts.length === 0 && searchTerm) {
+                                return (
+                                    <div className="text-center py-12 text-muted-foreground">
+                                        Nenhum produto encontrado para "{searchTerm}"
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                    {filteredProducts.map((product, index) => (
+                                        <ProductCard
+                                            key={product._id}
+                                            id={product._id}
+                                            name={product.title}
+                                            company={product.source}
+                                            brand={product.brand}
+                                            price={`R$ ${product.currentPrice.toFixed(2)}`}
+                                            originalPrice={product.originalPrice ? `R$ ${product.originalPrice.toFixed(2)}` : undefined}
+                                            discount={`-${Math.round(product.discountPercentage)}%`}
+                                            image={product.imageUrl}
+                                            platforms={product.isPosted ? ['Enviado'] : []}
+                                            delay={index % 10 * 50}
+                                            onDelete={handleDelete}
+                                            onPublish={handlePublishClick}
+                                            productUrl={product.affiliateUrl || product.productUrl}
+                                            selected={selectedOffers.has(product._id)}
+                                            onSelect={handleSelect}
+                                        />
+                                    ))}
+                                </div>
+                            );
+                        })()}
+                    </>
                 )}
 
                 {loading && (

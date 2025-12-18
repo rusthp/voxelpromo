@@ -30,6 +30,7 @@ interface ShopeeConfig {
   maxPrice?: number;          // Preço máximo (BRL)
   minPrice?: number;          // Preço mínimo (BRL)
   cacheEnabled?: boolean;     // Habilitar cache de feeds
+  validateLinks?: boolean;    // Validar links antes de salvar
 }
 
 export class ShopeeService {
@@ -201,6 +202,8 @@ export class ShopeeService {
       // Parse header
       const headers = this.parseCSVLine(lines[0]);
       logger.info(`CSV headers: ${headers.length} columns, ${lines.length - 1} records`);
+      // Log all headers to identify affiliate link column
+      logger.info(`📋 CSV columns: ${headers.join(' | ')}`);
 
       // Parse records (limit to reasonable number for performance)
       const maxRecords = Math.min(lines.length - 1, 10000); // Process up to 10k products per feed
@@ -266,6 +269,17 @@ export class ShopeeService {
             continue;
           }
 
+          // Log first few products' link values for debugging
+          if (products.length < 3) {
+            logger.debug(`Shopee CSV Link Debug for product ${products.length}:`, {
+              product_link: record.product_link?.substring(0, 80),
+              product_short_link: record.product_short_link?.substring(0, 80),
+              'product_short link': record['product_short link']?.substring(0, 80),
+              link: record.link?.substring(0, 80),
+              affiliate_link: record.affiliate_link?.substring(0, 80),
+            });
+          }
+
           products.push({
             image_link: record.image_link || record.image_link_3 || '',
             itemid: record.itemid || '',
@@ -276,7 +290,8 @@ export class ShopeeService {
             title: record.title || '',
             description: record.description || record.title || '',
             product_link: record.product_link || '',
-            product_short_link: record['product_short link'] || record.product_short_link || record.product_link || '',
+            // Priority: 1) product_short link (with space), 2) product_short_link, 3) link, 4) product_link
+            product_short_link: record['product_short link'] || record.product_short_link || record.link || record.product_link || '',
             global_category1: record.global_category1 || 'electronics',
             global_category2: record.global_category2,
             item_rating: record.item_rating
@@ -372,44 +387,6 @@ export class ShopeeService {
    * @param category - Product category
    * @returns Offer object
    */
-  /**
-   * Analyze Shopee link to determine type and extract original link
-   */
-  private analyzeLink(url: string): { type: 'affiliate' | 'product' | 'unknown'; originalLink: string; affiliateLink: string } {
-    const result = {
-      type: 'unknown' as 'affiliate' | 'product' | 'unknown',
-      originalLink: url,
-      affiliateLink: ''
-    };
-
-    if (!url) return result;
-
-    // Rule 1: Affiliate Link
-    if (url.includes('shope.ee/an_redir') || url.includes('shope.ee/')) {
-      result.type = 'affiliate';
-      result.affiliateLink = url;
-
-      // Extract origin_link if present
-      const originMatch = url.match(/origin_link=([^&]+)/);
-      if (originMatch) {
-        try {
-          result.originalLink = decodeURIComponent(originMatch[1]);
-        } catch (e) {
-          // Keep original url if decode fails
-        }
-      }
-      return result;
-    }
-
-    // Rule 2: Normal Product Link
-    if (url.includes('shopee.com.br/product/')) {
-      result.type = 'product';
-      result.originalLink = url;
-      return result;
-    }
-
-    return result;
-  }
 
   /**
    * Convert Shopee product to Offer format
@@ -438,54 +415,35 @@ export class ShopeeService {
         return null;
       }
 
-      // Analyze links to ensure correctness
-      const rawAffiliateLink = product.product_short_link || product.product_link;
-      const rawProductLink = product.product_link;
-
-      const affiliateAnalysis = this.analyzeLink(rawAffiliateLink);
-      const productAnalysis = this.analyzeLink(rawProductLink);
-
-      // Determine final links
-      let affiliateUrl = '';
-      let productUrl = '';
-
-      // 1. Try to get affiliate link
-      if (affiliateAnalysis.type === 'affiliate') {
-        affiliateUrl = affiliateAnalysis.affiliateLink;
-      } else if (productAnalysis.type === 'affiliate') {
-        affiliateUrl = productAnalysis.affiliateLink;
-      }
-
-      // 2. Try to get product link
-      if (productAnalysis.type === 'product') {
-        productUrl = productAnalysis.originalLink;
-      } else if (affiliateAnalysis.originalLink && affiliateAnalysis.originalLink.includes('shopee.com.br/product/')) {
-        productUrl = affiliateAnalysis.originalLink;
-      } else {
-        productUrl = rawProductLink; // Fallback
-      }
-
-      // Get config for affiliate settings
+      // Get config for affiliate code
       const config = this.getConfig();
 
-      // If we still don't have an affiliate link, use the raw one if it looks suspicious/short, otherwise empty
-      if (!affiliateUrl && rawAffiliateLink && rawAffiliateLink !== productUrl) {
-        // Check if it's an an_redir link - if so, it MIGHT be valid, but if user complains, we prefer Universal Link
-        // If we have shopid and affiliateCode, generate Universal Link
-        if (config.affiliateCode && product.shopid && product.itemid) {
-          // Universal Link Format: https://shopee.com.br/universal-link/product/{shopid}/{itemid}?utm_source={affiliateCode}
-          // Note: Standard Universal Link usually wraps the URL, but this is the deep link format
-          // The format "https://shopee.com.br/universal-link/product/i/{shopid}/{itemid}" is often used.
-          affiliateUrl = `https://shopee.com.br/universal-link/product/i/${product.shopid}/${product.itemid}?utm_source=${config.affiliateCode}&utm_medium=affiliate&utm_campaign=voxelpromo`;
-          logger.debug(`Generated Universal Link for item ${product.itemid}`);
-        } else {
-          affiliateUrl = rawAffiliateLink;
-        }
-      }
+      // Get raw links from the feed
+      const rawShortLink = product.product_short_link || '';
+      const rawProductLink = product.product_link || '';
 
-      // If we STILL have an an_redir link effectively, and user provided affiliateCode, try to force Universal Link conversion if shopid is available
-      if (affiliateUrl.includes('an_redir') && config.affiliateCode && product.shopid && product.itemid) {
-        affiliateUrl = `https://shopee.com.br/universal-link/product/i/${product.shopid}/${product.itemid}?utm_source=${config.affiliateCode}&utm_medium=affiliate&utm_campaign=voxelpromo`;
+      // Product URL is always the product link
+      const productUrl = rawProductLink;
+
+      // Determine affiliate URL:
+      // 1. If short link contains affiliate domains (s.shopee.com.br, shope.ee) - use it
+      // 2. Otherwise, build affiliate link with tracking params
+      let affiliateUrl = rawShortLink || rawProductLink;
+
+      const isAlreadyAffiliate =
+        affiliateUrl.includes('s.shopee.com.br') ||
+        affiliateUrl.includes('shope.ee') ||
+        affiliateUrl.includes('affiliate.shopee') ||
+        affiliateUrl.includes('mmp_pid=');
+
+      if (!isAlreadyAffiliate && config.affiliateCode && rawProductLink) {
+        // Build affiliate link with tracking params
+        // Format: product_url + ?utm_source=an_{affiliateId}&mmp_pid=an_{affiliateId}&utm_medium=affiliates
+        const separator = rawProductLink.includes('?') ? '&' : '?';
+        affiliateUrl = `${rawProductLink}${separator}mmp_pid=an_${config.affiliateCode}&utm_source=an_${config.affiliateCode}&utm_medium=affiliates&utm_campaign=voxelpromo`;
+        logger.debug(`Generated affiliate link for ${product.itemid} using affiliate ID: ${config.affiliateCode}`);
+      } else if (isAlreadyAffiliate) {
+        logger.debug(`Using existing affiliate link for ${product.itemid}: ${affiliateUrl.substring(0, 60)}...`);
       }
 
       // Build tags

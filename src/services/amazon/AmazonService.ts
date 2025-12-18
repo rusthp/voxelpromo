@@ -54,11 +54,12 @@ export class AmazonService {
     const marketplace = process.env.AMAZON_MARKETPLACE || 'www.amazon.com.br';
 
     // Map country codes/regions to AWS Regions for signing
+    // IMPORTANT: Brazil PA-API uses us-east-1 for signing, NOT sa-east-1!
     const regionMap: Record<string, string> = {
       'BR': 'us-east-1', // Brazil uses us-east-1 for PA-API signing
       'US': 'us-east-1',
       'UK': 'eu-west-1',
-      'DE': 'eu-central-1',
+      'DE': 'eu-west-1',
       'FR': 'eu-west-1',
       'JP': 'us-west-2',
       'CA': 'us-east-1',
@@ -68,7 +69,7 @@ export class AmazonService {
       'MX': 'us-east-1',
       'AU': 'us-west-2',
       'SG': 'us-west-2',
-      'sa-east-1': 'sa-east-1',
+      'sa-east-1': 'us-east-1', // Brazil uses us-east-1 for PA-API!
       'us-east-1': 'us-east-1',
     };
 
@@ -111,14 +112,17 @@ export class AmazonService {
     path: string,
     payload: string,
     amzDate: string,
-    dateStamp: string
+    dateStamp: string,
+    operation: string
   ): { signature: string; authHeader: string } {
     const service = 'ProductAdvertisingAPI';
     const algorithm = 'AWS4-HMAC-SHA256';
+    const amzTarget = `com.amazon.paapi5.v1.ProductAdvertisingAPIv1.${operation}`;
 
-    // Create canonical headers
-    const canonicalHeaders = `host:${this.host}\nx-amz-date:${amzDate}\nx-amz-target:com.amazon.paapi5.v1.ProductAdvertisingAPIv1.SearchItems\n`;
-    const signedHeaders = 'host;x-amz-date;x-amz-target';
+    // Create canonical headers (must be in alphabetical order by header name)
+    // Per Amazon docs: SignedHeaders=content-type;host;x-amz-date;x-amz-target
+    const canonicalHeaders = `content-type:application/json; charset=utf-8\nhost:${this.host}\nx-amz-date:${amzDate}\nx-amz-target:${amzTarget}\n`;
+    const signedHeaders = 'content-type;host;x-amz-date;x-amz-target';
 
     // Create payload hash
     const payloadHash = crypto.createHash('sha256').update(payload).digest('hex');
@@ -172,7 +176,7 @@ export class AmazonService {
       const dateStamp = amzDate.substr(0, 8);
       const payloadString = JSON.stringify(payload);
 
-      const { authHeader } = this.generateSignature('POST', path, payloadString, amzDate, dateStamp);
+      const { authHeader } = this.generateSignature('POST', path, payloadString, amzDate, dateStamp, operation);
 
       const url = `https://${this.host}${path}`;
 

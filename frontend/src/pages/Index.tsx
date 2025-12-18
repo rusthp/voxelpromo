@@ -5,6 +5,7 @@ import { StatsCard } from "@/components/dashboard/StatsCard";
 import { ProductCard } from "@/components/dashboard/ProductCard";
 import { SocialPlatforms } from "@/components/dashboard/SocialPlatforms";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
+import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
 import api from "@/services/api";
 
 interface Stats {
@@ -84,6 +85,9 @@ const Index = () => {
   return (
     <Layout>
       <div className="p-6 space-y-6">
+        {/* Onboarding Checklist */}
+        <OnboardingChecklist />
+
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {statsData.map((stat, index) => (

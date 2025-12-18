@@ -142,21 +142,25 @@ export class AIService {
 
     const toneText = toneInstructions[tone || 'viral'] || toneInstructions.viral;
 
-    return `Você é um especialista em criar posts para canais de ofertas e promoções no Telegram.
+    // Category-based storytelling examples
+    const categoryStorytellingExamples = this.getCategoryStorytellingExamples(offer.category || 'geral');
 
-Crie um post sobre esta oferta seguindo este formato:
+    return `Você é um especialista em criar posts CRIATIVOS e VIRAIS para canais de ofertas e promoções no Telegram.
+
+REGRA DE OURO: NÃO use frases genéricas como "OFERTA ESPECIAL", "SUPER PROMOÇÃO", "DESCONTO IMPERDÍVEL".
+Em vez disso, crie uma frase de abertura que CONECTE o produto ao cotidiano de forma CRIATIVA e ENGRAÇADA.
+
+${categoryStorytellingExamples}
 
 FORMATO OBRIGATÓRIO (use HTML <b> para negrito, NÃO use Markdown *):
-<b>[FRASE DE IMPACTO EM MAIÚSCULAS]</b>
+<b>[FRASE CRIATIVA CONTEXTUAL EM MAIÚSCULAS]</b>
 
 [EMOJI DA CATEGORIA] <b>[NOME DO PRODUTO]</b>
 
 [Se tiver desconto >= 5%:]
-💰 De R$ [PREÇO ORIGINAL] por apenas R$ [PREÇO ATUAL]
+🔥 DE [PREÇO ORIGINAL] | POR [PREÇO ATUAL] em [parcelas se aplicável]x
 
 🎯 [DESCONTO]% OFF
-
-NOTA: Quando tiver desconto, NÃO mostre "🔥 POR" - mostre apenas a linha com desconto para evitar duplicação.
 
 [Se NÃO tiver desconto >= 5%:]
 🔥 POR [PREÇO COM VÍRGULA]
@@ -171,7 +175,7 @@ NOTA: Quando tiver desconto, NÃO mostre "🔥 POR" - mostre apenas a linha com 
 
 IMPORTANTE:
 - Use HTML <b>texto</b> para negrito, NUNCA use Markdown *texto*
-- NÃO use <br> ou <br/> - use quebras de linha (\n) para espaçamento
+- NÃO use <br> ou <br/> - use quebras de linha (\\n) para espaçamento
 - NÃO mostre o preço duas vezes - se tiver desconto, mostre apenas a linha com desconto
 - NÃO mostre "🎯 0% OFF" quando não há desconto real
 - Use vírgula no preço (ex: 12,59 ao invés de 12.59)
@@ -192,7 +196,8 @@ Link: ${offer.affiliateUrl}
 
 Instruções:
 - ${toneText}
-- Use frases de impacto como "NUNCA VI TÃO BARATO ASSIM", "SUPER PROMOÇÃO", "OFERTA IMPERDÍVEL" baseado no desconto
+- Crie uma frase de abertura CRIATIVA baseada na categoria do produto (veja exemplos acima)
+- A frase deve fazer SENTIDO com o produto e criar uma NARRATIVA
 - ${maxLength ? `Máximo de ${maxLength} caracteres` : 'Seja conciso mas persuasivo'}
 - ${includeEmojis !== false ? 'Use emojis relevantes (🔥, 💰, 🎯, 🎟️, 🔗)' : 'Não use emojis'}
 - ${includeHashtags !== false ? 'Inclua hashtags relevantes' : 'Não use hashtags'}
@@ -209,6 +214,83 @@ Retorne APENAS um JSON válido com esta estrutura:
   "emojis": ["🔥", "💰"],
   "fullPost": "post completo formatado EXATAMENTE como o formato obrigatório acima, incluindo o link direto no final"
 }`;
+  }
+
+  /**
+   * Get category-specific storytelling examples for the AI prompt
+   */
+  private getCategoryStorytellingExamples(category: string): string {
+    const normalizedCategory = category.toLowerCase();
+
+    const examples: Record<string, string> = {
+      'calçados': `EXEMPLOS PARA CALÇADOS/TÊNIS:
+• "JÁ COMPRA O SABÃO, VAI PRECISAR" (implica que vai correr muito e suar)
+• "SEU PÉ VAI PEDIR BIS"
+• "CORRE QUE É LITERALMENTE DE CORRIDA"
+• "PREPARADO PRA DEIXAR GERAL PRA TRÁS?"`,
+
+      'cozinha': `EXEMPLOS PARA COZINHA/CASA:
+• "SEU FOGÃO VAI PEDIR DEMISSÃO"
+• "A COZINHA VAI VIRAR RESTAURANTE"
+• "PREPARA O AVENTAL QUE O CHEF CHEGOU"
+• "VIZINHO VAI SENTIR O CHEIRO"`,
+
+      'eletrônicos': `EXEMPLOS PARA ELETRÔNICOS:
+• "SUA TOMADA VAI PEDIR FÉRIAS"
+• "WIFI VAI PEDIR AUMENTO"
+• "PREPARA O CARREGADOR"
+• "TECNOLOGIA POR ESSE PREÇO É CRIME"`,
+
+      'moda': `EXEMPLOS PARA MODA/ROUPAS:
+• "ESPELHO VAI PEDIR AUTÓGRAFO"
+• "PODE JOGAR O RESTO DO GUARDA-ROUPA FORA"
+• "LOOK QUE FAZ PARAR O TRÂNSITO"
+• "VAI FALTAR LIKE PRO TANTO ELOGIO"`,
+
+      'beleza': `EXEMPLOS PARA BELEZA/COSMÉTICOS:
+• "PELE VAI AGRADECER EM LÁGRIMAS DE ALEGRIA"
+• "DERMATOLOGISTA VAI PERDER O EMPREGO"
+• "AUTOESTIMA VAI LÁ EM CIMA"
+• "PREPARADA PRA ARRASAR?"`,
+
+      'games': `EXEMPLOS PARA GAMES/JOGOS:
+• "DORME MAIS NÃO"
+• "CHEFE VAI ESPERAR, FASE NOVA"
+• "VIDA REAL? NUNCA NEM VI"
+• "PING BAIXO, EMOÇÃO ALTA"`,
+
+      'esportes': `EXEMPLOS PARA ESPORTES/FITNESS:
+• "SHAPE VEM AÍ"
+• "PREGUIÇA FOI DEMITIDA"
+• "SEU EU DE AMANHÃ VAI AGRADECER"
+• "VERÃO CHEGOU MAIS CEDO"`,
+
+      'default': `EXEMPLOS GERAIS (adapte ao produto):
+• Crie conexão com o cotidiano do cliente
+• Use humor sutil mas inteligente
+• Faça o cliente se imaginar usando o produto
+• Evite clichês como "MELHOR PREÇO" ou "IMPERDÍVEL"`
+    };
+
+    // Try to find matching category
+    for (const [key, value] of Object.entries(examples)) {
+      if (normalizedCategory.includes(key) || key.includes(normalizedCategory)) {
+        return value;
+      }
+    }
+
+    // Check for keywords in category
+    if (normalizedCategory.includes('tênis') || normalizedCategory.includes('sapato') || normalizedCategory.includes('bota')) {
+      return examples['calçados'];
+    }
+    if (normalizedCategory.includes('celular') || normalizedCategory.includes('notebook') || normalizedCategory.includes('tablet') || normalizedCategory.includes('fone')) {
+      return examples['eletrônicos'];
+    }
+    if (normalizedCategory.includes('roupa') || normalizedCategory.includes('camisa') || normalizedCategory.includes('vestido')) {
+      return examples['moda'];
+    }
+
+    return examples['default'];
   }
 
   /**

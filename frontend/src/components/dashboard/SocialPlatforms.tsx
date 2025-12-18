@@ -112,25 +112,25 @@ export function SocialPlatforms() {
             <div
               key={platform.name}
               className={cn(
-                "flex items-center justify-between p-4 rounded-xl transition-all group",
+                "flex items-center justify-between p-4 rounded-xl transition-all group gap-2",
                 platform.connected
                   ? "bg-secondary/50 hover:bg-secondary"
                   : "bg-secondary/20"
               )}
             >
-              <div className="flex items-center gap-3">
-                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-xl", platform.color)}>
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0", platform.color)}>
                   {platform.icon}
                 </div>
-                <div>
-                  <p className="font-medium text-foreground">{platform.name}</p>
-                  <p className="text-sm text-muted-foreground">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-foreground truncate">{platform.name}</p>
+                  <p className="text-sm text-muted-foreground truncate">
                     {platform.connected ? `${platform.posts} publicações` : "Não conectado"}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <button
                   onClick={() => handleOpenConfig(platform)}
                   className="p-2 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-background/50 transition-all"
@@ -142,7 +142,7 @@ export function SocialPlatforms() {
                 <button
                   onClick={() => handleOpenConfig(platform)}
                   className={cn(
-                    "px-3 py-1 rounded-full text-xs font-medium transition-all",
+                    "px-3 py-1 rounded-full text-xs font-medium transition-all whitespace-nowrap",
                     platform.connected
                       ? "bg-success/10 text-success hover:bg-success/20"
                       : "bg-primary/10 text-primary hover:bg-primary/20"

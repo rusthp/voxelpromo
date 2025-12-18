@@ -31,6 +31,44 @@ export function MessagingSettings({ config, setConfig, testing, onTest }: Messag
     const [groups, setGroups] = useState<any[]>([]);
     const pollInterval = useRef<NodeJS.Timeout | null>(null);
 
+    // Telegram state
+    const [telegramChats, setTelegramChats] = useState<any[]>([]);
+    const [loadingTelegramChats, setLoadingTelegramChats] = useState(false);
+    const [telegramBotStatus, setTelegramBotStatus] = useState<any>(null);
+
+    // Fetch Telegram chats
+    const fetchTelegramChats = async () => {
+        setLoadingTelegramChats(true);
+        try {
+            const response = await api.get('/telegram/chats');
+            if (response.data.success) {
+                setTelegramChats(response.data.chats || []);
+            }
+        } catch (error) {
+            console.error("Error fetching Telegram chats:", error);
+        } finally {
+            setLoadingTelegramChats(false);
+        }
+    };
+
+    // Fetch Telegram bot status
+    const fetchTelegramStatus = async () => {
+        try {
+            const response = await api.get('/telegram/status');
+            setTelegramBotStatus(response.data);
+            if (response.data.success && response.data.configured) {
+                fetchTelegramChats();
+            }
+        } catch (error) {
+            console.error("Error fetching Telegram status:", error);
+        }
+    };
+
+    // Fetch Telegram status on mount
+    useEffect(() => {
+        fetchTelegramStatus();
+    }, []);
+
     // Fetch groups when connected
     useEffect(() => {
         if (isReady) {
@@ -138,6 +176,9 @@ export function MessagingSettings({ config, setConfig, testing, onTest }: Messag
                         <CardTitle className="flex items-center gap-2">
                             <FaTelegram className="w-5 h-5 text-[#0088cc]" />
                             Telegram
+                            {telegramBotStatus?.configured && (
+                                <span className="ml-2 text-xs text-green-500 font-normal">@{telegramBotStatus.botUsername}</span>
+                            )}
                         </CardTitle>
                         <CardDescription>Configure o bot do Telegram para enviar ofertas</CardDescription>
                     </div>
@@ -164,13 +205,57 @@ export function MessagingSettings({ config, setConfig, testing, onTest }: Messag
                         />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="telegramChatId">Chat ID</Label>
+                        <div className="flex justify-between items-center">
+                            <Label htmlFor="telegramChatId">Chat ID / Grupo</Label>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-xs"
+                                onClick={fetchTelegramChats}
+                                disabled={loadingTelegramChats}
+                            >
+                                {loadingTelegramChats ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                                Buscar grupos
+                            </Button>
+                        </div>
                         <Input
                             id="telegramChatId"
                             value={config.telegram.chatId}
                             onChange={(e) => setConfig({ ...config, telegram: { ...config.telegram, chatId: e.target.value } })}
                             placeholder="@canal ou -100..."
                         />
+                        {telegramChats.length > 0 && (
+                            <div className="mt-2 text-sm bg-muted p-3 rounded-md border">
+                                <div className="flex justify-between items-center mb-2">
+                                    <p className="font-medium flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                                        Grupos Detectados
+                                    </p>
+                                </div>
+                                <div className="space-y-1 max-h-40 overflow-y-auto">
+                                    {telegramChats.map((chat) => (
+                                        <div
+                                            key={chat.id}
+                                            className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors ${config.telegram.chatId === chat.id ? 'bg-primary/10 border-primary/30' : 'hover:bg-background border-transparent hover:border-border'}`}
+                                            onClick={() => setConfig({ ...config, telegram: { ...config.telegram, chatId: chat.id } })}
+                                        >
+                                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${config.telegram.chatId === chat.id ? 'bg-primary border-primary' : 'border-muted-foreground'}`}>
+                                                {config.telegram.chatId === chat.id && <span className="text-primary-foreground text-[10px]">✓</span>}
+                                            </div>
+                                            <div className="flex flex-col overflow-hidden flex-1">
+                                                <span className="font-medium text-xs truncate">{chat.title}</span>
+                                                <span className="text-[10px] text-muted-foreground">{chat.type} • {chat.id}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {telegramChats.length === 0 && telegramBotStatus?.configured && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                                💡 Para descobrir grupos: adicione o bot ao grupo e envie uma mensagem.
+                            </p>
+                        )}
                     </div>
                 </CardContent>
             </Card>

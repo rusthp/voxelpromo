@@ -12,6 +12,20 @@ import { retryWithBackoff } from '../../utils/retry';
 import { Offer } from '../../types';
 import { ScrapingBatchModel } from '../../models/ScrapingBatch';
 
+/**
+ * Dependency injection interface for CollectorService
+ * Allows injecting mock services for testing
+ */
+export interface CollectorServiceDeps {
+  amazonService?: AmazonService;
+  aliExpressService?: AliExpressService;
+  mercadoLivreService?: MercadoLivreService;
+  shopeeService?: ShopeeService;
+  rssService?: RSSService;
+  offerService?: OfferService;
+  blacklistService?: BlacklistService;
+}
+
 export class CollectorService {
   private amazonService: AmazonService;
   private aliExpressService: AliExpressService;
@@ -21,15 +35,16 @@ export class CollectorService {
   private offerService: OfferService;
   private blacklistService: BlacklistService;
 
-  constructor() {
-    this.amazonService = new AmazonService();
-    this.aliExpressService = new AliExpressService();
-    this.mercadoLivreService = new MercadoLivreService();
-    this.shopeeService = new ShopeeService();
-    this.rssService = new RSSService();
-    this.offerService = new OfferService();
-    this.blacklistService = new BlacklistService();
+  constructor(deps: CollectorServiceDeps = {}) {
+    this.amazonService = deps.amazonService ?? new AmazonService();
+    this.aliExpressService = deps.aliExpressService ?? new AliExpressService();
+    this.mercadoLivreService = deps.mercadoLivreService ?? new MercadoLivreService();
+    this.shopeeService = deps.shopeeService ?? new ShopeeService();
+    this.rssService = deps.rssService ?? new RSSService();
+    this.offerService = deps.offerService ?? new OfferService();
+    this.blacklistService = deps.blacklistService ?? new BlacklistService();
   }
+
 
   /**
    * Filter offers using blacklist

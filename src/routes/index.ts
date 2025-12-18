@@ -11,6 +11,7 @@ import { mercadoLivreRoutes } from './mercadolivre.routes';
 import { amazonRoutes } from './amazon.routes';
 import { xRoutes } from './x.routes';
 import whatsappRoutes from './whatsapp.routes';
+import telegramRoutes from './telegram.routes';
 import { authenticate } from '../middleware/auth';
 import { adminRoutes } from './admin.routes';
 import fixRoutes from './fix.routes';
@@ -73,6 +74,7 @@ export function setupRoutes(app: Express): void {
   app.use('/api/whatsapp', whatsappRoutes); // WhatsApp QR code needs to be accessible
   app.use('/api/health', healthRoutes); // Health check endpoints
   app.use('/api/ai', aiRoutes); // AI provider testing
+  app.use('/api/telegram', telegramRoutes); // Telegram chat discovery
 
   // Protected routes (require authentication) with rate limiting
   app.use('/api/offers', authenticate, apiLimiter, offerRoutes);

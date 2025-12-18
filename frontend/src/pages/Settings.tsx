@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -99,11 +100,19 @@ const initialConfig: ConfigState = {
     collection: {
         sources: ["amazon", "aliexpress", "mercadolivre", "shopee", "awin", "lomadee", "rss"],
         enabled: true,
+        schedule: "0 */6 * * *",
     },
     rss: [],
 };
 
 const Settings = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [activeTab, setActiveTab] = useState(() => {
+        const tabFromUrl = searchParams.get('tab');
+        const validTabs = ['automation', 'ai', 'messaging', 'affiliate', 'collection', 'templates'];
+        return validTabs.includes(tabFromUrl || '') ? tabFromUrl! : 'automation';
+    });
+
     const [loading, setLoading] = useState(false);
     const [testing, setTesting] = useState<string | null>(null);
     const [automationStatus, setAutomationStatus] = useState<AutomationStatus>({ isActive: false, shouldPost: false });
@@ -133,6 +142,12 @@ const Settings = () => {
     // Timer refs for cleanup
     const oauthCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const oauthTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Handle tab change - update URL param
+    const handleTabChange = (value: string) => {
+        setActiveTab(value);
+        setSearchParams({ tab: value });
+    };
 
     useEffect(() => {
         fetchConfig();
@@ -580,7 +595,7 @@ const Settings = () => {
                     </Button>
                 </div>
 
-                <Tabs defaultValue="automation" className="space-y-6">
+                <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
                     <TabsList className="grid w-full grid-cols-6">
                         <TabsTrigger value="automation">Automação</TabsTrigger>
                         <TabsTrigger value="ai">IA</TabsTrigger>

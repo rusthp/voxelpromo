@@ -6,6 +6,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
 import { connectDatabase } from './config/database';
 import { setupRoutes } from './routes';
 import { setupCronJobs } from './jobs/scheduler';
@@ -87,6 +88,10 @@ app.use(
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve static files from uploads directory (avatars, etc.)
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+logger.info(`📁 Serving static files from: ${path.join(process.cwd(), 'uploads')}`);
 
 // Health check
 app.get('/health', (_req, res) => {

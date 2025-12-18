@@ -342,5 +342,77 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
+
+  /**
+   * Get bot instance (for routes that need to call bot methods directly)
+   */
+  getBot(): TelegramBot | null {
+    this.initializeBot();
+    return this.bot;
+  }
+
+  /**
+   * List all chats/groups where the bot has received messages
+   * Uses getUpdates to discover groups the bot is in
+   */
+  async listChats(): Promise<{ id: string; title: string; type: string }[]> {
+    this.initializeBot();
+
+    if (!this.bot) {
+      logger.warn('⚠️ Cannot list chats: Telegram bot not initialized');
+      return [];
+    }
+
+    try {
+      // Get recent updates to discover chats
+      const updates = await this.bot.getUpdates({ limit: 100, offset: -100 });
+
+      const chatsMap = new Map<string, { id: string; title: string; type: string }>();
+
+      for (const update of updates) {
+        const message = update.message || update.channel_post || update.my_chat_member?.chat;
+
+        if (message && 'chat' in message) {
+          const chat = message.chat;
+          const chatId = chat.id.toString();
+
+          // Only add groups and channels (skip private chats)
+          if (chat.type === 'group' || chat.type === 'supergroup' || chat.type === 'channel') {
+            if (!chatsMap.has(chatId)) {
+              chatsMap.set(chatId, {
+                id: chatId,
+                title: chat.title || `Chat ${chatId}`,
+                type: chat.type,
+              });
+            }
+          }
+        }
+
+        // Also check my_chat_member updates (when bot is added to a group)
+        if (update.my_chat_member) {
+          const chat = update.my_chat_member.chat;
+          const chatId = chat.id.toString();
+
+          if (chat.type === 'group' || chat.type === 'supergroup' || chat.type === 'channel') {
+            if (!chatsMap.has(chatId)) {
+              chatsMap.set(chatId, {
+                id: chatId,
+                title: chat.title || `Chat ${chatId}`,
+                type: chat.type,
+              });
+            }
+          }
+        }
+      }
+
+      const chats = Array.from(chatsMap.values());
+      logger.info(`📋 Found ${chats.length} chats/groups for Telegram bot`);
+      return chats;
+    } catch (error: any) {
+      logger.error(`❌ Error listing Telegram chats: ${error.message}`);
+      return [];
+    }
+  }
 }
+
 

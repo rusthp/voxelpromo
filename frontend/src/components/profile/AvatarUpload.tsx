@@ -26,11 +26,13 @@ export function AvatarUpload({
 }: AvatarUploadProps) {
     const [isUploading, setIsUploading] = useState(false);
     const [previewUrl, setPreviewUrl] = useState<string | undefined>(currentAvatarUrl);
+    const [imageError, setImageError] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Sync previewUrl when currentAvatarUrl changes from parent
     useEffect(() => {
         setPreviewUrl(currentAvatarUrl);
+        setImageError(false); // Reset error when URL changes
     }, [currentAvatarUrl]);
 
     const getInitials = (name: string) => {
@@ -63,6 +65,7 @@ export function AvatarUpload({
         const reader = new FileReader();
         reader.onload = (event) => {
             setPreviewUrl(event.target?.result as string);
+            setImageError(false);
         };
         reader.readAsDataURL(file);
 
@@ -96,6 +99,7 @@ export function AvatarUpload({
         try {
             await api.delete('/profile/avatar');
             setPreviewUrl(undefined);
+            setImageError(false);
             onAvatarChange(undefined);
             toast.success('Avatar removido com sucesso!');
         } catch (error: any) {
@@ -113,6 +117,9 @@ export function AvatarUpload({
             ? `${apiBaseUrl}${previewUrl}`
             : undefined;
 
+    // Show image only if URL exists and no loading error
+    const showImage = fullAvatarUrl && !imageError;
+
     return (
         <div className="flex flex-col items-center gap-4">
             <div className="relative group">
@@ -122,11 +129,15 @@ export function AvatarUpload({
                         sizeClasses[size]
                     )}
                 >
-                    {fullAvatarUrl ? (
+                    {showImage ? (
                         <img
                             src={fullAvatarUrl}
                             alt={displayName}
                             className="w-full h-full object-cover"
+                            onError={() => {
+                                console.error('Failed to load avatar:', fullAvatarUrl);
+                                setImageError(true);
+                            }}
                         />
                     ) : (
                         <span className="text-primary-foreground font-bold text-2xl">

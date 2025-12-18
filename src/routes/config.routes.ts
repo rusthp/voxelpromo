@@ -1132,4 +1132,102 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
   }
 });
 
+/**
+ * GET /api/config/setup-status
+ * Get setup status for onboarding checklist
+ */
+router.get('/setup-status', async (_req, res) => {
+  try {
+    const status = {
+      telegram: await getTelegramSetupStatus(),
+      ai: getAISetupStatus(),
+      whatsapp: getWhatsAppSetupStatus(),
+      offers: await getOffersSetupStatus(),
+      automation: getAutomationSetupStatus(),
+    };
+
+    return res.json(status);
+  } catch (error: any) {
+    logger.error('Error getting setup status:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+async function getTelegramSetupStatus(): Promise<{ configured: boolean; botUsername?: string }> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+
+  if (!botToken || !chatId) {
+    // Check config.json
+    if (existsSync(configPath)) {
+      const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+      if (config.telegram?.botToken && config.telegram?.chatId) {
+        return { configured: true };
+      }
+    }
+    return { configured: false };
+  }
+
+  return { configured: true };
+}
+
+function getAISetupStatus(): { configured: boolean; provider?: string } {
+  const groqKey = process.env.GROQ_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
+
+  if (groqKey) return { configured: true, provider: 'Groq' };
+  if (openaiKey) return { configured: true, provider: 'OpenAI' };
+
+  // Check config.json
+  if (existsSync(configPath)) {
+    const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+    if (config.ai?.groqApiKey) return { configured: true, provider: 'Groq' };
+    if (config.ai?.openaiApiKey) return { configured: true, provider: 'OpenAI' };
+  }
+
+  return { configured: false };
+}
+
+function getWhatsAppSetupStatus(): { configured: boolean; connected?: boolean } {
+  const enabled = process.env.WHATSAPP_ENABLED === 'true';
+
+  if (!enabled) {
+    // Check config.json
+    if (existsSync(configPath)) {
+      const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+      if (config.whatsapp?.enabled) {
+        return { configured: true, connected: false };
+      }
+    }
+    return { configured: false, connected: false };
+  }
+
+  return { configured: true, connected: false };
+}
+
+async function getOffersSetupStatus(): Promise<{ hasOffers: boolean; count?: number }> {
+  try {
+    const mongoose = await import('mongoose');
+
+    if (mongoose.default.connection.readyState !== 1) {
+      return { hasOffers: false };
+    }
+
+    const count = await mongoose.default.connection.db?.collection('offers').countDocuments({ isActive: true });
+    return { hasOffers: (count || 0) > 0, count: count || 0 };
+  } catch {
+    return { hasOffers: false };
+  }
+}
+
+function getAutomationSetupStatus(): { configured: boolean; enabled?: boolean } {
+  if (existsSync(configPath)) {
+    const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+    const enabled = config.automation?.enabled === true;
+    return { configured: enabled, enabled };
+  }
+
+  return { configured: false, enabled: false };
+}
+
 export { router as configRoutes };

@@ -12,8 +12,8 @@ import { authLimiter, registerLimiter, refreshLimiter } from '../middleware/rate
 const router = Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-const ACCESS_TOKEN_EXPIRY = '15m'; // Short-lived access token
-const REFRESH_TOKEN_EXPIRY_DAYS = 7; // Longer-lived refresh token
+const ACCESS_TOKEN_EXPIRY = '8h'; // 8 hours for work sessions
+const REFRESH_TOKEN_EXPIRY_DAYS = 30; // 30 days refresh token
 
 /**
  * Generate access and refresh tokens

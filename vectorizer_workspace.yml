@@ -1,0 +1,36 @@
+global_settings:
+  file_watcher:
+    auto_discovery: true
+    enable_auto_update: true
+    exclude_patterns:
+      - "**/node_modules/**"
+      - "**/dist/**"
+      - "**/.git/**"
+      - "**/.next/**"
+      - "**/.cursor/**"
+    hot_reload: true
+    watch_paths:
+      - "/voxelpromo"
+
+projects:
+  - name: voxelpromo
+    path: "/voxelpromo"
+    description: VoxelPromo Project
+    collections:
+      - name: voxelpromo-source
+        description: Source code
+        include_patterns:
+          - "**/*.ts"
+          - "**/*.tsx"
+          - "**/*.js"
+          - "**/*.json"
+        exclude_patterns:
+          - "**/node_modules/**"
+          - "**/dist/**"
+          - "**/.next/**"
+
+      - name: voxelpromo-docs
+        description: Documentation
+        include_patterns:
+          - "**/*.md"
+          - "**/*.txt"

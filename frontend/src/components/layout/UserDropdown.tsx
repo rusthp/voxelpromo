@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,6 +15,7 @@ import { toast } from 'sonner';
 export function UserDropdown() {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
+    const [imageError, setImageError] = useState(false);
 
     const getInitials = (name: string) => {
         return name
@@ -43,15 +45,22 @@ export function UserDropdown() {
             : `${apiBaseUrl}${user.avatarUrl}`
         : undefined;
 
+    // Show avatar only if URL exists and no loading error
+    const showAvatar = avatarUrl && !imageError;
+
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <button className="w-9 h-9 rounded-full aspect-square bg-gradient-to-br from-primary to-info flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-primary/50 transition-all focus:outline-none focus:ring-2 focus:ring-primary/50">
-                    {avatarUrl ? (
+                    {showAvatar ? (
                         <img
                             src={avatarUrl}
                             alt={displayName}
                             className="w-full h-full object-cover rounded-full"
+                            onError={() => {
+                                console.error('Failed to load avatar in header:', avatarUrl);
+                                setImageError(true);
+                            }}
                         />
                     ) : (
                         <span className="text-primary-foreground font-semibold text-sm">
