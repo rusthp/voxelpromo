@@ -92,6 +92,17 @@ router.get('/', (_req, res) => {
           }
           : {},
         rss: config.rss || [],
+        instagram: config.instagram
+          ? {
+            appId: config.instagram.appId ? '***' : '',
+            appSecret: config.instagram.appSecret ? '***' : '',
+            accessToken: config.instagram.accessToken ? '***' : '',
+            pageAccessToken: config.instagram.pageAccessToken ? '***' : '',
+            pageId: config.instagram.pageId || '',
+            igUserId: config.instagram.igUserId || '',
+            webhookVerifyToken: config.instagram.webhookVerifyToken || '',
+          }
+          : {},
         collection: config.collection || {
           enabled: true,
           schedule: '0 */6 * * *',
@@ -451,6 +462,42 @@ router.post('/', (req, res) => {
               ? existingConfig.awin?.dataFeedApiKey || ''
               : config.awin.dataFeedApiKey || ''
             : existingConfig.awin?.dataFeedApiKey || '',
+      },
+      instagram: {
+        ...existingConfig.instagram,
+        ...config.instagram,
+        appId:
+          config.instagram?.appId !== undefined
+            ? config.instagram.appId === '***'
+              ? existingConfig.instagram?.appId || ''
+              : config.instagram.appId || ''
+            : existingConfig.instagram?.appId || '',
+        appSecret:
+          config.instagram?.appSecret !== undefined
+            ? config.instagram.appSecret === '***'
+              ? existingConfig.instagram?.appSecret || ''
+              : config.instagram.appSecret || ''
+            : existingConfig.instagram?.appSecret || '',
+        accessToken:
+          config.instagram?.accessToken !== undefined && config.instagram.accessToken !== '***'
+            ? config.instagram.accessToken
+            : existingConfig.instagram?.accessToken || '',
+        pageAccessToken:
+          config.instagram?.pageAccessToken !== undefined && config.instagram.pageAccessToken !== '***'
+            ? config.instagram.pageAccessToken
+            : existingConfig.instagram?.pageAccessToken || '',
+        pageId:
+          config.instagram?.pageId !== undefined
+            ? config.instagram.pageId || ''
+            : existingConfig.instagram?.pageId || '',
+        igUserId:
+          config.instagram?.igUserId !== undefined
+            ? config.instagram.igUserId || ''
+            : existingConfig.instagram?.igUserId || '',
+        webhookVerifyToken:
+          config.instagram?.webhookVerifyToken !== undefined
+            ? config.instagram.webhookVerifyToken || ''
+            : existingConfig.instagram?.webhookVerifyToken || '',
       },
     };
 

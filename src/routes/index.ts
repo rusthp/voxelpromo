@@ -24,6 +24,7 @@ import awinRoutes from './awin.routes';
 import lomadeeRoutes from './lomadee.routes';
 import afilioRoutes from './afilio.routes';
 import rakutenRoutes from './rakuten.routes';
+import instagramRoutes from './instagram.routes';
 import {
   collectionLimiter,
   configLimiter,
@@ -81,6 +82,7 @@ export function setupRoutes(app: Express): void {
   app.use('/api/config', authenticate, configLimiter, configRoutes); // PROTECTED: sensitive credentials
   app.use('/api/whatsapp', authenticate, apiLimiter, whatsappRoutes); // PROTECTED: WhatsApp access
   app.use('/api/telegram', authenticate, apiLimiter, telegramRoutes); // PROTECTED: Telegram access
+  app.use('/api/instagram', instagramRoutes); // Instagram (webhook needs to be public for Meta verification)
   app.use('/api/admin', authenticate, apiLimiter, adminRoutes);
   app.use('/api/posts', authenticate, apiLimiter, postsRoutes); // Post history
   app.use('/api/automation', authenticate, apiLimiter, automationRoutes); // Automation system

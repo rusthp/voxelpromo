@@ -138,6 +138,25 @@ export function loadConfigFromFile(force = false): void {
       logger.info(`✅ X (Twitter) OAuth 2.0 Access Token loaded`);
     }
 
+    // Instagram
+    if (config.instagram?.appId) {
+      process.env.INSTAGRAM_APP_ID = config.instagram.appId;
+      process.env.INSTAGRAM_APP_SECRET = config.instagram.appSecret || '';
+      if (config.instagram.accessToken) {
+        process.env.INSTAGRAM_ACCESS_TOKEN = config.instagram.accessToken;
+      }
+      if (config.instagram.pageId) {
+        process.env.INSTAGRAM_PAGE_ID = config.instagram.pageId;
+      }
+      if (config.instagram.igUserId) {
+        process.env.INSTAGRAM_IG_USER_ID = config.instagram.igUserId;
+      }
+      if (config.instagram.webhookVerifyToken) {
+        process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN = config.instagram.webhookVerifyToken;
+      }
+      logger.info(`✅ Instagram config loaded`);
+    }
+
     // Only log if we actually loaded from file (not using cache)
     // This prevents log spam when config is loaded repeatedly but using cache
     if (!hadCache || force) {

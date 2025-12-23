@@ -5,25 +5,22 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import api from "@/services/api";
+import { useAuth } from "@/hooks/useAuth";
 
 const Login = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+    const { login } = useAuth();
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
 
         try {
-            const response = await api.post("/auth/login", { email, password });
-            const { accessToken } = response.data;
-
-            localStorage.setItem("token", accessToken);
-            localStorage.setItem("user", JSON.stringify(response.data.user));
-
+            // Use the auth hook's login function - this properly updates React state
+            await login(email, password);
             toast.success("Login realizado com sucesso!");
             navigate("/products");
         } catch (error: any) {

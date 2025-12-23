@@ -80,6 +80,15 @@ export interface RakutenConfig {
     sid: string;
 }
 
+export interface InstagramConfig {
+    appId: string;
+    appSecret: string;
+    accessToken: string;
+    pageId: string;
+    igUserId: string;
+    webhookVerifyToken: string;
+}
+
 export interface AutomationConfig {
     isActive: boolean;
     startHour: number;
@@ -110,6 +119,7 @@ export interface ConfigState {
     lomadee?: LomadeeConfig;
     afilio?: AfilioConfig;
     rakuten?: RakutenConfig;
+    instagram?: InstagramConfig;
     automation: AutomationConfig;
     collection: CollectionConfig;
     rss: string[];

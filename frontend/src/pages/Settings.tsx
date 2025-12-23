@@ -88,6 +88,14 @@ const initialConfig: ConfigState = {
         clientSecret: "",
         sid: "",
     },
+    instagram: {
+        appId: "",
+        appSecret: "",
+        accessToken: "",
+        pageId: "",
+        igUserId: "",
+        webhookVerifyToken: "",
+    },
     automation: {
         isActive: false,
         startHour: 8,
