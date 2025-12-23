@@ -87,6 +87,7 @@ router.get('/', async (req, res) => {
       limit,
       skip,
       sortBy,
+      search, // NEW: search parameter for title search
     } = req.query;
 
     if (
@@ -97,7 +98,8 @@ router.get('/', async (req, res) => {
       categories ||
       sources ||
       excludePosted ||
-      sortBy
+      sortBy ||
+      search // Include search in filter check
     ) {
       // Use filter service
       const filterOptions: FilterOptions = {
@@ -111,6 +113,7 @@ router.get('/', async (req, res) => {
         limit: limit ? parseInt(limit as string) : undefined,
         skip: skip ? parseInt(skip as string) : 0,
         sortBy: sortBy as string,
+        search: search as string, // NEW: pass search to filter
       };
 
       const offers = await offerService.filterOffers(filterOptions);

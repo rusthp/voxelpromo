@@ -40,6 +40,7 @@ export interface FilterOptions {
   limit?: number;
   skip?: number;
   sortBy?: string;
+  search?: string; // Search by title (case-insensitive)
 }
 
 export interface AIPostRequest {

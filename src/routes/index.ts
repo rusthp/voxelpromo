@@ -71,16 +71,16 @@ export function setupRoutes(app: Express): void {
   app.use('/api/mercadolivre', mercadoLivreRoutes); // OAuth callback needs to be public
   app.use('/api/amazon', amazonRoutes); // Amazon scraping (no API needed)
   app.use('/api/x', xRoutes); // OAuth callback needs to be public
-  app.use('/api/whatsapp', whatsappRoutes); // WhatsApp QR code needs to be accessible
   app.use('/api/health', healthRoutes); // Health check endpoints
-  app.use('/api/ai', aiRoutes); // AI provider testing
-  app.use('/api/telegram', telegramRoutes); // Telegram chat discovery
+  app.use('/api/ai', aiRoutes); // AI provider testing (public for initial setup)
 
   // Protected routes (require authentication) with rate limiting
   app.use('/api/offers', authenticate, apiLimiter, offerRoutes);
   app.use('/api/collector', authenticate, collectionLimiter, collectorRoutes);
   app.use('/api/stats', authenticate, apiLimiter, statsRoutes);
-  app.use('/api/config', configLimiter, configRoutes);
+  app.use('/api/config', authenticate, configLimiter, configRoutes); // PROTECTED: sensitive credentials
+  app.use('/api/whatsapp', authenticate, apiLimiter, whatsappRoutes); // PROTECTED: WhatsApp access
+  app.use('/api/telegram', authenticate, apiLimiter, telegramRoutes); // PROTECTED: Telegram access
   app.use('/api/admin', authenticate, apiLimiter, adminRoutes);
   app.use('/api/posts', authenticate, apiLimiter, postsRoutes); // Post history
   app.use('/api/automation', authenticate, apiLimiter, automationRoutes); // Automation system

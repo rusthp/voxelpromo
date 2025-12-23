@@ -1,5 +1,11 @@
 # 🚀 VoxelPromo - Automação de Ofertas com IA
 
+![Node.js](https://img.shields.io/badge/Node.js-20+-green?logo=node.js)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)
+![MongoDB](https://img.shields.io/badge/MongoDB-6+-green?logo=mongodb)
+![License](https://img.shields.io/badge/License-MIT-yellow)
+
 > **Sistema inteligente de monitoramento, enriquecimento e distribuição de ofertas para afiliados.**
 
 O **VoxelPromo** é uma solução completa para automatizar o marketing de afiliados. Ele monitora lojas, detecta promoções, usa Inteligência Artificial para criar copys persuasivas e publica automaticamente em múltiplas redes sociais.
@@ -140,18 +146,26 @@ JWT_SECRET=sua_chave_secreta_super_segura
 *   **WhatsApp**: Suporta conexão via QR Code (multi-device) usando `whatsapp-web.js` ou `Baileys`.
 *   **X (Twitter)**: Postagem automática de tweets via API Oficial (OAuth 1.0a/2.0).
 
-## 🚀 Deploy em Produção (VPS)
+## 🚀 Deploy em Produção
 
-Para colocar o projeto no ar 24/7 (usando PM2 e Nginx), consulte o guia oficial:
+Para colocar o projeto no ar 24/7, consulte:
 
-👉 **[Guia de Instalação e Produção (VM)](./docs/production_guide.md)**
+👉 **[Guia de Deploy (PM2/Docker)](./docs/DEPLOY.md)**
 
-Este guia cobre:
-*   Requisitos de Hardware (VM Simples: 2 vCPU / 4GB RAM)
-*   **Instalação do Banco de Dados (MongoDB)**
-*   Instalação limpa no Ubuntu/Debian
-*   Configuração do PM2 para Backend e Frontend
-*   Otimizações de recurso
+O guia cobre:
+- Configuração com PM2 e Nginx
+- SSL com Certbot
+- Deploy com Docker
+- Health checks para monitoramento
+
+### Health Checks Disponíveis
+
+| Endpoint | Descrição |
+|----------|----------|
+| `GET /api/health` | Status geral do sistema |
+| `GET /api/health/ready` | Readiness probe (Kubernetes) |
+| `GET /api/health/live` | Liveness probe |
+| `GET /api/health/detailed` | Métricas de memória e uptime |
 
 ---
 

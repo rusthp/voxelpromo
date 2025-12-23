@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "react-router-dom";
+import { ConnectionStatus } from "./ConnectionStatus";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
@@ -103,6 +104,9 @@ export function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }: 
             </Link>
           ))}
         </nav>
+
+        {/* Connection Status Indicators */}
+        <ConnectionStatus collapsed={collapsed} />
 
         {/* Collapse button for collapsed state (Desktop only) */}
         {collapsed && (

@@ -292,6 +292,11 @@ export class OfferService {
         query.isPosted = false;
       }
 
+      // NEW: Search by title (case-insensitive regex)
+      if (options.search && options.search.trim()) {
+        query.title = { $regex: options.search.trim(), $options: 'i' };
+      }
+
       const limit = options.limit || 50;
       const skip = (options as any).skip || 0; // Add skip support for pagination
       const sortBy = (options as any).sortBy || 'newest';

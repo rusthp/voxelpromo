@@ -157,4 +157,164 @@ router.get('/database', async (_req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /api/health/detailed:
+ *   get:
+ *     summary: Detailed health check with system metrics
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: Detailed system health and metrics
+ */
+router.get('/detailed', async (_req, res) => {
+    try {
+        const memUsage = process.memoryUsage();
+        const uptime = Math.floor((Date.now() - startTime) / 1000);
+
+        // Database check
+        const dbState = mongoose.connection.readyState;
+        const dbStatus = dbState === 1 ? 'connected' : dbState === 2 ? 'connecting' : 'disconnected';
+
+        // Get offer stats
+        const [totalOffers, postedOffers, activeOffers] = await Promise.all([
+            OfferModel.countDocuments(),
+            OfferModel.countDocuments({ isPosted: true }),
+            OfferModel.countDocuments({ isActive: true }),
+        ]);
+
+        // Response times (simple tracking)
+        const checks = {
+            database: dbStatus === 'connected',
+            memory: memUsage.heapUsed < memUsage.heapTotal * 0.9, // Less than 90% heap usage
+        };
+
+        const overallStatus = Object.values(checks).every(c => c) ? 'healthy' : 'degraded';
+
+        res.json({
+            status: overallStatus,
+            timestamp: new Date().toISOString(),
+            version: process.env.npm_package_version || '1.1.0',
+            uptime: {
+                seconds: uptime,
+                formatted: formatUptime(uptime),
+            },
+            system: {
+                nodeVersion: process.version,
+                platform: process.platform,
+                pid: process.pid,
+            },
+            memory: {
+                heapUsed: formatBytes(memUsage.heapUsed),
+                heapTotal: formatBytes(memUsage.heapTotal),
+                rss: formatBytes(memUsage.rss),
+                external: formatBytes(memUsage.external),
+                heapUsagePercent: Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100),
+            },
+            database: {
+                status: dbStatus,
+                totalOffers,
+                postedOffers,
+                activeOffers,
+                pendingOffers: activeOffers - postedOffers,
+            },
+            checks,
+        });
+    } catch (error: any) {
+        logger.error('Detailed health check error:', error);
+        res.status(500).json({
+            status: 'unhealthy',
+            timestamp: new Date().toISOString(),
+            error: error.message,
+        });
+    }
+});
+
+/**
+ * @swagger
+ * /api/health/ready:
+ *   get:
+ *     summary: Kubernetes/Docker readiness probe
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: Service is ready
+ *       503:
+ *         description: Service is not ready
+ */
+router.get('/ready', async (_req, res) => {
+    try {
+        // Check if database is connected
+        const dbReady = mongoose.connection.readyState === 1;
+
+        if (!dbReady) {
+            return res.status(503).json({
+                status: 'not_ready',
+                reason: 'Database not connected',
+            });
+        }
+
+        // Quick database ping
+        await mongoose.connection.db?.admin().ping();
+
+        return res.json({
+            status: 'ready',
+            timestamp: new Date().toISOString(),
+        });
+    } catch (error: any) {
+        return res.status(503).json({
+            status: 'not_ready',
+            reason: error.message,
+        });
+    }
+});
+
+/**
+ * @swagger
+ * /api/health/live:
+ *   get:
+ *     summary: Kubernetes/Docker liveness probe
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: Service is alive
+ */
+router.get('/live', (_req, res) => {
+    // Simple liveness check - if the server can respond, it's alive
+    res.json({
+        status: 'alive',
+        timestamp: new Date().toISOString(),
+        uptime: Math.floor((Date.now() - startTime) / 1000),
+    });
+});
+
+// Helper functions
+function formatBytes(bytes: number): string {
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let unitIndex = 0;
+    let value = bytes;
+
+    while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024;
+        unitIndex++;
+    }
+
+    return `${value.toFixed(2)} ${units[unitIndex]}`;
+}
+
+function formatUptime(seconds: number): string {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    parts.push(`${secs}s`);
+
+    return parts.join(' ');
+}
+
 export { router as healthRoutes };
