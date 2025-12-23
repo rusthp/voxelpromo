@@ -5,7 +5,7 @@ import { Settings2, CheckCircle2, XCircle } from "lucide-react";
 import { IntegrationModal, Platform } from "@/components/integrations/IntegrationModal";
 import { WhatsAppModal } from "@/components/integrations/WhatsAppModal";
 import api from "@/services/api";
-import { FaTelegram, FaWhatsapp, FaDiscord, FaXTwitter } from "react-icons/fa6";
+import { FaTelegram, FaWhatsapp, FaXTwitter, FaInstagram } from "react-icons/fa6";
 
 interface LocalPlatform extends Platform {
     posts: number;
@@ -36,6 +36,15 @@ const Integrations = () => {
             description: "Publique tweets com links de afiliados."
         },
         {
+            id: "instagram",
+            name: "Instagram",
+            icon: <FaInstagram className="w-6 h-6 text-white" />,
+            connected: false,
+            posts: 0,
+            color: "bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400",
+            description: "Responda DMs e comentários automaticamente."
+        },
+        {
             id: "whatsapp",
             name: "WhatsApp",
             icon: <FaWhatsapp className="w-6 h-6 text-white" />,
@@ -43,15 +52,6 @@ const Integrations = () => {
             posts: 0,
             color: "bg-[#25D366]",
             description: "Envie mensagens para grupos de ofertas."
-        },
-        {
-            id: "discord",
-            name: "Discord",
-            icon: <FaDiscord className="w-6 h-6 text-white" />,
-            connected: false,
-            posts: 0,
-            color: "bg-[#5865F2]",
-            description: "Notifique servidores através de webhooks."
         },
     ]);
 
@@ -79,11 +79,11 @@ const Integrations = () => {
                     case 'twitter':
                         isConnected = !!(config.x?.bearerToken || config.x?.apiKey);
                         break;
+                    case 'instagram':
+                        isConnected = !!config.instagram?.accessToken;
+                        break;
                     case 'whatsapp':
                         isConnected = !!config.whatsapp?.enabled;
-                        break;
-                    case 'discord':
-                        isConnected = !!config.discord?.webhookUrl;
                         break;
                 }
 

@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import api from "@/services/api";
-import { Bot, MessageSquare, Zap, RefreshCw } from "lucide-react";
+import { Bot, MessageSquare, Zap, RefreshCw, Camera } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ConnectionStatusData {
     telegram: { connected: boolean; botUsername?: string };
     whatsapp: { connected: boolean };
+    instagram: { connected: boolean; username?: string };
     automation: { active: boolean };
 }
 
@@ -27,9 +28,10 @@ export function ConnectionStatus({ collapsed = false }: ConnectionStatusProps) {
 
     const fetchStatus = async () => {
         try {
-            const [telegramRes, whatsappRes, automationRes] = await Promise.allSettled([
+            const [telegramRes, whatsappRes, instagramRes, automationRes] = await Promise.allSettled([
                 api.get("/telegram/status"),
                 api.get("/whatsapp/status"),
+                api.get("/instagram/status"),
                 api.get("/automation/status"),
             ]);
 
@@ -40,6 +42,10 @@ export function ConnectionStatus({ collapsed = false }: ConnectionStatusProps) {
                 },
                 whatsapp: {
                     connected: whatsappRes.status === "fulfilled" && whatsappRes.value.data?.authenticated,
+                },
+                instagram: {
+                    connected: instagramRes.status === "fulfilled" && instagramRes.value.data?.authenticated,
+                    username: instagramRes.status === "fulfilled" ? instagramRes.value.data?.account?.username : undefined,
                 },
                 automation: {
                     active: automationRes.status === "fulfilled" && automationRes.value.data?.isActive,
@@ -81,6 +87,15 @@ export function ConnectionStatus({ collapsed = false }: ConnectionStatusProps) {
             label: "WhatsApp",
             connected: status.whatsapp.connected,
             tooltip: status.whatsapp.connected ? "WhatsApp conectado" : "WhatsApp desconectado",
+        },
+        {
+            id: "instagram",
+            icon: Camera,
+            label: "Instagram",
+            connected: status.instagram.connected,
+            tooltip: status.instagram.connected
+                ? `@${status.instagram.username || "instagram"} conectado`
+                : "Instagram desconectado",
         },
         {
             id: "automation",

@@ -4,12 +4,14 @@ export const MESSAGING_CHANNELS = {
     TELEGRAM: 'telegram',
     WHATSAPP: 'whatsapp',
     X: 'x',
+    INSTAGRAM: 'instagram',
 } as const;
 
 export const MESSAGING_CHANNEL_LABELS: Record<string, string> = {
     [MESSAGING_CHANNELS.TELEGRAM]: 'Telegram',
     [MESSAGING_CHANNELS.WHATSAPP]: 'WhatsApp',
     [MESSAGING_CHANNELS.X]: 'X (Twitter)',
+    [MESSAGING_CHANNELS.INSTAGRAM]: 'Instagram',
 };
 
 export const AFFILIATE_PLATFORMS = {
