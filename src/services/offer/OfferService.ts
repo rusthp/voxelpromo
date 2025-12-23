@@ -8,6 +8,7 @@ import { TelegramService } from '../messaging/TelegramService';
 import { WhatsAppServiceFactory } from '../messaging/WhatsAppServiceFactory';
 import { IWhatsAppService } from '../messaging/IWhatsAppService';
 import { XService } from '../messaging/XService';
+import { InstagramService } from '../messaging/InstagramService';
 import { sanitizeOffer } from '../../middleware/sanitization';
 
 export class OfferService {
@@ -15,6 +16,7 @@ export class OfferService {
   private telegramService: TelegramService | null = null;
   private whatsappService: IWhatsAppService | null = null;
   private xService: XService | null = null;
+  private instagramService: InstagramService | null = null;
 
   constructor() {
     // Lazy initialization - only create services when needed
@@ -48,6 +50,13 @@ export class OfferService {
       this.xService = new XService();
     }
     return this.xService;
+  }
+
+  private getInstagramService(): InstagramService {
+    if (!this.instagramService) {
+      this.instagramService = new InstagramService();
+    }
+    return this.instagramService;
   }
 
   /**
@@ -568,6 +577,50 @@ export class OfferService {
             postContent,
             status: 'failed',
             error: xError.message,
+          });
+        }
+      }
+
+      // Send to Instagram
+      if (channels.includes('instagram') && !offer.postedChannels?.includes('instagram')) {
+        try {
+          logger.info(`📤 Attempting to post offer ${offerId} to Instagram`);
+          const instagramSuccess = await this.getInstagramService().sendOffer(offer);
+          if (instagramSuccess) {
+            postedChannels.push('instagram');
+            success = true;
+            logger.info(`✅ Successfully posted offer ${offerId} to Instagram`);
+
+            // Save to history
+            await PostHistoryModel.create({
+              offerId,
+              platform: 'instagram',
+              postContent,
+              status: 'success',
+            });
+          } else {
+            logger.warn(`⚠️ Failed to post offer ${offerId} to Instagram - check logs`);
+            // Save failed attempt
+            await PostHistoryModel.create({
+              offerId,
+              platform: 'instagram',
+              postContent,
+              status: 'failed',
+              error: 'Failed to post to Instagram',
+            });
+          }
+        } catch (instagramError: any) {
+          logger.error(
+            `❌ Error posting offer ${offerId} to Instagram: ${instagramError.message}`,
+            instagramError
+          );
+          // Save failed attempt
+          await PostHistoryModel.create({
+            offerId,
+            platform: 'instagram',
+            postContent,
+            status: 'failed',
+            error: instagramError.message,
           });
         }
       }
