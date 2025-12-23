@@ -82,3 +82,8 @@ tmp/
 
 # Baileys Auth
 auth_info_baileys/
+
+# Internal Agent Rules & Docs
+.agent/
+docs/
+!docs/DEPLOY.md

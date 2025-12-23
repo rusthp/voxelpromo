@@ -169,15 +169,10 @@ O guia cobre:
 
 ---
 
-## 📚 Documentação Técnica
+## 📚 Documentação
 
-Para detalhes profundos sobre cada módulo, consulte a pasta [`docs/`](./docs):
-
-*   [Guia de Configuração Completo](./docs/CONFIGURATION_COMPLETE.md)
-*   [API Reference](./docs/API.md)
-*   [Estrutura do Projeto](./docs/PROJECT_SUMMARY.md)
-*   [Guia de Testes](./docs/TESTING_GUIDE.md)
-*   [Solução de Problemas](./docs/TROUBLESHOOTING.md)
+- [Guia de Deploy](./docs/DEPLOY.md)
+- [Guia de Contribuição](./CONTRIBUTING.md)
 
 ---
 
