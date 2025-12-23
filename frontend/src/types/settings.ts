@@ -14,7 +14,7 @@ export interface TelegramConfig {
 export interface WhatsAppConfig {
     enabled: boolean;
     targetNumber: string;
-    targetGroups?: string[];
+    targetGroups: string[];
     library: string;
 }
 

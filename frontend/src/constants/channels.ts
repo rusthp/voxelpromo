@@ -50,8 +50,7 @@ export const AUTOMATION_INTERVALS = [
 ];
 
 export const WHATSAPP_LIBRARIES = [
-    { value: 'whatsapp-web.js', label: 'whatsapp-web.js (Mais estável)' },
-    { value: 'baileys', label: 'Baileys (Mais leve)' },
+    { value: 'baileys', label: 'Baileys' },
 ];
 
 export type MessagingChannel = typeof MESSAGING_CHANNELS[keyof typeof MESSAGING_CHANNELS];

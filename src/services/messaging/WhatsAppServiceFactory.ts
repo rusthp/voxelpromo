@@ -1,44 +1,24 @@
 import { IWhatsAppService } from './IWhatsAppService';
-import { WhatsAppServiceWebJS } from './WhatsAppServiceWebJS';
 import { WhatsAppServiceBaileys } from './WhatsAppServiceBaileys';
 import { logger } from '../../utils/logger';
 
-export type WhatsAppLibrary = 'whatsapp-web.js' | 'baileys';
-
 /**
- * Factory para criar instâncias de serviços WhatsApp
+ * Factory para criar instâncias do serviço WhatsApp
+ * Usa exclusivamente Baileys (mais leve, sem Puppeteer)
  */
 export class WhatsAppServiceFactory {
   /**
-   * Cria uma instância do serviço WhatsApp baseado na configuração
+   * Cria uma instância do serviço WhatsApp (Baileys)
    */
-  static create(library?: string): IWhatsAppService {
-    const libraryName = (
-      library ||
-      process.env.WHATSAPP_LIBRARY ||
-      'baileys'  // Changed default from whatsapp-web.js to baileys (lighter, no Puppeteer)
-    ).toLowerCase();
-
-    switch (libraryName) {
-      case 'baileys':
-        logger.info('Using WhatsApp library: Baileys');
-        return new WhatsAppServiceBaileys();
-
-      case 'whatsapp-web.js':
-      case 'whatsappwebjs':
-        logger.info('Using WhatsApp library: whatsapp-web.js');
-        return new WhatsAppServiceWebJS();
-
-      default:
-        logger.info('Using WhatsApp library: Baileys (default)');
-        return new WhatsAppServiceBaileys();
-    }
+  static create(_library?: string): IWhatsAppService {
+    logger.info('Using WhatsApp library: Baileys');
+    return new WhatsAppServiceBaileys();
   }
 
   /**
-   * Lista bibliotecas disponíveis
+   * Retorna biblioteca disponível
    */
-  static getAvailableLibraries(): WhatsAppLibrary[] {
-    return ['whatsapp-web.js', 'baileys'];
+  static getAvailableLibraries(): string[] {
+    return ['baileys'];
   }
 }

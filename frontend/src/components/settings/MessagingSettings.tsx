@@ -69,6 +69,13 @@ export function MessagingSettings({ config, setConfig, testing, onTest }: Messag
         fetchTelegramStatus();
     }, []);
 
+    // Fetch WhatsApp status on mount (to show current connection state)
+    useEffect(() => {
+        if (config.whatsapp.enabled) {
+            fetchWhatsAppStatus();
+        }
+    }, [config.whatsapp.enabled]);
+
     // Fetch groups when connected
     useEffect(() => {
         if (isReady) {
@@ -167,6 +174,25 @@ export function MessagingSettings({ config, setConfig, testing, onTest }: Messag
         }
     };
 
+    const [testingWhatsApp, setTestingWhatsApp] = useState(false);
+
+    const handleTestWhatsApp = async () => {
+        try {
+            setTestingWhatsApp(true);
+            const response = await api.post('/whatsapp/test');
+            if (response.data.success) {
+                toast.success(response.data.message || "Mensagem de teste enviada!");
+            } else {
+                toast.error(response.data.error || "Erro ao enviar teste.");
+            }
+        } catch (error: any) {
+            console.error("Error testing WhatsApp:", error);
+            toast.error(error.response?.data?.error || "Erro ao testar WhatsApp.");
+        } finally {
+            setTestingWhatsApp(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             {/* Telegram */}
@@ -262,12 +288,24 @@ export function MessagingSettings({ config, setConfig, testing, onTest }: Messag
 
             {/* WhatsApp */}
             <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <FaWhatsapp className="w-5 h-5 text-[#25D366]" />
-                        WhatsApp
-                    </CardTitle>
-                    <CardDescription>Configure o WhatsApp para enviar mensagens</CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle className="flex items-center gap-2">
+                            <FaWhatsapp className="w-5 h-5 text-[#25D366]" />
+                            WhatsApp
+                        </CardTitle>
+                        <CardDescription>Configure o WhatsApp para enviar mensagens</CardDescription>
+                    </div>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleTestWhatsApp}
+                        disabled={testingWhatsApp || !isReady}
+                        className="gap-2"
+                    >
+                        {testingWhatsApp ? <Loader2 className="w-4 h-4 animate-spin" /> : <TestTube2 className="w-4 h-4" />}
+                        Testar
+                    </Button>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="flex items-center justify-between">
@@ -345,8 +383,8 @@ export function MessagingSettings({ config, setConfig, testing, onTest }: Messag
                                             })}
                                         </div>
                                         <div className="mt-2 text-xs text-muted-foreground text-right">
-                                            {(config.whatsapp.targetGroups?.length || 0) + (config.whatsapp.targetNumber && !config.whatsapp.targetGroups?.includes(config.whatsapp.targetNumber) ? 1 : 0) > 0 ?
-                                                `${(config.whatsapp.targetGroups?.length || 0)} grupos selecionados` :
+                                            {(config.whatsapp.targetGroups?.length || 0) > 0 ?
+                                                `${config.whatsapp.targetGroups?.length || 0} grupo${(config.whatsapp.targetGroups?.length || 0) > 1 ? 's' : ''} selecionado${(config.whatsapp.targetGroups?.length || 0) > 1 ? 's' : ''}` :
                                                 "Nenhum grupo selecionado"}
                                         </div>
                                     </div>

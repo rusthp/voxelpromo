@@ -16,12 +16,12 @@ const serviceInstances = new Map<string, any>();
 function getWhatsAppService() {
   // Load config to get library preference
   const configPath = join(process.cwd(), 'config.json');
-  let library = 'whatsapp-web.js';
+  let library = 'baileys';
 
   if (existsSync(configPath)) {
     try {
       const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-      library = config.whatsapp?.library || process.env.WHATSAPP_LIBRARY || 'whatsapp-web.js';
+      library = config.whatsapp?.library || process.env.WHATSAPP_LIBRARY || 'baileys';
     } catch (error) {
       logger.error('Error reading config for WhatsApp library:', error);
     }
@@ -256,6 +256,57 @@ router.post('/initialize', async (_req, res) => {
 });
 
 /**
+ * POST /api/whatsapp/test
+ * Send a test message to verify WhatsApp connection
+ */
+router.post('/test', async (_req, res) => {
+  try {
+    const service = getWhatsAppService();
+
+    if (!service.isReady()) {
+      return res.status(400).json({
+        success: false,
+        error: 'WhatsApp não está conectado. Escaneie o QR code primeiro.',
+      });
+    }
+
+    // Create a test offer (no affiliateUrl to skip LinkVerifier validation)
+    const testOffer = {
+      title: '🔔 Teste de Conexão VoxelPromo',
+      description: 'Se você recebeu esta mensagem, o WhatsApp está funcionando corretamente!',
+      currentPrice: 0,
+      originalPrice: 0,
+      discountPercentage: 0,
+      affiliateUrl: '', // Empty to skip link verification
+      imageUrl: '',
+      source: 'test',
+      aiGeneratedPost: `🔔 *Teste de Conexão VoxelPromo*\n\n✅ WhatsApp está funcionando corretamente!\n\n⏰ ${new Date().toLocaleString('pt-BR')}\n\n_Mensagem de teste automático_`,
+    };
+
+    const success = await service.sendOffer(testOffer as any);
+
+    if (success) {
+      logger.info('✅ WhatsApp test message sent successfully');
+      return res.json({
+        success: true,
+        message: 'Mensagem de teste enviada com sucesso! Verifique o grupo.',
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        error: 'Falha ao enviar mensagem de teste. Verifique os logs.',
+      });
+    }
+  } catch (error: any) {
+    logger.error('Error sending WhatsApp test message:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Erro ao enviar mensagem de teste',
+    });
+  }
+});
+
+/**
  * DELETE /api/whatsapp/auth
  * Clear authentication files to force new QR code generation
  */
@@ -320,31 +371,18 @@ router.get('/groups', async (_req, res) => {
       });
     }
 
-    // Try to get groups from the service
-    // This depends on the library implementation
-    const library = process.env.WHATSAPP_LIBRARY || 'whatsapp-web.js';
 
-    if (library === 'baileys') {
-      try {
-        const groups = await service.listGroups();
-        return res.json({
-          success: true,
-          groups: groups,
-          count: groups.length
-        });
-      } catch (error: any) {
-        return res.json({
-          success: false,
-          error: error.message || 'Erro ao listar grupos do Baileys',
-          groups: []
-        });
-      }
-    } else {
-      // For whatsapp-web.js, we can get chats
-      // This would require exposing the client
+    try {
+      const groups = await service.listGroups();
+      return res.json({
+        success: true,
+        groups: groups,
+        count: groups.length
+      });
+    } catch (error: any) {
       return res.json({
         success: false,
-        error: 'Listagem de grupos ainda não implementada. Use o formato: 120363123456789012@g.us',
+        error: error.message || 'Erro ao listar grupos',
         groups: [],
         help: 'Para obter o ID do grupo: 1) Adicione o bot ao grupo, 2) Envie uma mensagem no grupo, 3) Verifique os logs do backend para ver o ID do grupo',
       });

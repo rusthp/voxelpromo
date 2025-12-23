@@ -32,7 +32,8 @@ const initialConfig: ConfigState = {
     whatsapp: {
         enabled: false,
         targetNumber: "",
-        library: "whatsapp-web.js",
+        targetGroups: [],
+        library: "baileys",
     },
     x: {
         bearerToken: "",
@@ -174,6 +175,11 @@ const Settings = () => {
                 const newConfig = {
                     ...prev,
                     ...response.data,
+                    whatsapp: {
+                        ...prev.whatsapp,
+                        ...(response.data.whatsapp || {}),
+                        targetGroups: response.data.whatsapp?.targetGroups || prev.whatsapp.targetGroups || []
+                    },
                     shopee: {
                         ...prev.shopee,
                         ...(response.data.shopee || {}),

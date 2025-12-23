@@ -37,7 +37,7 @@ export class OfferService {
 
   private getWhatsAppService(): IWhatsAppService {
     if (!this.whatsappService) {
-      const library = process.env.WHATSAPP_LIBRARY || 'whatsapp-web.js';
+      const library = process.env.WHATSAPP_LIBRARY || 'baileys';
       this.whatsappService = WhatsAppServiceFactory.create(library);
     }
     return this.whatsappService;

@@ -456,6 +456,8 @@ export class AwinService extends NetworkApiAbstract {
             logger.info(`📦 Feed has ${lines.length - 1} products`);
 
             const headers = this.parseCSVLine(lines[0]);
+            logger.info(`📋 Awin CSV Headers: ${headers.join(' | ')}`); // Log headers
+
             const offers: Offer[] = [];
             const limit = maxProducts > 0 ? Math.min(maxProducts + 1, lines.length) : lines.length;
 
@@ -466,6 +468,18 @@ export class AwinService extends NetworkApiAbstract {
                     headers.forEach((header: string, idx: number) => {
                         product[header] = values[idx] || '';
                     });
+
+                    // Debug log for first 5 products regardless of random chance
+                    if (i <= 5) {
+                        logger.debug(`🔍 Awin Raw Product ${i}:`, {
+                            name: product.product_name,
+                            id: product.aw_product_id,
+                            search_price: product.search_price,
+                            store_price: product.store_price,
+                            // Log keys to see if they match expected property names
+                            keys: Object.keys(product)
+                        });
+                    }
 
                     const offer = this.convertFeedProductToOffer(product);
                     if (offer) {
@@ -488,38 +502,68 @@ export class AwinService extends NetworkApiAbstract {
      * Convert Awin Product Feed CSV row to VoxelPromo Offer
      */
     private convertFeedProductToOffer(product: any): Offer | null {
-        if (!product.product_name && !product.aw_product_id) {
+        // Support multiple field names (Standard Awin vs Google Shopping format)
+        const id = product.aw_product_id || product.id || product.MPN;
+        const title = product.product_name || product.title;
+
+        if (!title && !id) {
             return null;
         }
 
         const parsePrice = (priceStr: string): number => {
             if (!priceStr) return 0;
-            const cleaned = priceStr.replace(/[^\d.,]/g, '').replace(',', '.');
-            return parseFloat(cleaned) || 0;
+            // Remove currency codes and whitespace (e.g. "BRL 100.00" -> "100.00")
+            const cleaned = priceStr.replace(/[A-Z]{3}/g, '').trim();
+            // Replace comma with dot if it looks like decimal separator
+            const normalized = cleaned.replace(',', '.');
+            return parseFloat(normalized) || 0;
         };
 
-        const currentPrice = parsePrice(product.search_price);
-        const originalPrice = parsePrice(product.rrp_price) || parsePrice(product.store_price) || currentPrice;
+        // Determine prices
+        // Prioritize sale_price if available, otherwise price/search_price
+        let currentPrice = 0;
+        let originalPrice = 0;
+
+        if (product.sale_price) {
+            currentPrice = parsePrice(product.sale_price);
+            originalPrice = parsePrice(product.price || product.rrp_price || product.store_price);
+        } else {
+            currentPrice = parsePrice(product.price || product.search_price || product.store_price);
+            originalPrice = parsePrice(product.rrp_price || product.price);
+        }
+
+        // If parsed 0, fallback strategies
+        if (currentPrice === 0 && originalPrice > 0) currentPrice = originalPrice;
+        if (originalPrice === 0 && currentPrice > 0) originalPrice = currentPrice;
+
         const discount = originalPrice > currentPrice ? originalPrice - currentPrice : 0;
         const discountPercentage = originalPrice > 0 ? (discount / originalPrice) * 100 : 0;
 
+        // Map other fields
+        const imageUrl = product.aw_image_url || product.merchant_image_url || product.image_link || '';
+        const affiliateUrl = product.aw_deep_link || product.merchant_deep_link || product.link || '';
+        const category = product.category_name || product.merchant_category || product.google_product_category || 'outros';
+        const brand = product.brand_name || product.merchant_name || product.brand || '';
+        const description = product.description || product.product_short_description || title;
+
         const offer: Partial<Offer> = {
-            title: product.product_name || product.aw_product_id,
-            description: product.description || product.product_short_description || product.product_name,
+            title: title || id,
+            description,
+
             originalPrice,
             currentPrice,
             discount,
             discountPercentage,
             currency: product.currency || 'BRL',
-            imageUrl: product.aw_image_url || product.merchant_image_url || '',
-            productUrl: product.merchant_deep_link || product.aw_deep_link || '',
-            affiliateUrl: product.aw_deep_link || '',
+            imageUrl,
+            productUrl: affiliateUrl,
+            affiliateUrl,
             source: 'awin',
-            category: product.category_name || product.merchant_category || 'outros',
-            brand: product.brand_name || product.merchant_name || '',
+            category,
+            brand,
             isActive: true,
             isPosted: false,
-            tags: ['awin', product.merchant_name?.toLowerCase() || ''].filter(Boolean),
+            tags: ['awin', brand?.toLowerCase() || ''].filter(Boolean),
         };
 
         if (!offer.affiliateUrl) {

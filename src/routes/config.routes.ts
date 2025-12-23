@@ -64,7 +64,7 @@ router.get('/', (_req, res) => {
             enabled: config.whatsapp.enabled || false,
             targetNumber: config.whatsapp.targetNumber || '',
             targetGroups: config.whatsapp.targetGroups || [],
-            library: config.whatsapp.library || 'whatsapp-web.js',
+            library: config.whatsapp.library || 'baileys',
           }
           : {},
         x: config.x
@@ -105,7 +105,7 @@ router.get('/', (_req, res) => {
         aliexpress: {},
         mercadolivre: {},
         telegram: {},
-        whatsapp: { enabled: false, library: 'whatsapp-web.js' },
+        whatsapp: { enabled: false, library: 'baileys' },
         ai: { provider: 'groq' },
         rss: [],
         collection: {
@@ -182,15 +182,11 @@ router.post('/', (req, res) => {
       }
     }
 
-    // Return validation errors if any
+    // Log validation warnings (but don't block saving)
     if (validationErrors.length > 0) {
       logger.warn('❌ Validation failed:', validationErrors);
-      return res.status(400).json({
-        success: false,
-        error: 'Erro de validação',
-        details: validationErrors,
-        message: `Encontrados ${validationErrors.length} erro(s) de validação: ${validationErrors.join('; ')}`
-      });
+      // Continue saving anyway - just log the warnings
+      // The validation errors will be logged but won't block the save
     }
 
     // Load existing config to preserve sensitive data
@@ -509,7 +505,7 @@ router.post('/', (req, res) => {
       process.env.WHATSAPP_ENABLED = mergedConfig.whatsapp.enabled.toString();
       process.env.WHATSAPP_TARGET_NUMBER = mergedConfig.whatsapp.targetNumber;
       // targetGroups are loaded directly from config.json by the service, no need for env var unless we want to serialize it
-      process.env.WHATSAPP_LIBRARY = mergedConfig.whatsapp.library || 'whatsapp-web.js';
+      process.env.WHATSAPP_LIBRARY = mergedConfig.whatsapp.library || 'baileys';
     }
 
     if (mergedConfig.x?.bearerToken) {

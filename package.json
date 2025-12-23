@@ -65,7 +65,6 @@
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "twitter-api-v2": "^1.15.1",
-    "whatsapp-web.js": "^1.23.0",
     "winston": "^3.11.0",
     "xss": "^1.0.14"
   },
