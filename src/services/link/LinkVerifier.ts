@@ -48,11 +48,31 @@ export class LinkVerifier {
 
             return true;
         } catch (error: any) {
+            // Mercado Livre aggressively blocks non-browser requests with 403
+            // But these links work perfectly fine for real users
+            if (url.includes('mercadolivre.com')) {
+                const status = error.response?.status;
+                
+                // 403 from Mercado Livre is just anti-bot protection, not an invalid link
+                if (status === 403) {
+                    logger.info(`LinkVerifier: Mercado Livre 403 detected (anti-bot), treating as valid: ${url}`);
+                    return true;
+                }
+                
+                // Social profile pages (/social/) are storefronts, always consider valid if we get any response
+                if (url.includes('/social/') && error.response) {
+                    logger.info(`LinkVerifier: Mercado Livre social profile detected, treating as valid: ${url}`);
+                    return true;
+                }
+            }
+
             logger.warn(`LinkVerifier: Validation failed for ${url}: ${error.message}`);
 
-            // If it's a 403, it might just be bot protection but the link works for humans
-            // But we should be careful. For now, assume failure if we can't access it.
-            // If it's a timeout, it might be slow but valid.
+            // If it's a timeout, it might be slow but valid - be more lenient
+            if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+                logger.info(`LinkVerifier: Timeout detected, treating as potentially valid: ${url}`);
+                return true;
+            }
 
             return false;
         }
