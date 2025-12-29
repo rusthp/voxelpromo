@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { OfferModel } from '../models/Offer';
 import { logger } from '../utils/logger';
 import mongoose from 'mongoose';
+import { AffiliateHealthCheckService } from '../services/link/AffiliateHealthCheckService';
 
 const router = Router();
 const startTime = Date.now();
@@ -316,5 +317,201 @@ function formatUptime(seconds: number): string {
 
     return parts.join(' ');
 }
+
+// ============================================================
+// AFFILIATE LINK HEALTH CHECK ENDPOINTS
+// ============================================================
+
+const affiliateHealthService = new AffiliateHealthCheckService();
+
+/**
+ * @swagger
+ * /api/health/links:
+ *   get:
+ *     summary: Get affiliate link health report
+ *     tags: [Health]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 100
+ *         description: Max number of links to check
+ *     responses:
+ *       200:
+ *         description: Link health report
+ */
+router.get('/links', async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit as string) || 100;
+        const report = await affiliateHealthService.generateHealthReport(limit);
+
+        return res.json({
+            success: true,
+            ...report
+        });
+    } catch (error: any) {
+        logger.error('Link health check error:', error);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * @swagger
+ * /api/health/links/broken:
+ *   get:
+ *     summary: Get only broken affiliate links
+ *     tags: [Health]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 100
+ *     responses:
+ *       200:
+ *         description: List of broken links
+ */
+router.get('/links/broken', async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit as string) || 100;
+        const brokenLinks = await affiliateHealthService.getBrokenLinks(limit);
+
+        return res.json({
+            success: true,
+            count: brokenLinks.length,
+            brokenLinks
+        });
+    } catch (error: any) {
+        logger.error('Broken links check error:', error);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * @swagger
+ * /api/health/links/verify:
+ *   post:
+ *     summary: Verify a single affiliate link
+ *     tags: [Health]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               url:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Link verification result
+ */
+router.post('/links/verify', async (req, res) => {
+    try {
+        const { url } = req.body;
+
+        if (!url) {
+            return res.status(400).json({ error: 'URL is required' });
+        }
+
+        const result = await affiliateHealthService.verifyLink(url, false);
+
+        return res.json({
+            success: true,
+            result
+        });
+    } catch (error: any) {
+        logger.error('Single link verify error:', error);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * @swagger
+ * /api/health/links/batch-verify:
+ *   post:
+ *     summary: Verify multiple affiliate links
+ *     tags: [Health]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               urls:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Batch verification results
+ */
+router.post('/links/batch-verify', async (req, res) => {
+    try {
+        const { urls } = req.body;
+
+        if (!urls || !Array.isArray(urls)) {
+            return res.status(400).json({ error: 'urls array is required' });
+        }
+
+        if (urls.length > 50) {
+            return res.status(400).json({ error: 'Maximum 50 URLs allowed per batch' });
+        }
+
+        const results = await affiliateHealthService.verifyBatch(urls, 5);
+        const healthy = results.filter(r => r.isValid).length;
+        const broken = results.filter(r => !r.isValid).length;
+
+        return res.json({
+            success: true,
+            total: results.length,
+            healthy,
+            broken,
+            percentage: results.length > 0 ? Math.round((healthy / results.length) * 100) : 100,
+            results
+        });
+    } catch (error: any) {
+        logger.error('Batch verify error:', error);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * @swagger
+ * /api/health/links/cache:
+ *   get:
+ *     summary: Get link verification cache statistics
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: Cache statistics
+ */
+router.get('/links/cache', (_req, res) => {
+    const stats = affiliateHealthService.getCacheStats();
+    res.json({
+        success: true,
+        ...stats
+    });
+});
+
+/**
+ * @swagger
+ * /api/health/links/cache:
+ *   delete:
+ *     summary: Clear link verification cache
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: Cache cleared
+ */
+router.delete('/links/cache', (_req, res) => {
+    affiliateHealthService.clearCache();
+    res.json({
+        success: true,
+        message: 'Cache cleared'
+    });
+});
 
 export { router as healthRoutes };

@@ -3,6 +3,7 @@ import Joi from 'joi';
 import { OfferService } from '../services/offer/OfferService';
 import { validateRequest } from '../middleware/validation';
 import { FilterOptions, Offer } from '../types';
+import { PrioritizationService, SEASONAL_EVENTS } from '../services/automation/PrioritizationService';
 
 const router = Router();
 
@@ -351,6 +352,114 @@ router.delete('/', validateRequest(deleteOffersSchema), async (req, res) => {
     console.log('[DELETE BATCH] Success:', { deletedCount });
 
     return res.json({ success: true, deletedCount, message: `Deleted ${deletedCount} offers` });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================
+// SEASONAL OFFERS ENDPOINTS
+// ============================================================
+
+const prioritizationService = new PrioritizationService();
+
+/**
+ * GET /api/offers/seasonal/events
+ * Get currently active seasonal events
+ */
+router.get('/seasonal/events', async (_req, res) => {
+  try {
+    const activeEvents = prioritizationService.getActiveSeasonalEvents();
+    const allEvents = SEASONAL_EVENTS.map(event => ({
+      ...event,
+      isActive: prioritizationService.isEventActiveOnDate(event)
+    }));
+
+    return res.json({
+      success: true,
+      activeEvents,
+      allEvents,
+      activeKeywords: prioritizationService.getActiveSeasonalKeywords()
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/offers/seasonal
+ * Get offers matching active seasonal events
+ */
+router.get('/seasonal', async (req, res) => {
+  try {
+    const { limit = '50', skip = '0' } = req.query;
+
+    // Get all offers
+    const allOffers = await offerService.getAllOffers(
+      parseInt(limit as string) * 2, // Get more to filter
+      parseInt(skip as string)
+    );
+
+    // Filter offers that match active seasonal events
+    const seasonalOffers = allOffers
+      .map(offer => {
+        const match = prioritizationService.matchesActiveSeasonalEvent(offer);
+        return {
+          ...offer,
+          seasonalMatch: match.matches ? match : null,
+          seasonalScore: prioritizationService.getSeasonalScore(offer)
+        };
+      })
+      .filter(offer => offer.seasonalMatch !== null)
+      .sort((a, b) => b.seasonalScore - a.seasonalScore)
+      .slice(0, parseInt(limit as string));
+
+    const activeEvents = prioritizationService.getActiveSeasonalEvents();
+
+    return res.json({
+      success: true,
+      activeEvents: activeEvents.map(e => e.name),
+      totalMatched: seasonalOffers.length,
+      offers: seasonalOffers
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/offers/seasonal/check
+ * Check if specific offers match seasonal events
+ */
+router.post('/seasonal/check', async (req, res) => {
+  try {
+    const { offerIds } = req.body;
+
+    if (!offerIds || !Array.isArray(offerIds)) {
+      return res.status(400).json({ error: 'offerIds array is required' });
+    }
+
+    const results: { offerId: string; matches: boolean; matchedEvents: string[]; matchedKeywords: string[]; score: number }[] = [];
+
+    for (const offerId of offerIds) {
+      const offer = await offerService.getOfferById(offerId);
+      if (offer) {
+        const match = prioritizationService.matchesActiveSeasonalEvent(offer);
+        results.push({
+          offerId,
+          matches: match.matches,
+          matchedEvents: match.matchedEvents,
+          matchedKeywords: match.matchedKeywords,
+          score: prioritizationService.getSeasonalScore(offer)
+        });
+      }
+    }
+
+    return res.json({
+      success: true,
+      results,
+      activeEvents: prioritizationService.getActiveSeasonalEvents().map(e => e.name)
+    });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

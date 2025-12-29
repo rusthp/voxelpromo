@@ -442,6 +442,102 @@ function InstagramCard({ config, setConfig, testing, onTest }: MessagingSettings
                         )}
                     </div>
                 </div>
+
+                {/* Personalization Settings - Only show when connected */}
+                {instagramStatus?.authenticated && (
+                    <div className="mt-6 pt-6 border-t">
+                        <h4 className="font-medium mb-4 flex items-center gap-2">
+                            <span>⚙️</span>
+                            Personalização de Mensagens
+                        </h4>
+
+                        {/* Enable Instagram */}
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <Label className="text-base">Habilitar Instagram</Label>
+                                <p className="text-sm text-muted-foreground">Ativar/desativar canal Instagram</p>
+                            </div>
+                            <Switch
+                                checked={config.instagram?.enabled !== false}
+                                onCheckedChange={async (checked) => {
+                                    try {
+                                        await api.post('/instagram/settings', { enabled: checked });
+                                        setConfig({
+                                            ...config,
+                                            instagram: { ...config.instagram!, enabled: checked }
+                                        });
+                                        toast.success(checked ? "Instagram habilitado" : "Instagram desabilitado");
+                                    } catch (error) {
+                                        toast.error("Erro ao atualizar configuração");
+                                    }
+                                }}
+                            />
+                        </div>
+
+                        {/* Auto-reply DMs */}
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <Label className="text-base">Auto-responder DMs</Label>
+                                <p className="text-sm text-muted-foreground">Responder automaticamente mensagens diretas</p>
+                            </div>
+                            <Switch
+                                checked={config.instagram?.autoReplyDM !== false}
+                                onCheckedChange={async (checked) => {
+                                    try {
+                                        await api.post('/instagram/settings', { autoReplyDM: checked });
+                                        setConfig({
+                                            ...config,
+                                            instagram: { ...config.instagram!, autoReplyDM: checked }
+                                        });
+                                        toast.success(checked ? "Auto-resposta ativada" : "Auto-resposta desativada");
+                                    } catch (error) {
+                                        toast.error("Erro ao atualizar configuração");
+                                    }
+                                }}
+                            />
+                        </div>
+
+                        {/* Welcome Message */}
+                        <div className="space-y-2 mb-4">
+                            <Label htmlFor="welcomeMessage">Mensagem de Boas-vindas</Label>
+                            <textarea
+                                id="welcomeMessage"
+                                className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                value={config.instagram?.welcomeMessage || 'Olá! 👋 Obrigado por entrar em contato!\n\nConfira nossas melhores ofertas com descontos imperdíveis! 🔥\n\nDigite "ofertas" para ver as promoções mais recentes.'}
+                                onChange={(e) => setConfig({
+                                    ...config,
+                                    instagram: { ...config.instagram!, welcomeMessage: e.target.value }
+                                })}
+                                placeholder="Digite a mensagem que será enviada quando alguém entrar em contato..."
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                💡 Dica: mencione que o usuário pode digitar "ofertas" para ver promoções!
+                            </p>
+                        </div>
+
+                        {/* Save Settings Button */}
+                        <Button
+                            onClick={async () => {
+                                try {
+                                    setLoading(true);
+                                    await api.post('/instagram/settings', {
+                                        welcomeMessage: config.instagram?.welcomeMessage,
+                                    });
+                                    toast.success("Configurações salvas com sucesso!");
+                                } catch (error) {
+                                    toast.error("Erro ao salvar configurações");
+                                } finally {
+                                    setLoading(false);
+                                }
+                            }}
+                            disabled={loading}
+                            className="w-full"
+                        >
+                            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                            Salvar Configurações
+                        </Button>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );

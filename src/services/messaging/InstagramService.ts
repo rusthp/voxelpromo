@@ -62,6 +62,13 @@ interface TokenResponse {
     expires_in?: number;
 }
 
+interface InstagramSettings {
+    enabled: boolean;
+    autoReplyDM: boolean;
+    welcomeMessage: string;
+    keywordReplies: { [keyword: string]: string };
+}
+
 interface InstagramAccount {
     id: string;
     username: string;
@@ -80,6 +87,18 @@ export class InstagramService {
     private pageId: string | null = null;
     private igUserId: string | null = null;
     private webhookVerifyToken: string | null = null;
+
+    // Configurable settings
+    private settings: InstagramSettings = {
+        enabled: true,
+        autoReplyDM: true,
+        welcomeMessage: 'Olá! 👋 Obrigado por entrar em contato!\n\nConfira nossas melhores ofertas com descontos imperdíveis! 🔥\n\nDigite "ofertas" para ver as promoções mais recentes.',
+        keywordReplies: {
+            'ofertas': 'Buscando as melhores ofertas para você... 🔍',
+            'promoções': 'Buscando as melhores promoções para você... 🔍',
+            'desconto': 'Confira nossos melhores descontos! 💰',
+        },
+    };
 
     // API configuration
     private readonly apiVersion = 'v21.0';
@@ -110,6 +129,28 @@ export class InstagramService {
                     this.pageId = config.instagram.pageId || process.env.INSTAGRAM_PAGE_ID || null;
                     this.igUserId = config.instagram.igUserId || process.env.INSTAGRAM_IG_USER_ID || null;
                     this.webhookVerifyToken = config.instagram.webhookVerifyToken || process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN || null;
+
+                    // Load settings
+                    if (config.instagram.settings) {
+                        this.settings = {
+                            ...this.settings,
+                            ...config.instagram.settings,
+                        };
+                    } else {
+                        // Backward compatibility - load individual fields
+                        if (typeof config.instagram.enabled === 'boolean') {
+                            this.settings.enabled = config.instagram.enabled;
+                        }
+                        if (typeof config.instagram.autoReplyDM === 'boolean') {
+                            this.settings.autoReplyDM = config.instagram.autoReplyDM;
+                        }
+                        if (config.instagram.welcomeMessage) {
+                            this.settings.welcomeMessage = config.instagram.welcomeMessage;
+                        }
+                        if (config.instagram.keywordReplies) {
+                            this.settings.keywordReplies = config.instagram.keywordReplies;
+                        }
+                    }
                 }
             }
 
@@ -128,6 +169,7 @@ export class InstagramService {
             logger.error(`Error loading Instagram credentials: ${error.message}`);
         }
     }
+
 
     /**
      * Check if the service is configured
@@ -406,16 +448,82 @@ export class InstagramService {
                 return;
             }
 
+            // Check if auto-reply is enabled
+            if (!this.settings.autoReplyDM) {
+                logger.debug('Instagram auto-reply DM is disabled, skipping response');
+                return;
+            }
+
             if (event.message?.text) {
+                const messageText = event.message.text.toLowerCase().trim();
                 logger.info(`📨 Instagram DM received from ${senderId}: ${event.message.text.substring(0, 50)}...`);
 
-                // Auto-reply with welcome message
+                // Check for keyword replies first
+                const keywordResponse = await this.handleKeywordReply(senderId, messageText);
+                if (keywordResponse) {
+                    return; // Keyword was handled
+                }
+
+                // Otherwise, send welcome message
                 await this.sendWelcomeMessage(senderId);
             }
         } catch (error: any) {
             logger.error(`Error handling Instagram messaging event: ${error.message}`);
         }
     }
+
+    /**
+     * Handle keyword-based replies
+     * @returns true if a keyword was matched and handled
+     */
+    private async handleKeywordReply(recipientId: string, messageText: string): Promise<boolean> {
+        // Check each keyword
+        for (const [keyword, response] of Object.entries(this.settings.keywordReplies)) {
+            if (messageText.includes(keyword.toLowerCase())) {
+                logger.info(`🔑 Keyword "${keyword}" detected, sending response`);
+
+                // If keyword is "ofertas" or "promoções", fetch and send recent offers
+                if (keyword === 'ofertas' || keyword === 'promoções') {
+                    await this.sendDirectMessage(recipientId, response);
+                    await this.sendRecentOffers(recipientId);
+                } else {
+                    await this.sendDirectMessage(recipientId, response);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Send recent offers to a user
+     */
+    private async sendRecentOffers(recipientId: string): Promise<void> {
+        try {
+            // Dynamic import to avoid circular dependencies
+            const { OfferModel } = require('../../models/Offer'); // eslint-disable-line @typescript-eslint/no-var-requires
+
+            const recentOffers = await OfferModel.find({ status: 'approved' })
+                .sort({ createdAt: -1 })
+                .limit(3)
+                .lean();
+
+            if (recentOffers.length === 0) {
+                await this.sendDirectMessage(recipientId, 'No momento não temos ofertas disponíveis. Volte em breve! 😊');
+                return;
+            }
+
+            for (const offer of recentOffers) {
+                const message = await this.formatMessage(offer);
+                await this.sendDirectMessage(recipientId, message);
+                await this.delay(1500); // Delay between messages
+            }
+        } catch (error: any) {
+            logger.error(`Error sending recent offers: ${error.message}`);
+            await this.sendDirectMessage(recipientId, 'Ops! Não consegui buscar as ofertas no momento. Tente novamente mais tarde! 🙏');
+        }
+    }
+
 
     /**
      * Handle change events (comments, mentions)
@@ -438,9 +546,7 @@ export class InstagramService {
      * Send a welcome message to a user
      */
     private async sendWelcomeMessage(recipientId: string): Promise<boolean> {
-        const welcomeMessage = `Olá! 👋 Obrigado por entrar em contato!\n\nConfira nossas melhores ofertas com descontos imperdíveis! 🔥\n\nDigite "ofertas" para ver as promoções mais recentes.`;
-
-        return this.sendDirectMessage(recipientId, welcomeMessage);
+        return this.sendDirectMessage(recipientId, this.settings.welcomeMessage);
     }
 
     /**
@@ -715,6 +821,54 @@ export class InstagramService {
      */
     reloadCredentials(): void {
         this.loadCredentials();
+    }
+
+    /**
+     * Get current settings
+     */
+    getSettings(): InstagramSettings {
+        return { ...this.settings };
+    }
+
+    /**
+     * Update settings
+     */
+    async updateSettings(newSettings: Partial<InstagramSettings>): Promise<void> {
+        this.settings = {
+            ...this.settings,
+            ...newSettings,
+        };
+
+        // Save to config.json
+        try {
+            const configPath = join(process.cwd(), 'config.json');
+            let config: any = {};
+
+            if (existsSync(configPath)) {
+                config = JSON.parse(readFileSync(configPath, 'utf-8'));
+            }
+
+            config.instagram = {
+                ...config.instagram,
+                enabled: this.settings.enabled,
+                autoReplyDM: this.settings.autoReplyDM,
+                welcomeMessage: this.settings.welcomeMessage,
+                keywordReplies: this.settings.keywordReplies,
+            };
+
+            writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+            logger.info('✅ Instagram settings updated');
+        } catch (error: any) {
+            logger.error(`Error saving Instagram settings: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Check if Instagram is enabled
+     */
+    isEnabled(): boolean {
+        return this.settings.enabled;
     }
 
     /**

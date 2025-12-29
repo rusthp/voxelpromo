@@ -87,6 +87,11 @@ export interface InstagramConfig {
     pageId: string;
     igUserId: string;
     webhookVerifyToken: string;
+    // Personalization settings
+    enabled?: boolean;
+    autoReplyDM?: boolean;
+    welcomeMessage?: string;
+    keywordReplies?: { [keyword: string]: string };
 }
 
 export interface AutomationConfig {

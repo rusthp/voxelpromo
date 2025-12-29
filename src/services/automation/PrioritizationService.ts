@@ -1,6 +1,6 @@
 import { PeakHour } from '../../models/AutomationConfig';
 
-interface SeasonalEvent {
+export interface SeasonalEvent {
     name: string;
     startMonth: number; // 0-11 (Jan=0, Dec=11)
     startDay: number;
@@ -9,7 +9,8 @@ interface SeasonalEvent {
     keywords: string[];
 }
 
-const SEASONAL_EVENTS: SeasonalEvent[] = [
+export const SEASONAL_EVENTS: SeasonalEvent[] = [
+    // === DEZEMBRO ===
     {
         name: 'Natal',
         startMonth: 11, // Dezembro
@@ -19,6 +20,15 @@ const SEASONAL_EVENTS: SeasonalEvent[] = [
         keywords: ['natal', 'christmas', 'presente', 'papai noel', 'arvore', 'enfeite', 'brinquedo', 'lego', 'boneca', 'jogo', 'perfume', 'chocolate', 'panetone'],
     },
     {
+        name: 'Ano Novo',
+        startMonth: 11, // Dezembro
+        startDay: 26,
+        endMonth: 0, // Janeiro
+        endDay: 2,
+        keywords: ['ano novo', 'reveillon', 'champagne', 'espumante', 'roupa branca', 'lingerie', 'decoração', 'festa', 'viagem'],
+    },
+    // === NOVEMBRO ===
+    {
         name: 'Black Friday',
         startMonth: 10, // Novembro
         startDay: 1,
@@ -27,13 +37,23 @@ const SEASONAL_EVENTS: SeasonalEvent[] = [
         keywords: ['black friday', 'black', 'friday', 'oferta', 'desconto', 'tech', 'iphone', 'samsung', 'tv', 'smart', 'celular', 'notebook', 'pc', 'gamer'],
     },
     {
-        name: 'Dia das Mães',
-        startMonth: 4, // Maio
+        name: 'Cyber Monday',
+        startMonth: 11, // Dezembro (primeira semana)
         startDay: 1,
-        endMonth: 4,
-        endDay: 15, // Primeira quinzena aprox
-        keywords: ['mãe', 'mae', 'mulher', 'perfume', 'bolsa', 'beleza', 'maquiagem', 'cozinha', 'casa', 'flor'],
+        endMonth: 11,
+        endDay: 5,
+        keywords: ['cyber monday', 'cyber', 'tech', 'eletrônico', 'software', 'streaming', 'assinatura', 'game', 'console'],
     },
+    // === OUTUBRO ===
+    {
+        name: 'Dia das Crianças',
+        startMonth: 9, // Outubro
+        startDay: 1,
+        endMonth: 9,
+        endDay: 12,
+        keywords: ['criança', 'brinquedo', 'jogo', 'infantil', 'boneca', 'carrinho', 'lego', 'nerf', 'patinete', 'bicicleta'],
+    },
+    // === AGOSTO ===
     {
         name: 'Dia dos Pais',
         startMonth: 7, // Agosto
@@ -42,30 +62,67 @@ const SEASONAL_EVENTS: SeasonalEvent[] = [
         endDay: 15,
         keywords: ['pai', 'homem', 'ferramenta', 'bebida', 'churrasco', 'relógio', 'carteira', 'perfume'],
     },
+    // === JUNHO ===
     {
         name: 'Dia dos Namorados',
         startMonth: 5, // Junho
         startDay: 1,
         endMonth: 5,
         endDay: 12,
-        keywords: ['namorado', 'namorada', 'amor', 'casal', 'perfume', 'chocolate', 'aliança', 'presente', 'sexy'],
+        keywords: ['namorado', 'namorada', 'amor', 'casal', 'perfume', 'chocolate', 'aliança', 'presente', 'sexy', 'lingerie'],
     },
+    {
+        name: 'Festa Junina',
+        startMonth: 5, // Junho
+        startDay: 10,
+        endMonth: 6, // Julho
+        endDay: 15,
+        keywords: ['festa junina', 'são joão', 'quadrilha', 'fogueira', 'pipoca', 'milho', 'paçoca', 'quentão', 'chapéu de palha'],
+    },
+    // === MAIO ===
+    {
+        name: 'Dia das Mães',
+        startMonth: 4, // Maio
+        startDay: 1,
+        endMonth: 4,
+        endDay: 15,
+        keywords: ['mãe', 'mae', 'mulher', 'perfume', 'bolsa', 'beleza', 'maquiagem', 'cozinha', 'casa', 'flor'],
+    },
+    // === MARÇO/ABRIL ===
     {
         name: 'Páscoa',
         startMonth: 2, // Março
         startDay: 15,
         endMonth: 3, // Abril
-        endDay: 30, // Janela ampla
+        endDay: 30,
         keywords: ['pascoa', 'páscoa', 'chocolate', 'ovo', 'bombom', 'coelho'],
     },
     {
-        name: 'Dia das Crianças',
-        startMonth: 9, // Outubro
+        name: 'Dia do Consumidor',
+        startMonth: 2, // Março
+        startDay: 10,
+        endMonth: 2,
+        endDay: 20,
+        keywords: ['consumidor', 'desconto', 'promoção', 'tech', 'eletrônico', 'celular', 'tv', 'notebook'],
+    },
+    // === FEVEREIRO/MARÇO ===
+    {
+        name: 'Carnaval',
+        startMonth: 1, // Fevereiro (pode variar)
         startDay: 1,
-        endMonth: 9,
-        endDay: 12,
-        keywords: ['criança', 'brinquedo', 'jogo', 'infantil', 'boneca', 'carrinho', 'lego', 'nerf', 'patinete', 'bicicleta'],
-    }
+        endMonth: 2, // Março
+        endDay: 10,
+        keywords: ['carnaval', 'fantasia', 'glitter', 'maquiagem', 'abadá', 'cerveja', 'caixa de som', 'bluetooth', 'cooler', 'bloco'],
+    },
+    // === JANEIRO/FEVEREIRO ===
+    {
+        name: 'Volta às Aulas',
+        startMonth: 0, // Janeiro
+        startDay: 10,
+        endMonth: 1, // Fevereiro
+        endDay: 28,
+        keywords: ['escola', 'aula', 'mochila', 'caderno', 'lápis', 'caneta', 'estojo', 'uniforme', 'livro', 'material escolar'],
+    },
 ];
 
 export class PrioritizationService {
@@ -331,5 +388,87 @@ export class PrioritizationService {
         }
 
         return 0;
+    }
+
+    /**
+     * Check if a specific event is active on a given date
+     */
+    isEventActiveOnDate(event: SeasonalEvent, date: Date = new Date()): boolean {
+        const month = date.getMonth();
+        const day = date.getDate();
+
+        // Handle cross-year events (e.g., Ano Novo: Dec 26 - Jan 2)
+        if (event.startMonth > event.endMonth) {
+            // Event crosses year boundary
+            if (month === event.startMonth) return day >= event.startDay;
+            if (month === event.endMonth) return day <= event.endDay;
+            return false;
+        }
+
+        // Same month event
+        if (event.startMonth === event.endMonth) {
+            return month === event.startMonth && day >= event.startDay && day <= event.endDay;
+        }
+
+        // Cross-month event (within same year)
+        if (month === event.startMonth) return day >= event.startDay;
+        if (month === event.endMonth) return day <= event.endDay;
+        return month > event.startMonth && month < event.endMonth;
+    }
+
+    /**
+     * Get all currently active seasonal events
+     */
+    getActiveSeasonalEvents(date: Date = new Date()): SeasonalEvent[] {
+        return SEASONAL_EVENTS.filter(event => this.isEventActiveOnDate(event, date));
+    }
+
+    /**
+     * Get all keywords for currently active events
+     */
+    getActiveSeasonalKeywords(date: Date = new Date()): string[] {
+        const activeEvents = this.getActiveSeasonalEvents(date);
+        const keywords = new Set<string>();
+
+        for (const event of activeEvents) {
+            for (const keyword of event.keywords) {
+                keywords.add(keyword.toLowerCase());
+            }
+        }
+
+        return Array.from(keywords);
+    }
+
+    /**
+     * Check if an offer matches any active seasonal event
+     */
+    matchesActiveSeasonalEvent(
+        offer: { title: string; category?: string; description?: string },
+        date: Date = new Date()
+    ): { matches: boolean; matchedEvents: string[]; matchedKeywords: string[] } {
+        const activeEvents = this.getActiveSeasonalEvents(date);
+        const text = `${offer.title} ${offer.category || ''} ${offer.description || ''}`.toLowerCase();
+
+        const matchedEvents: string[] = [];
+        const matchedKeywords: string[] = [];
+
+        for (const event of activeEvents) {
+            for (const keyword of event.keywords) {
+                if (text.includes(keyword.toLowerCase())) {
+                    if (!matchedEvents.includes(event.name)) {
+                        matchedEvents.push(event.name);
+                    }
+                    if (!matchedKeywords.includes(keyword)) {
+                        matchedKeywords.push(keyword);
+                    }
+                }
+            }
+        }
+
+        return {
+            matches: matchedEvents.length > 0,
+            matchedEvents,
+            matchedKeywords
+        };
     }
 }

@@ -87,3 +87,5 @@ auth_info_baileys/
 .agent/
 docs/
 !docs/DEPLOY.md
+
+*.timestamp*

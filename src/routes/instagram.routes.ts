@@ -444,4 +444,68 @@ router.get('/rate-limit', (_req: Request, res: Response) => {
     }
 });
 
+/**
+ * @swagger
+ * /api/instagram/settings:
+ *   get:
+ *     summary: Get Instagram personalization settings
+ *     tags: [Instagram]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/settings', (_req: Request, res: Response) => {
+    try {
+        const service = getInstagramService();
+        const settings = service.getSettings();
+
+        return res.json({
+            success: true,
+            settings,
+        });
+    } catch (error: any) {
+        logger.error('Error getting Instagram settings:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message,
+        });
+    }
+});
+
+/**
+ * @swagger
+ * /api/instagram/settings:
+ *   post:
+ *     summary: Update Instagram personalization settings
+ *     tags: [Instagram]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post('/settings', async (req: Request, res: Response) => {
+    try {
+        const { enabled, autoReplyDM, welcomeMessage, keywordReplies } = req.body;
+        const service = getInstagramService();
+
+        const updates: any = {};
+        if (typeof enabled === 'boolean') updates.enabled = enabled;
+        if (typeof autoReplyDM === 'boolean') updates.autoReplyDM = autoReplyDM;
+        if (welcomeMessage !== undefined) updates.welcomeMessage = welcomeMessage;
+        if (keywordReplies !== undefined) updates.keywordReplies = keywordReplies;
+
+        await service.updateSettings(updates);
+
+        return res.json({
+            success: true,
+            message: 'Configurações atualizadas com sucesso',
+            settings: service.getSettings(),
+        });
+    } catch (error: any) {
+        logger.error('Error updating Instagram settings:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message,
+        });
+    }
+});
+
 export default router;
+
