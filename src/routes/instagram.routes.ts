@@ -507,5 +507,239 @@ router.post('/settings', async (req: Request, res: Response) => {
     }
 });
 
+// ========================================
+// Content Publishing Routes (Stories & Reels)
+// ========================================
+
+/**
+ * @swagger
+ * /api/instagram/story:
+ *   post:
+ *     summary: Publish a Story
+ *     tags: [Instagram]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - mediaUrl
+ *             properties:
+ *               mediaUrl:
+ *                 type: string
+ *                 description: Public URL of the image or video
+ *               mediaType:
+ *                 type: string
+ *                 enum: [IMAGE, VIDEO]
+ *                 default: IMAGE
+ */
+router.post('/story', async (req: Request, res: Response) => {
+    try {
+        const { mediaUrl, mediaType = 'IMAGE' } = req.body;
+
+        if (!mediaUrl) {
+            return res.status(400).json({
+                success: false,
+                error: 'mediaUrl is required',
+            });
+        }
+
+        const service = getInstagramService();
+
+        if (!service.isAuthenticated()) {
+            return res.status(401).json({
+                success: false,
+                error: 'Instagram não está conectado',
+            });
+        }
+
+        const mediaId = await service.publishStory(mediaUrl, mediaType);
+
+        if (mediaId) {
+            return res.json({
+                success: true,
+                message: 'Story publicado com sucesso!',
+                mediaId,
+            });
+        } else {
+            return res.status(500).json({
+                success: false,
+                error: 'Falha ao publicar Story. Verifique os logs.',
+            });
+        }
+    } catch (error: any) {
+        logger.error('Error publishing Instagram story:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message,
+        });
+    }
+});
+
+/**
+ * @swagger
+ * /api/instagram/reel:
+ *   post:
+ *     summary: Publish a Reel
+ *     tags: [Instagram]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - videoUrl
+ *             properties:
+ *               videoUrl:
+ *                 type: string
+ *                 description: Public URL of the video (MP4)
+ *               caption:
+ *                 type: string
+ *                 description: Caption for the reel
+ *               shareToFeed:
+ *                 type: boolean
+ *                 default: true
+ */
+router.post('/reel', async (req: Request, res: Response) => {
+    try {
+        const { videoUrl, caption, shareToFeed = true } = req.body;
+
+        if (!videoUrl) {
+            return res.status(400).json({
+                success: false,
+                error: 'videoUrl is required',
+            });
+        }
+
+        const service = getInstagramService();
+
+        if (!service.isAuthenticated()) {
+            return res.status(401).json({
+                success: false,
+                error: 'Instagram não está conectado',
+            });
+        }
+
+        const mediaId = await service.publishReel(videoUrl, caption, shareToFeed);
+
+        if (mediaId) {
+            return res.json({
+                success: true,
+                message: 'Reel publicado com sucesso!',
+                mediaId,
+            });
+        } else {
+            return res.status(500).json({
+                success: false,
+                error: 'Falha ao publicar Reel. Verifique os logs.',
+            });
+        }
+    } catch (error: any) {
+        logger.error('Error publishing Instagram reel:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message,
+        });
+    }
+});
+
+/**
+ * @swagger
+ * /api/instagram/insights/{mediaId}:
+ *   get:
+ *     summary: Get insights for a published media
+ *     tags: [Instagram]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: mediaId
+ *         required: true
+ *         schema:
+ *           type: string
+ */
+router.get('/insights/:mediaId', async (req: Request, res: Response) => {
+    try {
+        const { mediaId } = req.params;
+        const service = getInstagramService();
+
+        if (!service.isAuthenticated()) {
+            return res.status(401).json({
+                success: false,
+                error: 'Instagram não está conectado',
+            });
+        }
+
+        const insights = await service.getMediaInsights(mediaId);
+
+        if (insights) {
+            return res.json({
+                success: true,
+                insights,
+            });
+        } else {
+            return res.status(404).json({
+                success: false,
+                error: 'Não foi possível obter insights para esta mídia',
+            });
+        }
+    } catch (error: any) {
+        logger.error('Error getting Instagram insights:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message,
+        });
+    }
+});
+
+/**
+ * @swagger
+ * /api/instagram/media:
+ *   get:
+ *     summary: Get recent media published by the account
+ *     tags: [Instagram]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ */
+router.get('/media', async (req: Request, res: Response) => {
+    try {
+        const limit = parseInt(req.query.limit as string) || 10;
+        const service = getInstagramService();
+
+        if (!service.isAuthenticated()) {
+            return res.status(401).json({
+                success: false,
+                error: 'Instagram não está conectado',
+            });
+        }
+
+        const media = await service.getRecentMedia(limit);
+
+        return res.json({
+            success: true,
+            media,
+            count: media.length,
+        });
+    } catch (error: any) {
+        logger.error('Error getting Instagram media:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message,
+        });
+    }
+});
+
 export default router;
 

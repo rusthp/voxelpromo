@@ -2,7 +2,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface PostHistoryDocument extends Document {
     offerId: mongoose.Types.ObjectId;
-    platform: 'telegram' | 'x' | 'whatsapp';
+    platform: 'telegram' | 'x' | 'whatsapp' | 'instagram';
     postedAt: Date;
     postContent: string;
     status: 'success' | 'failed';
@@ -14,6 +14,19 @@ export interface PostHistoryDocument extends Document {
         likes?: number;
         retweets?: number;
         views?: number;
+        // Instagram specific
+        mediaId?: string;
+        mediaType?: 'story' | 'reel' | 'post' | 'dm';
+        mediaUrl?: string;
+        expiresAt?: Date;
+        insights?: {
+            impressions?: number;
+            reach?: number;
+            likes?: number;
+            comments?: number;
+            shares?: number;
+            saved?: number;
+        };
     };
 }
 
@@ -21,7 +34,7 @@ const PostHistorySchema = new Schema<PostHistoryDocument>({
     offerId: { type: Schema.Types.ObjectId, ref: 'Offer', required: true },
     platform: {
         type: String,
-        enum: ['telegram', 'x', 'whatsapp'],
+        enum: ['telegram', 'x', 'whatsapp', 'instagram'],
         required: true,
     },
     postedAt: { type: Date, default: Date.now, index: true },
@@ -39,6 +52,19 @@ const PostHistorySchema = new Schema<PostHistoryDocument>({
         likes: { type: Number, default: 0 },
         retweets: { type: Number, default: 0 },
         views: { type: Number, default: 0 },
+        // Instagram specific
+        mediaId: { type: String },
+        mediaType: { type: String, enum: ['story', 'reel', 'post', 'dm'] },
+        mediaUrl: { type: String },
+        expiresAt: { type: Date },
+        insights: {
+            impressions: { type: Number },
+            reach: { type: Number },
+            likes: { type: Number },
+            comments: { type: Number },
+            shares: { type: Number },
+            saved: { type: Number },
+        },
     },
 });
 
@@ -46,5 +72,6 @@ const PostHistorySchema = new Schema<PostHistoryDocument>({
 PostHistorySchema.index({ offerId: 1, postedAt: -1 });
 PostHistorySchema.index({ platform: 1, postedAt: -1 });
 PostHistorySchema.index({ status: 1, postedAt: -1 });
+PostHistorySchema.index({ 'metadata.mediaId': 1 });
 
 export const PostHistoryModel = mongoose.model<PostHistoryDocument>('PostHistory', PostHistorySchema);

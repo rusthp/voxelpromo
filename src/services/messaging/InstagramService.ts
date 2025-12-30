@@ -899,4 +899,305 @@ export class InstagramService {
 
         logger.info('Instagram disconnected');
     }
+
+    // ========================================
+    // Content Publishing (Stories & Reels)
+    // ========================================
+
+    /**
+     * Publish a Story (image or video)
+     * @param mediaUrl Public URL of the media (image or video)
+     * @param mediaType Type of media: 'IMAGE' or 'VIDEO'
+     * @returns Media ID if successful, null otherwise
+     */
+    async publishStory(mediaUrl: string, mediaType: 'IMAGE' | 'VIDEO' = 'IMAGE'): Promise<string | null> {
+        if (!this.isAuthenticated()) {
+            logger.warn('⚠️ Instagram not authenticated for publishing');
+            return null;
+        }
+
+        try {
+            // Step 1: Create media container for story
+            const containerId = await this.createMediaContainer(mediaUrl, mediaType, undefined, true);
+            if (!containerId) {
+                return null;
+            }
+
+            // Step 2: Wait for media processing
+            await this.waitForMediaProcessing(containerId);
+
+            // Step 3: Publish the container
+            const mediaId = await this.publishMediaContainer(containerId);
+            if (mediaId) {
+                logger.info(`✅ Instagram Story published: ${mediaId}`);
+            }
+            return mediaId;
+        } catch (error: any) {
+            logger.error(`❌ Error publishing Instagram Story: ${error.message}`);
+            return null;
+        }
+    }
+
+    /**
+     * Publish a Reel (video)
+     * @param videoUrl Public URL of the video (MP4, vertical 9:16 recommended)
+     * @param caption Caption for the reel
+     * @param shareToFeed Whether to also share to main feed
+     * @returns Media ID if successful, null otherwise
+     */
+    async publishReel(videoUrl: string, caption?: string, shareToFeed: boolean = true): Promise<string | null> {
+        if (!this.isAuthenticated()) {
+            logger.warn('⚠️ Instagram not authenticated for publishing');
+            return null;
+        }
+
+        try {
+            // Step 1: Create reel container
+            const containerId = await this.createReelContainer(videoUrl, caption, shareToFeed);
+            if (!containerId) {
+                return null;
+            }
+
+            // Step 2: Wait for video processing (can take longer)
+            await this.waitForMediaProcessing(containerId, 60000); // 60 sec max wait
+
+            // Step 3: Publish the reel
+            const mediaId = await this.publishMediaContainer(containerId);
+            if (mediaId) {
+                logger.info(`✅ Instagram Reel published: ${mediaId}`);
+            }
+            return mediaId;
+        } catch (error: any) {
+            logger.error(`❌ Error publishing Instagram Reel: ${error.message}`);
+            return null;
+        }
+    }
+
+    /**
+     * Create a media container for image/video story or post
+     */
+    private async createMediaContainer(
+        mediaUrl: string,
+        mediaType: 'IMAGE' | 'VIDEO',
+        caption?: string,
+        isStory: boolean = false
+    ): Promise<string | null> {
+        try {
+            const params: any = {
+                access_token: this.accessToken,
+            };
+
+            if (mediaType === 'IMAGE') {
+                params.image_url = mediaUrl;
+            } else {
+                params.video_url = mediaUrl;
+                params.media_type = 'VIDEO';
+            }
+
+            if (caption) {
+                params.caption = caption;
+            }
+
+            if (isStory) {
+                params.media_type = 'STORIES';
+            }
+
+            const response = await axios.post(
+                `${this.graphApiBase}/${this.apiVersion}/${this.igUserId}/media`,
+                null,
+                { params }
+            );
+
+            return response.data.id;
+        } catch (error: any) {
+            const errorMsg = error.response?.data?.error?.message || error.message;
+            logger.error(`Error creating media container: ${errorMsg}`);
+            return null;
+        }
+    }
+
+    /**
+     * Create a reel container
+     */
+    private async createReelContainer(
+        videoUrl: string,
+        caption?: string,
+        shareToFeed: boolean = true
+    ): Promise<string | null> {
+        try {
+            const params: any = {
+                access_token: this.accessToken,
+                video_url: videoUrl,
+                media_type: 'REELS',
+                share_to_feed: shareToFeed,
+            };
+
+            if (caption) {
+                params.caption = caption;
+            }
+
+            const response = await axios.post(
+                `${this.graphApiBase}/${this.apiVersion}/${this.igUserId}/media`,
+                null,
+                { params }
+            );
+
+            return response.data.id;
+        } catch (error: any) {
+            const errorMsg = error.response?.data?.error?.message || error.message;
+            logger.error(`Error creating reel container: ${errorMsg}`);
+            return null;
+        }
+    }
+
+    /**
+     * Wait for media to finish processing
+     */
+    private async waitForMediaProcessing(containerId: string, maxWaitMs: number = 30000): Promise<boolean> {
+        const startTime = Date.now();
+        const pollInterval = 3000;
+
+        while (Date.now() - startTime < maxWaitMs) {
+            try {
+                const response = await axios.get(
+                    `${this.graphApiBase}/${this.apiVersion}/${containerId}`,
+                    {
+                        params: {
+                            access_token: this.accessToken,
+                            fields: 'status_code',
+                        },
+                    }
+                );
+
+                const status = response.data.status_code;
+                if (status === 'FINISHED') {
+                    return true;
+                }
+                if (status === 'ERROR') {
+                    logger.error('Media processing failed');
+                    return false;
+                }
+
+                await this.delay(pollInterval);
+            } catch (error: any) {
+                logger.error(`Error checking media status: ${error.message}`);
+                return false;
+            }
+        }
+
+        logger.warn('Media processing timeout');
+        return false;
+    }
+
+    /**
+     * Publish a media container (final step)
+     */
+    private async publishMediaContainer(containerId: string): Promise<string | null> {
+        try {
+            const response = await axios.post(
+                `${this.graphApiBase}/${this.apiVersion}/${this.igUserId}/media_publish`,
+                null,
+                {
+                    params: {
+                        access_token: this.accessToken,
+                        creation_id: containerId,
+                    },
+                }
+            );
+
+            return response.data.id;
+        } catch (error: any) {
+            const errorMsg = error.response?.data?.error?.message || error.message;
+            logger.error(`Error publishing media: ${errorMsg}`);
+            return null;
+        }
+    }
+
+    /**
+     * Get insights for a published media
+     */
+    async getMediaInsights(mediaId: string): Promise<{
+        impressions?: number;
+        reach?: number;
+        likes?: number;
+        comments?: number;
+        shares?: number;
+        saved?: number;
+    } | null> {
+        if (!this.isAuthenticated()) {
+            return null;
+        }
+
+        try {
+            const mediaResponse = await axios.get(
+                `${this.graphApiBase}/${this.apiVersion}/${mediaId}`,
+                {
+                    params: {
+                        access_token: this.accessToken,
+                        fields: 'media_type,like_count,comments_count',
+                    },
+                }
+            );
+
+            const baseInsights = {
+                likes: mediaResponse.data.like_count || 0,
+                comments: mediaResponse.data.comments_count || 0,
+            };
+
+            try {
+                const insightsResponse = await axios.get(
+                    `${this.graphApiBase}/${this.apiVersion}/${mediaId}/insights`,
+                    {
+                        params: {
+                            access_token: this.accessToken,
+                            metric: 'impressions,reach,saved,shares',
+                        },
+                    }
+                );
+
+                const insightsData = insightsResponse.data.data || [];
+                const insights: any = { ...baseInsights };
+
+                for (const metric of insightsData) {
+                    if (metric.name && metric.values?.[0]?.value !== undefined) {
+                        insights[metric.name] = metric.values[0].value;
+                    }
+                }
+
+                return insights;
+            } catch {
+                return baseInsights;
+            }
+        } catch (error: any) {
+            logger.error(`Error getting media insights: ${error.message}`);
+            return null;
+        }
+    }
+
+    /**
+     * Get recent media published by the account
+     */
+    async getRecentMedia(limit: number = 10): Promise<any[]> {
+        if (!this.isAuthenticated()) {
+            return [];
+        }
+
+        try {
+            const response = await axios.get(
+                `${this.graphApiBase}/${this.apiVersion}/${this.igUserId}/media`,
+                {
+                    params: {
+                        access_token: this.accessToken,
+                        fields: 'id,media_type,caption,timestamp,like_count,comments_count,permalink',
+                        limit,
+                    },
+                }
+            );
+
+            return response.data.data || [];
+        } catch (error: any) {
+            logger.error(`Error fetching recent media: ${error.message}`);
+            return [];
+        }
+    }
 }
