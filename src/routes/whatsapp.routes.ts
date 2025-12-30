@@ -397,4 +397,168 @@ router.get('/groups', async (_req, res) => {
   }
 });
 
+// ========================================
+// WhatsApp Status (Stories) Routes
+// ========================================
+
+/**
+ * POST /api/whatsapp/status-post/text
+ * Post a text status (story)
+ */
+router.post('/status-post/text', async (req, res) => {
+  try {
+    const { text, backgroundColor, font } = req.body;
+
+    if (!text) {
+      return res.status(400).json({
+        success: false,
+        error: 'O campo "text" é obrigatório',
+      });
+    }
+
+    const service = getWhatsAppService();
+
+    if (!service.isReady()) {
+      return res.status(400).json({
+        success: false,
+        error: 'WhatsApp não está conectado. Escaneie o QR code primeiro.',
+      });
+    }
+
+    // Check if service supports status posting
+    if (typeof (service as any).postTextStatus !== 'function') {
+      return res.status(400).json({
+        success: false,
+        error: 'Status posting não é suportado pelo serviço WhatsApp atual.',
+      });
+    }
+
+    const success = await (service as any).postTextStatus(text, backgroundColor, font);
+
+    if (success) {
+      return res.json({
+        success: true,
+        message: 'Status de texto publicado com sucesso!',
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        error: 'Falha ao publicar status. Verifique os logs.',
+      });
+    }
+  } catch (error: any) {
+    logger.error('Error posting WhatsApp text status:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Erro ao publicar status de texto',
+    });
+  }
+});
+
+/**
+ * POST /api/whatsapp/status-post/image
+ * Post an image status (story)
+ */
+router.post('/status-post/image', async (req, res) => {
+  try {
+    const { imageUrl, caption } = req.body;
+
+    if (!imageUrl) {
+      return res.status(400).json({
+        success: false,
+        error: 'O campo "imageUrl" é obrigatório',
+      });
+    }
+
+    const service = getWhatsAppService();
+
+    if (!service.isReady()) {
+      return res.status(400).json({
+        success: false,
+        error: 'WhatsApp não está conectado. Escaneie o QR code primeiro.',
+      });
+    }
+
+    if (typeof (service as any).postImageStatus !== 'function') {
+      return res.status(400).json({
+        success: false,
+        error: 'Status posting não é suportado pelo serviço WhatsApp atual.',
+      });
+    }
+
+    const success = await (service as any).postImageStatus(imageUrl, caption);
+
+    if (success) {
+      return res.json({
+        success: true,
+        message: 'Status de imagem publicado com sucesso!',
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        error: 'Falha ao publicar status. Verifique os logs.',
+      });
+    }
+  } catch (error: any) {
+    logger.error('Error posting WhatsApp image status:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Erro ao publicar status de imagem',
+    });
+  }
+});
+
+/**
+ * POST /api/whatsapp/status-post/video
+ * Post a video status (story)
+ */
+router.post('/status-post/video', async (req, res) => {
+  try {
+    const { videoUrl, caption } = req.body;
+
+    if (!videoUrl) {
+      return res.status(400).json({
+        success: false,
+        error: 'O campo "videoUrl" é obrigatório',
+      });
+    }
+
+    const service = getWhatsAppService();
+
+    if (!service.isReady()) {
+      return res.status(400).json({
+        success: false,
+        error: 'WhatsApp não está conectado. Escaneie o QR code primeiro.',
+      });
+    }
+
+    if (typeof (service as any).postVideoStatus !== 'function') {
+      return res.status(400).json({
+        success: false,
+        error: 'Status posting não é suportado pelo serviço WhatsApp atual.',
+      });
+    }
+
+    const success = await (service as any).postVideoStatus(videoUrl, caption);
+
+    if (success) {
+      return res.json({
+        success: true,
+        message: 'Status de vídeo publicado com sucesso!',
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        error: 'Falha ao publicar status. Verifique os logs.',
+      });
+    }
+  } catch (error: any) {
+    logger.error('Error posting WhatsApp video status:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Erro ao publicar status de vídeo',
+    });
+  }
+});
+
 export default router;

@@ -903,4 +903,172 @@ ${offer.reviewsCount ? `📊 ${offer.reviewsCount} avaliações` : ''}`;
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
+
+  // ========================================
+  // WhatsApp Status (Stories)
+  // ========================================
+
+  /**
+   * Post a text status (story)
+   * @param text Text content for the status
+   * @param backgroundColor Background color (hex)
+   * @param font Font style (1-5)
+   * @param statusJidList Optional list of JIDs to show the status to
+   */
+  async postTextStatus(
+    text: string,
+    backgroundColor?: string,
+    font?: number,
+    statusJidList?: string[]
+  ): Promise<boolean> {
+    await this.initialize();
+
+    const ready = await this.waitForReady();
+    if (!ready || !this.sock) {
+      logger.error('WhatsApp (Baileys) not ready for status posting');
+      return false;
+    }
+
+    try {
+      const jidList = statusJidList || await this.getStatusJidList();
+
+      await this.sock.sendMessage(
+        'status@broadcast',
+        {
+          text: text,
+        },
+        {
+          backgroundColor: backgroundColor || '#075e54',
+          font: font || 1,
+          statusJidList: jidList,
+        } as any
+      );
+
+      logger.info('✅ WhatsApp text status posted successfully');
+      return true;
+    } catch (error: any) {
+      logger.error(`❌ Error posting WhatsApp text status: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Post an image status (story)
+   * @param imageUrl URL or local path of the image
+   * @param caption Optional caption
+   * @param statusJidList Optional list of JIDs to show the status to
+   */
+  async postImageStatus(
+    imageUrl: string,
+    caption?: string,
+    statusJidList?: string[]
+  ): Promise<boolean> {
+    await this.initialize();
+
+    const ready = await this.waitForReady();
+    if (!ready || !this.sock) {
+      logger.error('WhatsApp (Baileys) not ready for status posting');
+      return false;
+    }
+
+    try {
+      const jidList = statusJidList || await this.getStatusJidList();
+
+      await this.sock.sendMessage(
+        'status@broadcast',
+        {
+          image: { url: imageUrl },
+          caption: caption || '',
+        },
+        {
+          statusJidList: jidList,
+        } as any
+      );
+
+      logger.info('✅ WhatsApp image status posted successfully');
+      return true;
+    } catch (error: any) {
+      logger.error(`❌ Error posting WhatsApp image status: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Post a video status (story)
+   * @param videoUrl URL or local path of the video
+   * @param caption Optional caption
+   * @param statusJidList Optional list of JIDs to show the status to
+   */
+  async postVideoStatus(
+    videoUrl: string,
+    caption?: string,
+    statusJidList?: string[]
+  ): Promise<boolean> {
+    await this.initialize();
+
+    const ready = await this.waitForReady();
+    if (!ready || !this.sock) {
+      logger.error('WhatsApp (Baileys) not ready for status posting');
+      return false;
+    }
+
+    try {
+      const jidList = statusJidList || await this.getStatusJidList();
+
+      await this.sock.sendMessage(
+        'status@broadcast',
+        {
+          video: { url: videoUrl },
+          caption: caption || '',
+        },
+        {
+          statusJidList: jidList,
+        } as any
+      );
+
+      logger.info('✅ WhatsApp video status posted successfully');
+      return true;
+    } catch (error: any) {
+      logger.error(`❌ Error posting WhatsApp video status: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Get JID list for status (contacts who can see the status)
+   * Returns all contacts by default
+   */
+  private async getStatusJidList(): Promise<string[]> {
+    try {
+      // Get all contacts
+      if (this.sock) {
+        // Get contacts from store or use target groups as fallback
+        const jids: string[] = [];
+
+        // Add all configured target groups/numbers
+        for (const target of this.targetGroups) {
+          try {
+            const jid = JIDValidator.detectAndFormat(target);
+            jids.push(jid);
+          } catch {
+            // Skip invalid JIDs
+          }
+        }
+
+        // If no contacts, try to get from groups
+        if (jids.length === 0) {
+          const groups = await this.listGroups();
+          for (const group of groups) {
+            jids.push(group.id);
+          }
+        }
+
+        return jids;
+      }
+    } catch (error) {
+      logger.warn('Error getting status JID list:', error);
+    }
+
+    return [];
+  }
 }
