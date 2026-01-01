@@ -19,10 +19,22 @@ export const logger = winston.createLogger({
   level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
   format: logFormat,
   transports: [
-    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'logs/combined.log' }),
+    new winston.transports.File({
+      filename: 'logs/error.log',
+      level: 'error',
+      maxsize: 10 * 1024 * 1024, // 10MB max per file
+      maxFiles: 3, // Keep only 3 files
+      tailable: true,
+    }),
+    new winston.transports.File({
+      filename: 'logs/combined.log',
+      maxsize: 10 * 1024 * 1024, // 10MB max per file
+      maxFiles: 3, // Keep only 3 files
+      tailable: true,
+    }),
     new winston.transports.Console({
       format: consoleFormat,
     }),
   ],
 });
+

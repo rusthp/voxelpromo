@@ -7,7 +7,8 @@ import {
   Zap,
   ChevronLeft,
   X,
-  User
+  User,
+  Instagram
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "react-router-dom";
@@ -17,11 +18,13 @@ const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
   { icon: Package, label: "Produtos", href: "/products" },
   { icon: Share2, label: "Publicações", href: "/publications" },
+  { icon: Instagram, label: "Instagram", href: "/instagram" },
   { icon: BarChart3, label: "Analytics", href: "/analytics" },
   { icon: Zap, label: "Integrações", href: "/integrations" },
   { icon: User, label: "Meu Perfil", href: "/profile" },
   { icon: Settings, label: "Configurações", href: "/settings" },
 ];
+
 
 interface SidebarProps {
   collapsed: boolean;

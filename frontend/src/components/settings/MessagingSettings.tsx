@@ -971,6 +971,165 @@ export function MessagingSettings({ config, setConfig, testing, onTest }: Messag
                                     </div>
                                 </div>
                             </div>
+
+                            {/* WhatsApp Status Posting */}
+                            {isReady && (
+                                <div className="mt-6 pt-6 border-t">
+                                    <h4 className="font-medium mb-4 flex items-center gap-2">
+                                        <span>📱</span>
+                                        Postar Status (Stories)
+                                    </h4>
+
+                                    <div className="grid md:grid-cols-2 gap-4">
+                                        {/* Text Status */}
+                                        <div className="p-4 border rounded-lg space-y-3">
+                                            <h5 className="font-medium text-sm flex items-center gap-2">
+                                                📝 Status de Texto
+                                            </h5>
+                                            <div className="space-y-2">
+                                                <Label>Texto</Label>
+                                                <textarea
+                                                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                                    placeholder="Digite o texto do status..."
+                                                    id="whatsapp-status-text"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Cor de Fundo</Label>
+                                                <div className="flex gap-2">
+                                                    {['#075e54', '#128C7E', '#25D366', '#34B7F1', '#ECE5DD'].map((color) => (
+                                                        <button
+                                                            key={color}
+                                                            type="button"
+                                                            className="w-8 h-8 rounded-full border-2 border-transparent hover:border-gray-400"
+                                                            style={{ backgroundColor: color }}
+                                                            onClick={() => {
+                                                                const input = document.getElementById('whatsapp-status-bg') as HTMLInputElement;
+                                                                if (input) input.value = color;
+                                                            }}
+                                                        />
+                                                    ))}
+                                                    <input
+                                                        type="color"
+                                                        id="whatsapp-status-bg"
+                                                        defaultValue="#075e54"
+                                                        className="w-8 h-8 rounded cursor-pointer"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <Button
+                                                className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white"
+                                                onClick={async () => {
+                                                    const textEl = document.getElementById('whatsapp-status-text') as HTMLTextAreaElement;
+                                                    const bgEl = document.getElementById('whatsapp-status-bg') as HTMLInputElement;
+                                                    const text = textEl?.value;
+                                                    if (!text) {
+                                                        toast.error("Digite um texto para o status");
+                                                        return;
+                                                    }
+                                                    try {
+                                                        const response = await api.post('/whatsapp/status-post/text', {
+                                                            text,
+                                                            backgroundColor: bgEl?.value || '#075e54',
+                                                        });
+                                                        if (response.data.success) {
+                                                            toast.success("Status de texto publicado!");
+                                                            textEl.value = '';
+                                                        } else {
+                                                            toast.error(response.data.error || "Erro ao publicar");
+                                                        }
+                                                    } catch (error: any) {
+                                                        toast.error(error.response?.data?.error || "Erro ao publicar status");
+                                                    }
+                                                }}
+                                            >
+                                                Publicar Status
+                                            </Button>
+                                        </div>
+
+                                        {/* Image/Video Status */}
+                                        <div className="p-4 border rounded-lg space-y-3">
+                                            <h5 className="font-medium text-sm flex items-center gap-2">
+                                                🖼️ Status de Mídia
+                                            </h5>
+                                            <div className="space-y-2">
+                                                <Label>URL da Mídia</Label>
+                                                <Input
+                                                    id="whatsapp-status-media"
+                                                    placeholder="https://exemplo.com/imagem.jpg"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Legenda (opcional)</Label>
+                                                <Input
+                                                    id="whatsapp-status-caption"
+                                                    placeholder="Descrição..."
+                                                />
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    className="flex-1 bg-[#25D366] hover:bg-[#128C7E] text-white"
+                                                    onClick={async () => {
+                                                        const mediaEl = document.getElementById('whatsapp-status-media') as HTMLInputElement;
+                                                        const captionEl = document.getElementById('whatsapp-status-caption') as HTMLInputElement;
+                                                        const imageUrl = mediaEl?.value;
+                                                        if (!imageUrl) {
+                                                            toast.error("Informe a URL da imagem");
+                                                            return;
+                                                        }
+                                                        try {
+                                                            const response = await api.post('/whatsapp/status-post/image', {
+                                                                imageUrl,
+                                                                caption: captionEl?.value,
+                                                            });
+                                                            if (response.data.success) {
+                                                                toast.success("Status de imagem publicado!");
+                                                                mediaEl.value = '';
+                                                                captionEl.value = '';
+                                                            } else {
+                                                                toast.error(response.data.error || "Erro ao publicar");
+                                                            }
+                                                        } catch (error: any) {
+                                                            toast.error(error.response?.data?.error || "Erro ao publicar status");
+                                                        }
+                                                    }}
+                                                >
+                                                    📷 Imagem
+                                                </Button>
+                                                <Button
+                                                    className="flex-1 bg-[#25D366] hover:bg-[#128C7E] text-white"
+                                                    onClick={async () => {
+                                                        const mediaEl = document.getElementById('whatsapp-status-media') as HTMLInputElement;
+                                                        const captionEl = document.getElementById('whatsapp-status-caption') as HTMLInputElement;
+                                                        const videoUrl = mediaEl?.value;
+                                                        if (!videoUrl) {
+                                                            toast.error("Informe a URL do vídeo");
+                                                            return;
+                                                        }
+                                                        try {
+                                                            const response = await api.post('/whatsapp/status-post/video', {
+                                                                videoUrl,
+                                                                caption: captionEl?.value,
+                                                            });
+                                                            if (response.data.success) {
+                                                                toast.success("Status de vídeo publicado!");
+                                                                mediaEl.value = '';
+                                                                captionEl.value = '';
+                                                            } else {
+                                                                toast.error(response.data.error || "Erro ao publicar");
+                                                            }
+                                                        } catch (error: any) {
+                                                            toast.error(error.response?.data?.error || "Erro ao publicar status");
+                                                        }
+                                                    }}
+                                                >
+                                                    🎬 Vídeo
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </>
                     )}
                 </CardContent>

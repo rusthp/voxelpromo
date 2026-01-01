@@ -31,6 +31,7 @@ import {
   apiLimiter,
 } from '../middleware/rate-limit';
 
+
 export function setupRoutes(app: Express): void {
   // Serve static files for uploads (avatars, etc.)
   app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));

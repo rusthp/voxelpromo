@@ -619,12 +619,17 @@ export class InstagramService {
     }
 
     /**
-     * Send offer to Instagram (via DM to recent interactors or as comment reply)
-     * Note: Instagram DMs require user-initiated conversation due to 24h window
+     * Send offer to Instagram by publishing a feed post with the offer image
+     * This creates a real Instagram post with the offer details
      */
     async sendOffer(offer: Offer): Promise<boolean> {
         if (!this.isAuthenticated()) {
             logger.warn('⚠️ Instagram not authenticated, skipping offer');
+            return false;
+        }
+
+        if (!this.igUserId) {
+            logger.warn('⚠️ Instagram User ID not set, skipping offer');
             return false;
         }
 
@@ -634,7 +639,7 @@ export class InstagramService {
         }
 
         try {
-            // Verify affiliate link before sending
+            // Verify affiliate link before posting
             if (offer.affiliateUrl) {
                 const { LinkVerifier } = require('../link/LinkVerifier'); // eslint-disable-line @typescript-eslint/no-var-requires
                 const isValid = await LinkVerifier.verify(offer.affiliateUrl);
@@ -644,20 +649,52 @@ export class InstagramService {
                 }
             }
 
-            const message = await this.formatMessage(offer);
-            logger.info(`📤 Instagram offer ready: ${offer.title}`);
+            // Check if we have an image to post
+            if (!offer.imageUrl) {
+                logger.warn('⚠️ Offer has no image, Instagram requires an image for posts');
+                return false;
+            }
 
-            // Note: Instagram DMs require user-initiated conversation
-            // This method is called when we have a conversation context from webhook
-            // For now, we log the prepared message
-            logger.debug(`Instagram message prepared (${message.length} chars)`);
+            // Format caption for Instagram
+            const caption = await this.formatMessage(offer);
 
+            logger.info(`📤 Publishing Instagram post for: ${offer.title}`);
+
+            // Create media container for the post
+            const containerId = await this.createMediaContainer(
+                offer.imageUrl,
+                'IMAGE',
+                caption,
+                false // Not a story, but a feed post
+            );
+
+            if (!containerId) {
+                logger.error('❌ Failed to create Instagram media container');
+                return false;
+            }
+
+            // Wait for media processing
+            const processed = await this.waitForMediaProcessing(containerId);
+            if (!processed) {
+                logger.error('❌ Instagram media processing failed');
+                return false;
+            }
+
+            // Publish the media
+            const mediaId = await this.publishMediaContainer(containerId);
+            if (!mediaId) {
+                logger.error('❌ Failed to publish Instagram media');
+                return false;
+            }
+
+            logger.info(`✅ Instagram post published successfully! Media ID: ${mediaId}`);
             return true;
         } catch (error: any) {
-            logger.error(`❌ Error preparing Instagram offer: ${error.message}`);
+            logger.error(`❌ Error publishing Instagram offer: ${error.message}`);
             return false;
         }
     }
+
 
     /**
      * Send multiple offers

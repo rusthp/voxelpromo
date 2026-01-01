@@ -17,6 +17,7 @@ const Publications = lazy(() => import("./pages/Publications"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Integrations = lazy(() => import("./pages/Integrations"));
 const Profile = lazy(() => import("./pages/Profile"));
+const InstagramPage = lazy(() => import("./pages/Instagram"));
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -52,6 +53,7 @@ const App = () => (
                 <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
                 <Route path="/integrations" element={<ProtectedRoute><Integrations /></ProtectedRoute>} />
                 <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                <Route path="/instagram" element={<ProtectedRoute><InstagramPage /></ProtectedRoute>} />
 
                 {/* Catch-all 404 */}
                 <Route path="*" element={<NotFound />} />

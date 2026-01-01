@@ -1036,39 +1036,70 @@ ${offer.reviewsCount ? `📊 ${offer.reviewsCount} avaliações` : ''}`;
 
   /**
    * Get JID list for status (contacts who can see the status)
-   * Returns all contacts by default
+   * Returns all contacts by default - for Status to work, needs individual phone JIDs
    */
   private async getStatusJidList(): Promise<string[]> {
     try {
-      // Get all contacts
-      if (this.sock) {
-        // Get contacts from store or use target groups as fallback
-        const jids: string[] = [];
+      if (!this.sock) return [];
 
-        // Add all configured target groups/numbers
-        for (const target of this.targetGroups) {
-          try {
-            const jid = JIDValidator.detectAndFormat(target);
-            jids.push(jid);
-          } catch {
-            // Skip invalid JIDs
+      const jids: string[] = [];
+
+      // Try to get contacts from the store
+      try {
+        // Get all contacts from the socket store
+        const store = (this.sock as any).store;
+        if (store?.contacts) {
+          for (const [jid, contact] of Object.entries(store.contacts)) {
+            // Only add individual contacts (not groups or broadcast)
+            if (jid.endsWith('@s.whatsapp.net') && contact) {
+              jids.push(jid);
+            }
           }
         }
+      } catch (storeError) {
+        logger.debug('Could not access store contacts:', storeError);
+      }
 
-        // If no contacts, try to get from groups
-        if (jids.length === 0) {
+      // If no contacts from store, try to get participants from all groups
+      if (jids.length === 0) {
+        try {
           const groups = await this.listGroups();
           for (const group of groups) {
-            jids.push(group.id);
+            try {
+              const metadata = await this.sock!.groupMetadata(group.id);
+              if (metadata?.participants) {
+                for (const participant of metadata.participants) {
+                  // Add participant JID (format: number@s.whatsapp.net)
+                  if (participant.id && !jids.includes(participant.id)) {
+                    jids.push(participant.id);
+                  }
+                }
+              }
+            } catch (groupError) {
+              // Skip groups we can't access
+            }
+            // Stop if we have enough contacts (limit to prevent timeout)
+            if (jids.length >= 50) break;
           }
+        } catch (groupsError) {
+          logger.debug('Could not get group participants:', groupsError);
         }
-
-        return jids;
       }
+
+      // Always add self JID so you can see your own status
+      if (this.sock.user?.id && !jids.includes(this.sock.user.id)) {
+        jids.unshift(this.sock.user.id);
+      }
+
+      // Limit to 50 contacts to prevent timeout
+      const limitedJids = jids.slice(0, 50);
+
+      logger.info(`📱 Status will be visible to ${limitedJids.length} contacts (limited from ${jids.length})`);
+      return limitedJids;
     } catch (error) {
       logger.warn('Error getting status JID list:', error);
+      return [];
     }
-
-    return [];
   }
 }
+

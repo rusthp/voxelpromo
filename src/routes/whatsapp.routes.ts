@@ -7,13 +7,14 @@ import { loadConfigFromFile } from '../utils/loadConfig';
 
 const router = Router();
 
-// Store service instances
-const serviceInstances = new Map<string, any>();
+// Store service instances - exported for use by other services
+export const serviceInstances = new Map<string, any>();
 
 /**
- * Get WhatsApp service instance
+ * Get WhatsApp service instance (singleton)
+ * Exported for use by StatusAutomationService
  */
-function getWhatsAppService() {
+export function getWhatsAppService() {
   // Load config to get library preference
   const configPath = join(process.cwd(), 'config.json');
   let library = 'baileys';
@@ -35,6 +36,7 @@ function getWhatsAppService() {
 
   return serviceInstances.get(key);
 }
+
 
 /**
  * GET /api/whatsapp/qr
