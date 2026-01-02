@@ -11,7 +11,20 @@ import { authLimiter, registerLimiter, refreshLimiter } from '../middleware/rate
 
 const router = Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+/**
+ * Get JWT_SECRET - throws if not configured
+ */
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is not configured');
+  }
+  if (secret.length < 32) {
+    logger.warn('⚠️ JWT_SECRET should be at least 32 characters for security');
+  }
+  return secret;
+}
+
 const ACCESS_TOKEN_EXPIRY = '8h'; // 8 hours for work sessions
 const REFRESH_TOKEN_EXPIRY_DAYS = 30; // 30 days refresh token
 
@@ -20,7 +33,7 @@ const REFRESH_TOKEN_EXPIRY_DAYS = 30; // 30 days refresh token
  */
 async function generateTokens(userId: string, username: string, role: string, req: Request) {
   // Generate short-lived access token
-  const accessToken = jwt.sign({ id: userId, username, role }, JWT_SECRET, {
+  const accessToken = jwt.sign({ id: userId, username, role }, getJwtSecret(), {
     expiresIn: ACCESS_TOKEN_EXPIRY,
   });
 
@@ -301,7 +314,7 @@ router.post('/refresh', refreshLimiter, async (req: Request, res: Response) => {
     // Generate new access token
     const accessToken = jwt.sign(
       { id: user._id, username: user.username, role: user.role },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: ACCESS_TOKEN_EXPIRY }
     );
 

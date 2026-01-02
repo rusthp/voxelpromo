@@ -478,4 +478,165 @@ router.post('/scrape-url', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/mercadolivre/collect-daily-offers
+ * Collect offers from the default ML offers page (one-click collection)
+ * Uses: https://www.mercadolivre.com.br/ofertas#nav-header
+ */
+router.get('/collect-daily-offers', async (_req, res) => {
+  try {
+    const DEFAULT_OFFERS_URL = 'https://www.mercadolivre.com.br/ofertas#nav-header';
+
+    logger.info(`🔥 Collecting daily offers from default page: ${DEFAULT_OFFERS_URL}`);
+
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { MercadoLivreScraper } = require('../services/mercadolivre/MercadoLivreScraper');
+    const scraper = new MercadoLivreScraper();
+
+    try {
+      const products = await scraper.scrapeDailyDeals();
+
+      logger.info(`✅ Collected ${products.length} offers from daily deals page`);
+
+      if (products.length === 0) {
+        return res.json({
+          success: true,
+          message: 'No offers found on the page',
+          products: [],
+          saved: 0,
+        });
+      }
+
+      // Convert and save to database
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { OfferService } = require('../services/offer/OfferService');
+      const offerService = new OfferService();
+
+      const offers = await Promise.all(
+        products.map(async (product: any) => {
+          try {
+            return await mercadoLivreService.convertToOffer(product, 'ofertas');
+          } catch (e) {
+            return null;
+          }
+        })
+      );
+
+      const validOffers = offers.filter((o: any) => o !== null);
+      const savedCount = await offerService.saveOffers(validOffers);
+
+      logger.info(`💾 Saved ${savedCount} offers to database`);
+
+      return res.json({
+        success: true,
+        message: `Collected ${products.length} offers, saved ${savedCount} to database`,
+        url: DEFAULT_OFFERS_URL,
+        products: products.slice(0, 5), // Preview first 5
+        totalFound: products.length,
+        saved: savedCount,
+      });
+    } finally {
+      await scraper.closeSession();
+    }
+  } catch (error: any) {
+    logger.error('Error collecting daily offers:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/mercadolivre/generate-affiliate-link
+ * Generate affiliate link for a single product URL
+ * Body: { url: string }
+ * Returns: { success: boolean, originalUrl: string, affiliateUrl: string }
+ */
+router.post('/generate-affiliate-link', async (req, res) => {
+  try {
+    const { url } = req.body;
+
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        error: 'URL is required',
+      });
+    }
+
+    // Validate it's a Mercado Livre URL
+    if (!url.includes('mercadolivre.com.br') && !url.includes('mercadolibre.com')) {
+      return res.status(400).json({
+        success: false,
+        error: 'URL must be from Mercado Livre',
+      });
+    }
+
+    logger.info(`🔗 Generating affiliate link for: ${url.substring(0, 60)}...`);
+
+    // Try internal API first (generates short links like mercadolivre.com/sec/...)
+    const internalLink = await mercadoLivreService.generateAffiliateLink(url);
+
+    if (internalLink) {
+      return res.json({
+        success: true,
+        originalUrl: url,
+        affiliateUrl: internalLink,
+        method: 'internal_api',
+        isShortLink: true,
+      });
+    }
+
+    // Fallback: Build affiliate link using Social Link params
+    // This requires affiliateCode to be configured
+    const config = mercadoLivreService.getConfig();
+
+    if (!config.affiliateCode) {
+      return res.status(400).json({
+        success: false,
+        error: 'Affiliate code not configured. Please set your Social Link in settings.',
+        help: 'Go to Settings > Affiliate > Mercado Livre and paste your Social Link URL',
+      });
+    }
+
+    // Use the service's internal method via a workaround
+    // Create a fake product to get the affiliate link
+    const fakeProduct = {
+      id: 'TEMP',
+      title: 'Temp',
+      price: 0,
+      currency_id: 'BRL',
+      available_quantity: 1,
+      condition: 'new',
+      permalink: url,
+      thumbnail: '',
+    };
+
+    const offer = await mercadoLivreService.convertToOffer(fakeProduct, 'temp');
+
+    if (offer && offer.affiliateUrl) {
+      return res.json({
+        success: true,
+        originalUrl: url,
+        affiliateUrl: offer.affiliateUrl,
+        method: 'social_link_params',
+        isShortLink: false,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to generate affiliate link',
+    });
+
+  } catch (error: any) {
+    logger.error('Error generating affiliate link:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 export { router as mercadoLivreRoutes };
+

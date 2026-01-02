@@ -423,13 +423,16 @@ export function AffiliateSettings({
                         />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="mlAffiliateCode">Código de Afiliado (Legacy)</Label>
+                        <Label htmlFor="mlAffiliateCode">Social Link (Recomendado)</Label>
                         <Input
                             id="mlAffiliateCode"
                             value={config.mercadolivre.affiliateCode}
                             onChange={(e) => setConfig({ ...config, mercadolivre: { ...config.mercadolivre, affiliateCode: e.target.value } })}
-                            placeholder="URL do Social Link ou código"
+                            placeholder="https://www.mercadolivre.com.br/social/seu_usuario?matt_tool=..."
                         />
+                        <p className="text-xs text-muted-foreground">
+                            Cole seu Social Link completo do painel de afiliados. Parâmetros <code>matt_tool</code> e <code>matt_word</code> serão extraídos automaticamente.
+                        </p>
                     </div>
 
                     {/* Internal API Section */}

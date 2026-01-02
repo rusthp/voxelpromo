@@ -37,8 +37,14 @@ export const authenticate = async (
       return;
     }
 
-    // Verify token
-    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+    // Verify token - JWT_SECRET is MANDATORY
+    const jwtSecret = process.env.JWT_SECRET;
+
+    if (!jwtSecret) {
+      logger.error('❌ CRITICAL: JWT_SECRET not configured. Authentication disabled.');
+      res.status(500).json({ error: 'Servidor não configurado corretamente' });
+      return;
+    }
 
     // Debug: Log secret hash (not the secret itself) to verify consistency
     const secretHash = crypto.createHash('sha256').update(jwtSecret).digest('hex').substring(0, 8);

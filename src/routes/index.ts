@@ -25,6 +25,8 @@ import lomadeeRoutes from './lomadee.routes';
 import afilioRoutes from './afilio.routes';
 import rakutenRoutes from './rakuten.routes';
 import instagramRoutes from './instagram.routes';
+import linksRoutes from './links.routes';
+import redirectRoutes from './redirect.routes';
 import {
   collectionLimiter,
   configLimiter,
@@ -94,5 +96,9 @@ export function setupRoutes(app: Express): void {
   app.use('/api/rakuten', authenticate, apiLimiter, rakutenRoutes); // Rakuten affiliate network
   app.use('/api/profile', authenticate, apiLimiter, profileRoutes); // User profile
   app.use('/api/fix', authenticate, fixRoutes); // Temporary fix endpoints
+  app.use('/api/links', authenticate, apiLimiter, linksRoutes); // URL Shortener API
+
+  // Public route for redirect (must be accessible without auth)
+  app.use('/s', redirectRoutes); // Short URL redirect: /s/:code
 }
 

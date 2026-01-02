@@ -714,45 +714,71 @@ export class MercadoLivreService {
     }
 
     try {
-      // If affiliateCode is a URL (e.g. Social Link), extract params and append to product URL
+      // If affiliateCode is a Social Link URL (contains matt_tool or matt_word)
       if (affiliateCode.startsWith('http://') || affiliateCode.startsWith('https://')) {
         const affiliateUrlObj = new URL(affiliateCode);
         const productUrlObj = new URL(productUrl);
 
-        logger.debug(`🔗 Parsing Affiliate URL: ${affiliateCode}`);
-        logger.debug(`   Params found: ${Array.from(affiliateUrlObj.searchParams.keys()).join(', ')}`);
+        // Check for ML Social Link format (matt_tool, matt_word)
+        const mattTool = affiliateUrlObj.searchParams.get('matt_tool');
+        const mattWord = affiliateUrlObj.searchParams.get('matt_word');
 
-        // Copy relevant params from affiliate URL to product URL
+        if (mattTool || mattWord) {
+          // ML Social Link format - apply matt_* params
+          if (mattTool) productUrlObj.searchParams.set('matt_tool', mattTool);
+          if (mattWord) productUrlObj.searchParams.set('matt_word', mattWord);
+
+          // Add tracking params for better attribution
+          productUrlObj.searchParams.set('forceInApp', 'true');
+
+          // Generate unique tracking_id for each link (UUID v4 format)
+          const trackingId = crypto.randomUUID();
+          productUrlObj.searchParams.set('tracking_id', trackingId);
+
+          logger.debug(`🔗 ML Affiliate Link built with matt_tool=${mattTool}, matt_word=${mattWord}`);
+          return productUrlObj.toString();
+        }
+
+        // Generic URL format - copy all params except ref (session-specific)
+        logger.debug(`🔗 Parsing Affiliate URL: ${affiliateCode.substring(0, 80)}...`);
+
         affiliateUrlObj.searchParams.forEach((value, key) => {
-          // Skip 'ref' as it likely contains the specific product link from the example
+          // Skip 'ref' as it's session-specific and shouldn't be reused
           if (key !== 'ref') {
             productUrlObj.searchParams.set(key, value);
           }
         });
 
-        const finalUrl = productUrlObj.toString();
-        logger.debug(`   Final URL: ${finalUrl}`);
-        return finalUrl;
+        return productUrlObj.toString();
       }
 
-      // If it's just a code, append as 'a' param (legacy/standard behavior)
+      // Simple code format (just the affiliate ID)
       const url = new URL(productUrl);
 
       // Critical check for placeholder
       if (affiliateCode === 'your-affiliate-code-or-url' || affiliateCode.includes('your-affiliate')) {
-        logger.warn(`⚠️ Affiliate code is set to default placeholder '${affiliateCode}'. Returning original URL.`);
+        logger.warn(`⚠️ Affiliate code is placeholder '${affiliateCode}'. Returning original URL.`);
         return productUrl;
       }
 
+      // If it looks like a matt_tool ID (numeric), use matt_tool param
+      if (/^\d+$/.test(affiliateCode.trim())) {
+        url.searchParams.set('matt_tool', affiliateCode.trim());
+        url.searchParams.set('tracking_id', crypto.randomUUID());
+        return url.toString();
+      }
+
+      // Legacy format - append as 'a' param
       url.searchParams.set('a', affiliateCode);
       return url.toString();
     } catch (error) {
       logger.error('Error building affiliate link:', error);
       // Fallback for malformed URLs
       const separator = productUrl.includes('?') ? '&' : '?';
-      return `${productUrl}${separator}a=${affiliateCode}`;
+      return `${productUrl}${separator}matt_tool=${encodeURIComponent(affiliateCode)}`;
     }
   }
+
 
   async convertToOffer(product: MercadoLivreProduct, category: string = 'electronics'): Promise<Offer | null> {
     try {
