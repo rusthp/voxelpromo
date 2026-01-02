@@ -146,25 +146,98 @@ JWT_SECRET=sua_chave_secreta_super_segura
 *   **WhatsApp**: Suporta conexão via QR Code (multi-device) usando `whatsapp-web.js` ou `Baileys`.
 *   **X (Twitter)**: Postagem automática de tweets via API Oficial (OAuth 1.0a/2.0).
 
-## 🚀 Deploy em Produção
+## 🚀 Deploy em Produção (VPS/Contabo/DigitalOcean)
 
-Para colocar o projeto no ar 24/7, consulte:
+Este guia cobre a instalação em servidores Linux (Ubuntu/Debian) usando Nginx como proxy reverso.
 
-👉 **[Guia de Deploy (PM2/Docker)](./docs/DEPLOY.md)**
+### 1. Preparar o Servidor
 
-O guia cobre:
-- Configuração com PM2 e Nginx
-- SSL com Certbot
-- Deploy com Docker
-- Health checks para monitoramento
+```bash
+# Instalar Node.js 20, PM2 e Nginx
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs nginx certbot python3-certbot-nginx
+npm install -g pm2
+```
 
-### Health Checks Disponíveis
+### 2. Instalar o Projeto
 
+Recomendamos instalar na pasta `/root/voxelpromo` ou `/var/www/voxelpromo`.
+
+```bash
+git clone https://github.com/seu-usuario/voxelpromo.git
+cd voxelpromo
+npm install
+npm run build
+```
+
+Configure o arquivo `.env` com seu domínio:
+```env
+PORT=3000
+BASE_URL=https://voxelpromo.com
+SHORT_URL_BASE=https://voxelpromo.com
+FRONTEND_URL=https://voxelpromo.com
+```
+
+### 3. Configurar Nginx (Proxy Reverso)
+
+Crie o arquivo `/etc/nginx/sites-available/voxelpromo`:
+
+```nginx
+server {
+    server_name voxelpromo.com www.voxelpromo.com;
+    client_max_body_size 10M;
+
+    # Frontend (Arquivos estáticos)
+    location / {
+        # Ajuste o caminho conforme sua instalação (/root/... ou /var/www/...)
+        root /root/voxelpromo/frontend/dist;
+        index index.html;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Backend API e Websockets
+    location /api {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Encurtador de URLs (/s/...)
+    location /s {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+Ative o site e o SSL (HTTPS):
+
+```bash
+sudo ln -s /etc/nginx/sites-available/voxelpromo /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+sudo certbot --nginx -d voxelpromo.com -d www.voxelpromo.com
+```
+
+### 4. Iniciar Aplicação
+
+```bash
+pm2 start dist/server.js --name voxelpromo
+pm2 save
+pm2 startup
+```
+
+### Health Checks
 | Endpoint | Descrição |
 |----------|----------|
 | `GET /api/health` | Status geral do sistema |
-| `GET /api/health/ready` | Readiness probe (Kubernetes) |
-| `GET /api/health/live` | Liveness probe |
 | `GET /api/health/detailed` | Métricas de memória e uptime |
 
 ---
