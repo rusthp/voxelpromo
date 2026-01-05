@@ -15,8 +15,48 @@ const Register = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [accountType, setAccountType] = useState<'individual' | 'company'>('individual');
+    const [name, setName] = useState('');
+    const [document, setDocument] = useState('');
+    const [documentStatus, setDocumentStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle');
+    const [documentError, setDocumentError] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+
+    // Validate document on blur
+    const handleDocumentBlur = async () => {
+        if (!document || document.replace(/\D/g, '').length < 11) {
+            setDocumentStatus('idle');
+            return;
+        }
+
+        setDocumentStatus('validating');
+        setDocumentError('');
+
+        try {
+            const endpoint = accountType === 'individual' ? '/documents/validate-cpf' : '/documents/validate-cnpj';
+            const field = accountType === 'individual' ? 'cpf' : 'cnpj';
+
+            const response = await api.post(endpoint, { [field]: document });
+
+            if (response.data.valid) {
+                setDocumentStatus('valid');
+                setDocument(response.data.formatted || document);
+
+                // Auto-fill company name for CNPJ
+                if (accountType === 'company' && response.data.razaoSocial && !name) {
+                    setName(response.data.razaoSocial);
+                    toast.success('Razão Social preenchida automaticamente!');
+                }
+            } else {
+                setDocumentStatus('invalid');
+                setDocumentError(response.data.message || 'Documento inválido');
+            }
+        } catch (error: any) {
+            setDocumentStatus('invalid');
+            setDocumentError('Erro ao validar documento');
+        }
+    };
 
     // Password validation
     const passwordChecks = {
@@ -44,6 +84,9 @@ const Register = () => {
                 username,
                 email,
                 password,
+                accountType,
+                name,
+                document,
             });
 
             toast.success('Conta criada com sucesso! Faça login para continuar.');
@@ -76,6 +119,81 @@ const Register = () => {
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleRegister} className="space-y-4">
+                            {/* Account Type Selection */}
+                            <div className="grid grid-cols-2 gap-4 mb-6">
+                                <div
+                                    className={`cursor-pointer rounded-lg border-2 p-4 flex flex-col items-center justify-center gap-2 transition-all ${accountType === 'individual'
+                                        ? 'border-primary bg-primary/10 text-primary'
+                                        : 'border-muted hover:border-primary/50 text-muted-foreground'
+                                        }`}
+                                    onClick={() => setAccountType('individual')}
+                                >
+                                    <span className="font-semibold text-sm">Pessoa Física</span>
+                                </div>
+                                <div
+                                    className={`cursor-pointer rounded-lg border-2 p-4 flex flex-col items-center justify-center gap-2 transition-all ${accountType === 'company'
+                                        ? 'border-primary bg-primary/10 text-primary'
+                                        : 'border-muted hover:border-primary/50 text-muted-foreground'
+                                        }`}
+                                    onClick={() => setAccountType('company')}
+                                >
+                                    <span className="font-semibold text-sm">Empresa / Agência</span>
+                                </div>
+                            </div>
+
+                            {/* Dynamic Name Field */}
+                            <div className="space-y-2">
+                                <Label htmlFor="name">
+                                    {accountType === 'individual' ? 'Nome Completo' : 'Razão Social'}
+                                </Label>
+                                <Input
+                                    id="name"
+                                    type="text"
+                                    placeholder={accountType === 'individual' ? 'Seu nome completo' : 'Nome da empresa'}
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    disabled={isLoading}
+                                    className="bg-background"
+                                />
+                            </div>
+
+                            {/* Dynamic Document Field */}
+                            <div className="space-y-2">
+                                <Label htmlFor="document">
+                                    {accountType === 'individual' ? 'CPF (opcional)' : 'CNPJ'}
+                                </Label>
+                                <div className="relative">
+                                    <Input
+                                        id="document"
+                                        type="text"
+                                        placeholder={accountType === 'individual' ? '000.000.000-00' : '00.000.000/0000-00'}
+                                        value={document}
+                                        onChange={(e) => {
+                                            setDocument(e.target.value);
+                                            setDocumentStatus('idle');
+                                        }}
+                                        onBlur={handleDocumentBlur}
+                                        disabled={isLoading || documentStatus === 'validating'}
+                                        className={cn(
+                                            "bg-background pr-10",
+                                            documentStatus === 'valid' && "border-green-500",
+                                            documentStatus === 'invalid' && "border-red-500"
+                                        )}
+                                    />
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                        {documentStatus === 'validating' && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                                        {documentStatus === 'valid' && <Check className="w-4 h-4 text-green-500" />}
+                                        {documentStatus === 'invalid' && <X className="w-4 h-4 text-red-500" />}
+                                    </div>
+                                </div>
+                                {documentError && (
+                                    <p className="text-xs text-red-500">{documentError}</p>
+                                )}
+                                {documentStatus === 'valid' && accountType === 'company' && (
+                                    <p className="text-xs text-green-500">✓ CNPJ validado na Receita Federal</p>
+                                )}
+                            </div>
+
                             <div className="space-y-2">
                                 <Label htmlFor="username">Username</Label>
                                 <Input

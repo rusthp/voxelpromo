@@ -10,16 +10,24 @@ export const loginSchema = Joi.object({
 });
 
 export const registerSchema = Joi.object({
-    username: Joi.string().alphanum().min(3).max(50).required(),
-    password: Joi.string().min(8).max(100).required()
-        .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-        .message('Password must contain at least one uppercase letter, one lowercase letter, and one number'),
+    username: Joi.string().min(3).max(50).pattern(/^[\w-]+$/).required()
+        .messages({
+            'string.pattern.base': 'Username must only contain letters, numbers, underscores and hyphens'
+        }),
+    password: Joi.string().min(8).max(100).pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/).required()
+        .messages({
+            'string.pattern.base': 'Password must contain at least one uppercase, one lowercase, and one number'
+        }),
     email: Joi.string().email().required(),
+    accountType: Joi.string().valid('individual', 'company').default('individual'),
+    name: Joi.string().max(100).optional(),
+    document: Joi.string().max(20).optional(),
 });
 
 export const changePasswordSchema = Joi.object({
     currentPassword: Joi.string().min(6).max(100).required(),
-    newPassword: Joi.string().min(8).max(100).required()
-        .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-        .message('Password must contain at least one uppercase letter, one lowercase letter, and one number'),
+    newPassword: Joi.string().min(8).max(100).pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/).required()
+        .messages({
+            'string.pattern.base': 'Password must contain at least one uppercase, one lowercase, and one number'
+        }),
 });

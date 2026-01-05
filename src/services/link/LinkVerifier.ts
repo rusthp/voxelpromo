@@ -21,7 +21,7 @@ export class LinkVerifier {
             }
 
             // Mimic a real browser to avoid 403 on valid links
-            const response = await axios.get(url, {
+            await axios.get(url, {
                 timeout,
                 maxRedirects: 5,
                 headers: {
@@ -36,6 +36,9 @@ export class LinkVerifier {
             // Specific check for Mercado Livre pages that might return 200 but are "not found" or "paused"
             // Note: This requires reading the body, which might be heavy. 
             // We can check if final URL is different or if title indicates error if needed.
+            // Specific check for Mercado Livre pages REMOVED to avoid false positives
+            // (Cloud IPs often get 'soft blocked' with 200 OK pages that look like errors)
+            /*
             if (url.includes('mercadolivre.com')) {
                 if (response.data && typeof response.data === 'string') {
                     if (response.data.includes('O anúncio que você procura está pausado') ||
@@ -45,6 +48,7 @@ export class LinkVerifier {
                     }
                 }
             }
+            */
 
             return true;
         } catch (error: any) {
@@ -52,13 +56,13 @@ export class LinkVerifier {
             // But these links work perfectly fine for real users
             if (url.includes('mercadolivre.com')) {
                 const status = error.response?.status;
-                
+
                 // 403 from Mercado Livre is just anti-bot protection, not an invalid link
                 if (status === 403) {
                     logger.info(`LinkVerifier: Mercado Livre 403 detected (anti-bot), treating as valid: ${url}`);
                     return true;
                 }
-                
+
                 // Social profile pages (/social/) are storefronts, always consider valid if we get any response
                 if (url.includes('/social/') && error.response) {
                     logger.info(`LinkVerifier: Mercado Livre social profile detected, treating as valid: ${url}`);

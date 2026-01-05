@@ -27,6 +27,7 @@ import rakutenRoutes from './rakuten.routes';
 import instagramRoutes from './instagram.routes';
 import linksRoutes from './links.routes';
 import redirectRoutes from './redirect.routes';
+import { documentsRoutes } from './documents.routes';
 import {
   collectionLimiter,
   configLimiter,
@@ -97,6 +98,7 @@ export function setupRoutes(app: Express): void {
   app.use('/api/profile', authenticate, apiLimiter, profileRoutes); // User profile
   app.use('/api/fix', authenticate, fixRoutes); // Temporary fix endpoints
   app.use('/api/links', authenticate, apiLimiter, linksRoutes); // URL Shortener API
+  app.use('/api/documents', apiLimiter, documentsRoutes); // CPF/CNPJ validation (public for registration)
 
   // Public route for redirect (must be accessible without auth)
   app.use('/s', redirectRoutes); // Short URL redirect: /s/:code

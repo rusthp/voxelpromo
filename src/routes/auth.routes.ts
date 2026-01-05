@@ -112,7 +112,7 @@ async function generateTokens(userId: string, username: string, role: string, re
  */
 router.post('/register', registerLimiter, validate(registerSchema), async (req: Request, res: Response) => {
   try {
-    const { username, email, password, role } = req.body;
+    const { username, email, password, role, accountType, name, document } = req.body;
 
     // Check if user already exists
     const existingUser = await UserModel.findOne({
@@ -131,6 +131,15 @@ router.post('/register', registerLimiter, validate(registerSchema), async (req: 
       email,
       password,
       role: userRole,
+      billing: {
+        type: accountType || 'individual',
+        name: name || '',
+        document: document || '',
+      },
+      plan: {
+        tier: 'free',
+        status: 'active',
+      }
     });
 
     await user.save();

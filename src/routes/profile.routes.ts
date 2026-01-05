@@ -78,6 +78,8 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
                 },
                 createdAt: user.createdAt,
                 lastLogin: user.lastLogin,
+                billing: user.billing,
+                plan: user.plan,
             },
         });
     } catch (error: any) {
@@ -112,6 +114,25 @@ router.put('/', authenticate, async (req: AuthRequest, res: Response) => {
             }
         }
 
+        if (req.body.billing) {
+            const { type, document, name, phone, address } = req.body.billing;
+            // Minimal validation
+            if (type && ['individual', 'company'].includes(type)) updateData['billing.type'] = type;
+            if (document) updateData['billing.document'] = document;
+            if (name) updateData['billing.name'] = name;
+            if (phone) updateData['billing.phone'] = phone;
+
+            if (address) {
+                if (address.street) updateData['billing.address.street'] = address.street;
+                if (address.number) updateData['billing.address.number'] = address.number;
+                if (address.complement) updateData['billing.address.complement'] = address.complement;
+                if (address.neighborhood) updateData['billing.address.neighborhood'] = address.neighborhood;
+                if (address.city) updateData['billing.address.city'] = address.city;
+                if (address.state) updateData['billing.address.state'] = address.state;
+                if (address.zipCode) updateData['billing.address.zipCode'] = address.zipCode;
+            }
+        }
+
         const user = await UserModel.findByIdAndUpdate(
             req.user!.id,
             { $set: updateData },
@@ -135,6 +156,8 @@ router.put('/', authenticate, async (req: AuthRequest, res: Response) => {
                 avatarUrl: user.avatarUrl,
                 role: user.role,
                 preferences: user.preferences,
+                billing: user.billing,
+                plan: user.plan,
             },
         });
     } catch (error: any) {

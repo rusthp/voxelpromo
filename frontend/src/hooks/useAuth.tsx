@@ -17,6 +17,29 @@ export interface User {
     preferences?: UserPreferences;
     createdAt?: string;
     lastLogin?: string;
+    billing?: {
+        type: 'individual' | 'company';
+        document: string;
+        name: string;
+        phone?: string;
+        address?: {
+            street: string;
+            number: string;
+            complement?: string;
+            neighborhood: string;
+            city: string;
+            state: string;
+            zipCode: string;
+        };
+    };
+    plan?: {
+        tier: 'free' | 'pro' | 'agency';
+        status: 'active' | 'trialing' | 'past_due' | 'canceled';
+        validUntil?: string;
+        limits?: {
+            postsPerDay: number;
+        };
+    };
 }
 
 interface AuthContextType {
@@ -84,6 +107,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 preferences: profile.preferences,
                 createdAt: profile.createdAt,
                 lastLogin: profile.lastLogin,
+                billing: profile.billing,
+                plan: profile.plan,
             };
 
             setUser(userData);

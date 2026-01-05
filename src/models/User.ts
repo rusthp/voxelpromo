@@ -21,6 +21,30 @@ export interface IUser extends Document {
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
+  // Billing & Plan
+  billing?: {
+    type: 'individual' | 'company';
+    document: string; // CPF or CNPJ
+    name: string; // Legal Name
+    phone?: string;
+    address?: {
+      street: string;
+      number: string;
+      complement?: string;
+      neighborhood: string;
+      city: string;
+      state: string;
+      zipCode: string;
+    };
+  };
+  plan?: {
+    tier: 'free' | 'pro' | 'agency';
+    status: 'active' | 'trialing' | 'past_due' | 'canceled';
+    validUntil?: Date;
+    limits?: {
+      postsPerDay: number;
+    };
+  };
 }
 
 const UserSchema = new Schema<IUser>(
@@ -82,6 +106,42 @@ const UserSchema = new Schema<IUser>(
       pushNotifications: {
         type: Boolean,
         default: true,
+      },
+    },
+    // Billing & Plan
+    billing: {
+      type: {
+        type: String,
+        enum: ['individual', 'company'],
+        default: 'individual',
+      },
+      document: { type: String, trim: true },
+      name: { type: String, trim: true },
+      phone: { type: String, trim: true },
+      address: {
+        street: String,
+        number: String,
+        complement: String,
+        neighborhood: String,
+        city: String,
+        state: String,
+        zipCode: String,
+      },
+    },
+    plan: {
+      tier: {
+        type: String,
+        enum: ['free', 'pro', 'agency'],
+        default: 'free',
+      },
+      status: {
+        type: String,
+        enum: ['active', 'trialing', 'past_due', 'canceled'],
+        default: 'active',
+      },
+      validUntil: Date,
+      limits: {
+        postsPerDay: { type: Number, default: 10 },
       },
     },
   },

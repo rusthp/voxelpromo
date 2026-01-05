@@ -11,7 +11,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import api from '@/services/api';
-import { Save, Loader2, User, Bell, Palette, Lock } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Save, Loader2, User, Bell, Palette, Lock, CreditCard } from 'lucide-react';
 
 const Profile = () => {
     const { user, updateUser, refreshProfile } = useAuth();
@@ -20,6 +21,16 @@ const Profile = () => {
     const [displayName, setDisplayName] = useState(user?.displayName || user?.username || '');
     const [emailNotifications, setEmailNotifications] = useState(user?.preferences?.emailNotifications ?? true);
     const [pushNotifications, setPushNotifications] = useState(user?.preferences?.pushNotifications ?? true);
+
+    // Billing state
+    const [billingType, setBillingType] = useState<'individual' | 'company'>(user?.billing?.type || 'individual');
+    const [billingDocument, setBillingDocument] = useState(user?.billing?.document || '');
+    const [billingName, setBillingName] = useState(user?.billing?.name || '');
+    const [billingPhone, setBillingPhone] = useState(user?.billing?.phone || '');
+    const [billingAddress, setBillingAddress] = useState(user?.billing?.address || {
+        street: '', number: '', complement: '', neighborhood: '', city: '', state: '', zipCode: ''
+    });
+
     const [isSaving, setIsSaving] = useState(false);
 
     // Password change
@@ -33,12 +44,30 @@ const Profile = () => {
             setDisplayName(user.displayName || user.username || '');
             setEmailNotifications(user.preferences?.emailNotifications ?? true);
             setPushNotifications(user.preferences?.pushNotifications ?? true);
+
+            if (user.billing) {
+                setBillingType(user.billing.type);
+                setBillingDocument(user.billing.document || '');
+                setBillingName(user.billing.name || '');
+                setBillingPhone(user.billing.phone || '');
+                if (user.billing.address) {
+                    setBillingAddress(user.billing.address);
+                }
+            }
         }
     }, [user]);
 
     const handleSaveProfile = async () => {
         setIsSaving(true);
         try {
+            const billingData = {
+                type: billingType,
+                document: billingDocument,
+                name: billingName,
+                phone: billingPhone,
+                address: billingAddress
+            };
+
             await api.put('/profile', {
                 displayName,
                 preferences: {
@@ -46,6 +75,7 @@ const Profile = () => {
                     emailNotifications,
                     pushNotifications,
                 },
+                billing: billingData
             });
 
             updateUser({
@@ -55,6 +85,7 @@ const Profile = () => {
                     emailNotifications,
                     pushNotifications,
                 },
+                billing: billingData
             });
 
             toast.success('Perfil atualizado com sucesso!');
@@ -184,6 +215,86 @@ const Profile = () => {
                                         ? new Date(user.createdAt).toLocaleDateString('pt-BR')
                                         : '-'}
                                 </span>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Billing Info Card */}
+                    <Card className="md:col-span-3">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <CreditCard className="w-5 h-5" />
+                                Dados de Faturamento
+                            </CardTitle>
+                            <CardDescription>Informações para emissão de Nota Fiscal (CPF ou CNPJ)</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="space-y-3">
+                                <Label>Tipo de Pessoa</Label>
+                                <RadioGroup
+                                    value={billingType}
+                                    onValueChange={(val: 'individual' | 'company') => setBillingType(val)}
+                                    className="flex gap-4"
+                                >
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="individual" id="r-individual" />
+                                        <Label htmlFor="r-individual">Pessoa Física</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="company" id="r-company" />
+                                        <Label htmlFor="r-company">Pessoa Jurídica</Label>
+                                    </div>
+                                </RadioGroup>
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label htmlFor="doc">{billingType === 'individual' ? 'CPF' : 'CNPJ'}</Label>
+                                    <Input
+                                        id="doc"
+                                        placeholder={billingType === 'individual' ? '000.000.000-00' : '00.000.000/0000-00'}
+                                        value={billingDocument}
+                                        onChange={(e) => setBillingDocument(e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="billingName">{billingType === 'individual' ? 'Nome Completo' : 'Razão Social'}</Label>
+                                    <Input
+                                        id="billingName"
+                                        placeholder={billingType === 'individual' ? 'Seu nome completo' : 'Nome da sua empresa'}
+                                        value={billingName}
+                                        onChange={(e) => setBillingName(e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="billingPhone">Telefone / Celular</Label>
+                                    <Input
+                                        id="billingPhone"
+                                        placeholder="(00) 00000-0000"
+                                        value={billingPhone}
+                                        onChange={(e) => setBillingPhone(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            <Separator />
+                            <div className="space-y-2">
+                                <Label>Endereço</Label>
+                                <div className="grid gap-4 md:grid-cols-3">
+                                    <Input placeholder="CEP" value={billingAddress.zipCode} onChange={(e) => setBillingAddress({ ...billingAddress, zipCode: e.target.value })} />
+                                    <div className="md:col-span-2">
+                                        <Input placeholder="Rua / Avenida" value={billingAddress.street} onChange={(e) => setBillingAddress({ ...billingAddress, street: e.target.value })} />
+                                    </div>
+                                </div>
+                                <div className="grid gap-4 md:grid-cols-3">
+                                    <Input placeholder="Número" value={billingAddress.number} onChange={(e) => setBillingAddress({ ...billingAddress, number: e.target.value })} />
+                                    <Input placeholder="Complemento" value={billingAddress.complement} onChange={(e) => setBillingAddress({ ...billingAddress, complement: e.target.value })} />
+                                    <Input placeholder="Bairro" value={billingAddress.neighborhood} onChange={(e) => setBillingAddress({ ...billingAddress, neighborhood: e.target.value })} />
+                                </div>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <Input placeholder="Cidade" value={billingAddress.city} onChange={(e) => setBillingAddress({ ...billingAddress, city: e.target.value })} />
+                                    <Input placeholder="Estado (UF)" value={billingAddress.state} onChange={(e) => setBillingAddress({ ...billingAddress, state: e.target.value })} />
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
