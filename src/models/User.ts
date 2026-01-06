@@ -45,6 +45,14 @@ export interface IUser extends Document {
       postsPerDay: number;
     };
   };
+  subscription?: {
+    planId: string; // 'trial', 'pro', 'agency'
+    status: 'active' | 'pending' | 'canceled';
+    startDate: Date;
+    nextBillingDate?: Date;
+    mpPreferenceId?: string;
+    mpPaymentId?: string;
+  };
 }
 
 const UserSchema = new Schema<IUser>(
@@ -144,6 +152,18 @@ const UserSchema = new Schema<IUser>(
         postsPerDay: { type: Number, default: 10 },
       },
     },
+    subscription: {
+      planId: String,
+      status: {
+        type: String,
+        enum: ['active', 'pending', 'canceled'],
+        default: 'active'
+      },
+      startDate: Date,
+      nextBillingDate: Date,
+      mpPreferenceId: String,
+      mpPaymentId: String
+    }
   },
   {
     timestamps: true,

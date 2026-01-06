@@ -173,6 +173,19 @@ export function setupCronJobs(): void {
     }
   });
 
+  // Daily Cleanup: Soft delete offers older than 3 days
+  cron.schedule('0 3 * * *', async () => {
+    logger.info('🧹 ========================================');
+    logger.info('🧹 Running Daily Offer Cleanup');
+    logger.info('🧹 ========================================');
+    try {
+      const deletedCount = await offerService.cleanupOldOffers(3); // Keep 3 days of history
+      logger.info(`✅ Cleanup completed: ${deletedCount} offers deactivated`);
+    } catch (error) {
+      logger.error('❌ Error in daily cleanup:', error);
+    }
+  });
+
   logger.info('Cron jobs scheduled');
 }
 

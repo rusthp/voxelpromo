@@ -811,6 +811,50 @@ export class OfferService {
   }
 
   /**
+   * Cleanup old offers
+   * Soft deletes offers created more than X days ago
+   */
+  async cleanupOldOffers(daysToKeep: number = 3): Promise<number> {
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+
+      // Find offers to deactivate
+      // Criteria:
+      // 1. Currently Active
+      // 2. Created before cutoff date
+      // 3. Not scheduled for future posting (safety check)
+      const query = {
+        isActive: true,
+        createdAt: { $lt: cutoffDate },
+        $or: [
+          { scheduledAt: { $exists: false } },
+          { scheduledAt: { $lt: new Date() } }
+        ]
+      };
+
+      const result = await OfferModel.updateMany(query, {
+        isActive: false,
+        updatedAt: new Date()
+      });
+
+      const cleanedCount = result.modifiedCount || 0;
+
+      if (cleanedCount > 0) {
+        logger.info(`🧹 Cleanup: Soft deleted ${cleanedCount} offers older than ${daysToKeep} days`);
+      } else {
+        logger.info(`🧹 Cleanup: No offers found older than ${daysToKeep} days`);
+      }
+
+      return cleanedCount;
+    } catch (error) {
+      logger.error('Error cleaning up old offers:', error);
+      return 0;
+    }
+  }
+
+
+  /**
    * Get statistics
    */
   async getStatistics(): Promise<any> {

@@ -38,6 +38,11 @@
 
     --radius: 0.75rem;
 
+    /* VoxelPromo Brand Colors (from cube icon) */
+    --voxel-cyan: 195 90% 50%;
+    --voxel-pink: 350 80% 60%;
+    --voxel-orange: 25 95% 55%;
+
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 222 47% 11%;
     --sidebar-primary: 175 80% 40%;
@@ -48,11 +53,14 @@
     --sidebar-ring: 175 80% 40%;
 
     /* Custom tokens - Light */
-    --gradient-primary: linear-gradient(135deg, hsl(175 80% 40%), hsl(200 80% 45%));
+    --gradient-primary: linear-gradient(135deg, hsl(var(--voxel-cyan)), hsl(var(--voxel-pink)));
+    --gradient-brand: linear-gradient(135deg, hsl(var(--voxel-cyan)), hsl(var(--voxel-pink)), hsl(var(--voxel-orange)));
     --gradient-card: linear-gradient(135deg, hsl(0 0% 100%), hsl(220 14% 98%));
     --gradient-glow: radial-gradient(ellipse at center, hsl(175 80% 40% / 0.1), transparent 70%);
 
     --shadow-glow: 0 0 40px hsl(175 80% 40% / 0.15);
+    --shadow-glow-pink: 0 0 40px hsl(var(--voxel-pink) / 0.2);
+    --shadow-glow-orange: 0 0 40px hsl(var(--voxel-orange) / 0.2);
     --shadow-card: 0 4px 24px hsl(220 13% 91% / 0.8);
 
     --success: 142 76% 36%;
@@ -93,6 +101,11 @@
     --input: 0 0% 8%;
     --ring: 175 80% 50%;
 
+    /* VoxelPromo Brand Colors (from cube icon) - Dark */
+    --voxel-cyan: 195 90% 55%;
+    --voxel-pink: 350 80% 65%;
+    --voxel-orange: 25 95% 60%;
+
     --sidebar-background: 0 0% 0%;
     --sidebar-foreground: 0 0% 98%;
     --sidebar-primary: 175 80% 50%;
@@ -103,11 +116,14 @@
     --sidebar-ring: 175 80% 50%;
 
     /* Custom tokens - Dark (True Black) */
-    --gradient-primary: linear-gradient(135deg, hsl(175 80% 50%), hsl(200 80% 50%));
+    --gradient-primary: linear-gradient(135deg, hsl(var(--voxel-cyan)), hsl(var(--voxel-pink)));
+    --gradient-brand: linear-gradient(135deg, hsl(var(--voxel-cyan)), hsl(var(--voxel-pink)), hsl(var(--voxel-orange)));
     --gradient-card: linear-gradient(135deg, hsl(0 0% 6%), hsl(0 0% 4%));
     --gradient-glow: radial-gradient(ellipse at center, hsl(175 80% 50% / 0.15), transparent 70%);
 
     --shadow-glow: 0 0 40px hsl(175 80% 50% / 0.25);
+    --shadow-glow-pink: 0 0 40px hsl(var(--voxel-pink) / 0.25);
+    --shadow-glow-orange: 0 0 40px hsl(var(--voxel-orange) / 0.25);
     --shadow-card: 0 4px 24px hsl(0 0% 0% / 0.8);
 
     --success: 142 76% 45%;
@@ -142,6 +158,43 @@
   .text-gradient {
     @apply bg-clip-text text-transparent;
     background-image: var(--gradient-primary);
+  }
+
+  .text-gradient-brand {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-brand);
+  }
+
+  .bg-voxel-cyan {
+    background-color: hsl(var(--voxel-cyan));
+  }
+
+  .bg-voxel-pink {
+    background-color: hsl(var(--voxel-pink));
+  }
+
+  .bg-voxel-orange {
+    background-color: hsl(var(--voxel-orange));
+  }
+
+  .text-voxel-cyan {
+    color: hsl(var(--voxel-cyan));
+  }
+
+  .text-voxel-pink {
+    color: hsl(var(--voxel-pink));
+  }
+
+  .text-voxel-orange {
+    color: hsl(var(--voxel-orange));
+  }
+
+  .glow-pink {
+    box-shadow: var(--shadow-glow-pink);
+  }
+
+  .glow-orange {
+    box-shadow: var(--shadow-glow-orange);
   }
 
   .animate-fade-in {

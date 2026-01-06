@@ -8,19 +8,23 @@ import {
   ChevronLeft,
   X,
   User,
-  Instagram
+  Instagram,
+  Shield,
+  CreditCard
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "react-router-dom";
 import { ConnectionStatus } from "./ConnectionStatus";
+import { useAuth } from "@/hooks/useAuth";
 
-const menuItems = [
+const baseMenuItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
   { icon: Package, label: "Produtos", href: "/products" },
   { icon: Share2, label: "Publicações", href: "/publications" },
   { icon: Instagram, label: "Instagram", href: "/instagram" },
   { icon: BarChart3, label: "Analytics", href: "/analytics" },
   { icon: Zap, label: "Integrações", href: "/integrations" },
+  { icon: CreditCard, label: "Planos", href: "/pricing" },
   { icon: User, label: "Meu Perfil", href: "/profile" },
   { icon: Settings, label: "Configurações", href: "/settings" },
 ];
@@ -35,7 +39,13 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }: SidebarProps) {
   const location = useLocation();
+  const { user } = useAuth();
   const activeItem = location.pathname;
+
+  const menuItems = [...baseMenuItems];
+  if (user?.role === 'admin') {
+    menuItems.push({ icon: Shield, label: "Admin", href: "/admin" });
+  }
 
   return (
     <>
@@ -107,6 +117,7 @@ export function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }: 
             </Link>
           ))}
         </nav>
+
 
         {/* Connection Status Indicators */}
         <ConnectionStatus collapsed={collapsed} />

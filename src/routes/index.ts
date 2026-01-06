@@ -28,6 +28,7 @@ import instagramRoutes from './instagram.routes';
 import linksRoutes from './links.routes';
 import redirectRoutes from './redirect.routes';
 import { documentsRoutes } from './documents.routes';
+import { paymentRoutes } from './payment.routes';
 import {
   collectionLimiter,
   configLimiter,
@@ -78,6 +79,7 @@ export function setupRoutes(app: Express): void {
   app.use('/api/x', xRoutes); // OAuth callback needs to be public
   app.use('/api/health', healthRoutes); // Health check endpoints
   app.use('/api/ai', aiRoutes); // AI provider testing (public for initial setup)
+  app.use('/api/payments', paymentRoutes); // Mercado Pago webhooks need to be public
 
   // Protected routes (require authentication) with rate limiting
   app.use('/api/offers', authenticate, apiLimiter, offerRoutes);

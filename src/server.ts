@@ -64,6 +64,9 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 // Always allow localhost:3001 (frontend), localhost:3000 (self), and localhost:8080 (alternative frontend port)
 if (!allowedOrigins.includes('http://localhost:3001')) allowedOrigins.push('http://localhost:3001');
 if (!allowedOrigins.includes('http://localhost:3000')) allowedOrigins.push('http://localhost:3000');
+if (!allowedOrigins.includes('http://localhost:3002')) allowedOrigins.push('http://localhost:3002');
+if (!allowedOrigins.includes('http://localhost:3003')) allowedOrigins.push('http://localhost:3003');
+if (!allowedOrigins.includes('http://localhost:3004')) allowedOrigins.push('http://localhost:3004');
 if (!allowedOrigins.includes('http://localhost:8080')) allowedOrigins.push('http://localhost:8080');
 
 logger.info(`🌐 Allowed CORS Origins: ${allowedOrigins.join(', ')}`);
