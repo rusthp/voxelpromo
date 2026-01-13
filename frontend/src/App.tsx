@@ -29,6 +29,10 @@ const Register = lazy(() => import("./pages/Register"));
 const TermsOfUse = lazy(() => import("./pages/TermsOfUse"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const Contact = lazy(() => import("./pages/Contact"));
+const NewsPage = lazy(() => import("./pages/NewsPage"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -57,6 +61,10 @@ const App = () => (
                 <Route path="/termos" element={<TermsOfUse />} />
                 <Route path="/privacidade" element={<PrivacyPolicy />} />
                 <Route path="/contato" element={<Contact />} />
+                <Route path="/novidades" element={<NewsPage />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password/:token" element={<ResetPassword />} />
+                <Route path="/verify-email" element={<VerifyEmail />} />
 
                 {/* Protected routes - require authentication */}
                 <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />

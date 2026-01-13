@@ -14,9 +14,14 @@ import { setupSwagger } from './config/swagger';
 import { logger } from './utils/logger';
 import { loadConfigFromFile } from './utils/loadConfig';
 import { validateAndLogEnv } from './utils/validateEnv';
+import { forceHttpsMiddleware, securityHeadersMiddleware } from './middleware/https.middleware';
+import { initializeSentry, Sentry } from './utils/sentry';
 
 // Validate critical environment variables
 validateAndLogEnv();
+
+// Initialize Sentry FIRST (before any other code)
+initializeSentry();
 
 // Verify MongoDB URI is loaded
 if (process.env.MONGODB_URI) {
@@ -30,6 +35,10 @@ const app = express();
 app.set('trust proxy', 1);
 
 const PORT = process.env.PORT || 3000;
+
+// PRODUCTION SECURITY: Force HTTPS and add security headers
+app.use(forceHttpsMiddleware);
+app.use(securityHeadersMiddleware);
 
 // Security: Helmet.js for security headers
 app.use(
@@ -107,16 +116,30 @@ setupSwagger(app);
 // Routes
 setupRoutes(app);
 
+// Sentry error handler (MUST be after routes, before other error handlers)
+// Sentry v10+ uses setupExpressErrorHandler
+Sentry.setupExpressErrorHandler(app);
+
 // Error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   logger.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Internal server error' });
+
+  // In production, don't  expose error details
+  const errorMessage = process.env.NODE_ENV === 'production'
+    ? 'Internal server error'
+    : err.message;
+
+  res.status(500).json({ error: errorMessage });
 });
 
 // Handle uncaught exceptions to prevent crashes
 process.on('uncaughtException', (error) => {
   logger.error('❌ Uncaught Exception:', error);
   logger.error(error.stack || 'No stack trace available');
+
+  // Capture in Sentry
+  Sentry.captureException(error);
+
   // Don't exit - try to keep running
 });
 
@@ -124,6 +147,14 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('❌ Unhandled Promise Rejection at:', promise);
   logger.error('Reason:', reason);
+
+  // Capture in Sentry
+  if (reason instanceof Error) {
+    Sentry.captureException(reason);
+  } else {
+    Sentry.captureMessage(`Unhandled rejection: ${String(reason)}`, 'error');
+  }
+
   // Don't exit - try to keep running
 });
 

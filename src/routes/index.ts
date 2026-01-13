@@ -29,6 +29,8 @@ import linksRoutes from './links.routes';
 import redirectRoutes from './redirect.routes';
 import { documentsRoutes } from './documents.routes';
 import { paymentRoutes } from './payment.routes';
+import newsRoutes from './news.routes';
+import { usersRoutes } from './users.routes';
 import {
   collectionLimiter,
   configLimiter,
@@ -80,6 +82,7 @@ export function setupRoutes(app: Express): void {
   app.use('/api/health', healthRoutes); // Health check endpoints
   app.use('/api/ai', aiRoutes); // AI provider testing (public for initial setup)
   app.use('/api/payments', paymentRoutes); // Mercado Pago webhooks need to be public
+  app.use('/api/news', apiLimiter, newsRoutes); // Public news list, Admin management protected internally
 
   // Protected routes (require authentication) with rate limiting
   app.use('/api/offers', authenticate, apiLimiter, offerRoutes);
@@ -101,6 +104,7 @@ export function setupRoutes(app: Express): void {
   app.use('/api/fix', authenticate, fixRoutes); // Temporary fix endpoints
   app.use('/api/links', authenticate, apiLimiter, linksRoutes); // URL Shortener API
   app.use('/api/documents', apiLimiter, documentsRoutes); // CPF/CNPJ validation (public for registration)
+  app.use('/api/users', authenticate, apiLimiter, usersRoutes); // LGPD: account deletion and data export
 
   // Public route for redirect (must be accessible without auth)
   app.use('/s', redirectRoutes); // Short URL redirect: /s/:code

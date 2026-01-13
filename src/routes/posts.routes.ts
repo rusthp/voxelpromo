@@ -1,15 +1,20 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { PostHistoryModel } from '../models/PostHistory';
 import { logger } from '../utils/logger';
+import { authenticate, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
+// All post routes require authentication
+router.use(authenticate);
+
 /**
  * GET /api/posts/history
- * Get post history with filters
+ * Get post history with filters (USER-SCOPED)
  */
-router.get('/history', async (req: Request, res: Response) => {
+router.get('/history', async (req: AuthRequest, res: Response) => {
     try {
+        const userId = req.user!.id;
         const {
             limit = 50,
             skip = 0,
@@ -19,8 +24,8 @@ router.get('/history', async (req: Request, res: Response) => {
             endDate,
         } = req.query;
 
-        // Build filter
-        const filter: any = {};
+        // Build filter - always include userId
+        const filter: any = { userId };
 
         if (platform) {
             filter.platform = platform;
@@ -68,19 +73,22 @@ router.get('/history', async (req: Request, res: Response) => {
 
 /**
  * GET /api/posts/history/stats
- * Get posting statistics
+ * Get posting statistics (USER-SCOPED)
  */
-router.get('/history/stats', async (_req: Request, res: Response) => {
+router.get('/history/stats', async (req: AuthRequest, res: Response) => {
     try {
-        // Overall stats
+        const userId = req.user!.id;
+
+        // Overall stats - filtered by userId
         const [totalPosts, successPosts, failedPosts] = await Promise.all([
-            PostHistoryModel.countDocuments(),
-            PostHistoryModel.countDocuments({ status: 'success' }),
-            PostHistoryModel.countDocuments({ status: 'failed' }),
+            PostHistoryModel.countDocuments({ userId }),
+            PostHistoryModel.countDocuments({ userId, status: 'success' }),
+            PostHistoryModel.countDocuments({ userId, status: 'failed' }),
         ]);
 
         // Stats by platform
         const byPlatform = await PostHistoryModel.aggregate([
+            { $match: { userId: userId } },
             {
                 $group: {
                     _id: '$platform',
@@ -93,9 +101,7 @@ router.get('/history/stats', async (_req: Request, res: Response) => {
                     },
                 },
             },
-            {
-                $sort: { total: -1 },
-            },
+            { $sort: { total: -1 } },
         ]);
 
         // Recent activity (last 7 days)
@@ -105,6 +111,7 @@ router.get('/history/stats', async (_req: Request, res: Response) => {
         const recentActivity = await PostHistoryModel.aggregate([
             {
                 $match: {
+                    userId: userId,
                     postedAt: { $gte: sevenDaysAgo },
                 },
             },
@@ -116,9 +123,7 @@ router.get('/history/stats', async (_req: Request, res: Response) => {
                     count: { $sum: 1 },
                 },
             },
-            {
-                $sort: { _id: 1 },
-            },
+            { $sort: { _id: 1 } },
         ]);
 
         res.json({
@@ -143,11 +148,16 @@ router.get('/history/stats', async (_req: Request, res: Response) => {
 
 /**
  * GET /api/posts/history/:id
- * Get specific post history entry
+ * Get specific post history entry (USER-SCOPED)
  */
-router.get('/history/:id', async (req: Request, res: Response) => {
+router.get('/history/:id', async (req: AuthRequest, res: Response) => {
     try {
-        const post = await PostHistoryModel.findById(req.params.id).populate(
+        const userId = req.user!.id;
+
+        const post = await PostHistoryModel.findOne({
+            _id: req.params.id,
+            userId
+        }).populate(
             'offerId',
             'title imageUrl productUrl source discountPercentage currentPrice originalPrice'
         );

@@ -83,6 +83,23 @@ export function UsersTable() {
         }
     };
 
+    const handleStatusChange = async (userId: string, isActive: boolean) => {
+        try {
+            await api.patch(`/admin/users/${userId}/status`, { isActive });
+            toast({
+                title: isActive ? "Usuário ativado" : "Usuário suspenso",
+                description: `Status do usuário atualizado com sucesso.`
+            });
+            fetchUsers(); // Refresh list
+        } catch (error) {
+            toast({
+                variant: "destructive",
+                title: "Erro",
+                description: "Falha ao atualizar status do usuário."
+            });
+        }
+    };
+
     const handleImpersonate = async (user: User) => {
         if (!window.confirm(`Você tem certeza que deseja entrar como ${user.username}?`)) {
             return;
@@ -126,33 +143,33 @@ export function UsersTable() {
                         placeholder="Buscar por nome ou email..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="pl-8"
+                        className="pl-8 bg-black/20 border-white/10 text-white placeholder:text-white/40 focus:border-purple-500/50"
                     />
                 </div>
             </div>
 
-            <div className="rounded-md border">
+            <div className="rounded-xl border border-white/10 bg-black/20 backdrop-blur-xl overflow-hidden shadow-2xl">
                 <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Usuário</TableHead>
-                            <TableHead>Email</TableHead>
-                            <TableHead>Função</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Data Criação</TableHead>
-                            <TableHead className="text-right">Ações</TableHead>
+                    <TableHeader className="bg-white/5">
+                        <TableRow className="border-white/5 hover:bg-transparent">
+                            <TableHead className="text-white/60">Usuário</TableHead>
+                            <TableHead className="text-white/60">Email</TableHead>
+                            <TableHead className="text-white/60">Função</TableHead>
+                            <TableHead className="text-white/60">Status</TableHead>
+                            <TableHead className="text-white/60">Data Criação</TableHead>
+                            <TableHead className="text-right text-white/60">Ações</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {loading ? (
                             <TableRow>
                                 <TableCell colSpan={6} className="h-24 text-center">
-                                    <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-purple-500" />
                                 </TableCell>
                             </TableRow>
                         ) : users.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="h-24 text-center">
+                                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                                     Nenhum usuário encontrado.
                                 </TableCell>
                             </TableRow>
@@ -160,59 +177,87 @@ export function UsersTable() {
                             users.map((user) => (
                                 <TableRow
                                     key={user._id}
-                                    className="cursor-pointer hover:bg-muted/50"
+                                    className="cursor-pointer border-white/5 hover:bg-white/5 transition-colors"
                                     onClick={() => {
                                         setSelectedUserId(user._id);
                                         setDrawerOpen(true);
                                     }}
                                 >
-                                    <TableCell className="font-medium">{user.username}</TableCell>
-                                    <TableCell>{user.email}</TableCell>
+                                    <TableCell className="font-medium text-white">{user.username}</TableCell>
+                                    <TableCell className="text-white/80">{user.email}</TableCell>
                                     <TableCell>
-                                        <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                                        <Badge variant={null} className={`
+                                            border-0 uppercase text-[10px] font-bold tracking-wider
+                                            ${user.role === 'admin'
+                                                ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30'
+                                                : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'
+                                            }
+                                        `}>
                                             {user.role}
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant={user.isActive ? 'outline' : 'destructive'} className={user.isActive ? "text-green-600 border-green-600" : ""}>
+                                        <Badge variant={null} className={`
+                                            border-0 uppercase text-[10px] font-bold tracking-wider
+                                            ${user.isActive
+                                                ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                                                : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
+                                            }
+                                        `}>
                                             {user.isActive ? 'Ativo' : 'Inativo'}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell>
+                                    <TableCell className="text-white/60">
                                         {new Date(user.createdAt).toLocaleDateString()}
                                     </TableCell>
                                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                                <Button variant="ghost" className="h-8 w-8 p-0 text-white/60 hover:text-white hover:bg-white/10">
                                                     <MoreHorizontal className="h-4 w-4" />
                                                 </Button>
                                             </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                                            <DropdownMenuContent align="end" className="bg-zinc-900 border-white/10 text-white">
+                                                <DropdownMenuLabel className="text-white/50">Ações</DropdownMenuLabel>
 
                                                 <DropdownMenuItem onClick={() => {
                                                     setSelectedUserId(user._id);
                                                     setDrawerOpen(true);
-                                                }} className="flex items-center gap-2">
+                                                }} className="flex items-center gap-2 focus:bg-white/10 focus:text-white cursor-pointer">
                                                     <Eye className="h-4 w-4" />
                                                     Ver Detalhes
                                                 </DropdownMenuItem>
 
-                                                <DropdownMenuItem onClick={() => navigator.clipboard.writeText(user.email)}>
+                                                <DropdownMenuItem onClick={() => navigator.clipboard.writeText(user.email)} className="focus:bg-white/10 focus:text-white cursor-pointer">
                                                     Copiar Email
                                                 </DropdownMenuItem>
 
-                                                <DropdownMenuItem onClick={() => handleImpersonate(user)} className="text-blue-600 focus:text-blue-700 focus:bg-blue-50">
+                                                {user.isActive ? (
+                                                    <DropdownMenuItem
+                                                        onClick={() => handleStatusChange(user._id, false)}
+                                                        className="text-red-400 focus:text-red-300 focus:bg-red-500/10 cursor-pointer"
+                                                    >
+                                                        Suspender Usuário
+                                                    </DropdownMenuItem>
+                                                ) : (
+                                                    <DropdownMenuItem
+                                                        onClick={() => handleStatusChange(user._id, true)}
+                                                        className="text-emerald-400 focus:text-emerald-300 focus:bg-emerald-500/10 cursor-pointer"
+                                                    >
+                                                        Ativar Usuário
+                                                    </DropdownMenuItem>
+                                                )}
+
+                                                <DropdownMenuItem onClick={() => handleImpersonate(user)} className="text-blue-400 focus:text-blue-300 focus:bg-blue-500/10 cursor-pointer">
                                                     Entrar como Usuário
                                                 </DropdownMenuItem>
 
                                                 {user.role === 'user' ? (
-                                                    <DropdownMenuItem onClick={() => handleRoleChange(user._id, 'admin')}>
+                                                    <DropdownMenuItem onClick={() => handleRoleChange(user._id, 'admin')} className="focus:bg-white/10 focus:text-white cursor-pointer">
                                                         Promover a Admin
                                                     </DropdownMenuItem>
                                                 ) : (
-                                                    <DropdownMenuItem onClick={() => handleRoleChange(user._id, 'user')}>
+                                                    <DropdownMenuItem onClick={() => handleRoleChange(user._id, 'user')} className="focus:bg-white/10 focus:text-white cursor-pointer">
                                                         Rebaixar para User
                                                     </DropdownMenuItem>
                                                 )}

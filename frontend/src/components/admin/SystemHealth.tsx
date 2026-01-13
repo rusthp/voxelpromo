@@ -15,9 +15,12 @@ import {
     CheckCircle,
     XCircle,
     AlertTriangle,
+    Zap,
+    Shield
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/services/api";
+import { cn } from "@/lib/utils";
 
 interface HealthData {
     errors: { count24h: number };
@@ -31,6 +34,49 @@ interface ServiceStatus {
     status: "healthy" | "degraded" | "down";
     icon: React.ComponentType<{ className?: string }>;
     details?: string;
+}
+
+function ServiceCard({ service }: { service: ServiceStatus }) {
+    const statusConfig = {
+        healthy: { color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20", icon: CheckCircle, label: "Operacional" },
+        degraded: { color: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20", icon: AlertTriangle, label: "Instável" },
+        down: { color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20", icon: XCircle, label: "Offline" },
+    };
+
+    const config = statusConfig[service.status];
+    const StatusIcon = config.icon;
+
+    return (
+        <div className={cn(
+            "relative group overflow-hidden rounded-2xl p-5",
+            "bg-black/20 border backdrop-blur-sm transition-all duration-300",
+            "hover:bg-white/5 hover:scale-[1.02]",
+            config.border,
+            service.status === 'healthy' ? 'border-white/5' : ''
+        )}>
+            <div className="flex items-start justify-between mb-4">
+                <div className={cn("p-2.5 rounded-xl transition-colors", config.bg)}>
+                    <service.icon className={cn("w-5 h-5", config.color)} />
+                </div>
+                <Badge variant="outline" className={cn("border bg-black/40", config.color, config.border)}>
+                    <StatusIcon className="w-3 h-3 mr-1.5" />
+                    {config.label}
+                </Badge>
+            </div>
+
+            <div>
+                <h4 className="font-semibold text-white tracking-tight">{service.name}</h4>
+                <p className="text-xs text-white/50 mt-1 font-medium">{service.details}</p>
+            </div>
+
+            {/* Glow effect */}
+            <div className={cn(
+                "absolute -right-4 -bottom-4 w-24 h-24 rounded-full blur-2xl opacity-0 group-hover:opacity-20 transition-opacity",
+                service.status === 'healthy' ? 'bg-emerald-500' :
+                    service.status === 'degraded' ? 'bg-amber-500' : 'bg-red-500'
+            )} />
+        </div>
+    );
 }
 
 export function SystemHealth() {
@@ -59,7 +105,7 @@ export function SystemHealth() {
 
     useEffect(() => {
         fetchHealthData();
-        const interval = setInterval(fetchHealthData, 30000); // Refresh every 30s
+        const interval = setInterval(fetchHealthData, 30000);
         return () => clearInterval(interval);
     }, []);
 
@@ -74,10 +120,10 @@ export function SystemHealth() {
 
     const services: ServiceStatus[] = [
         {
-            name: "MongoDB",
+            name: "Conexão MongoDB",
             status: "healthy",
             icon: Database,
-            details: "Cluster Atlas Conectado",
+            details: "Cluster Atlas Primary",
         },
         {
             name: "API Backend",
@@ -89,191 +135,148 @@ export function SystemHealth() {
             name: "Mercado Pago",
             status: "healthy",
             icon: Cloud,
-            details: "Ambiente Sandbox",
+            details: "Sandbox Environment",
         },
         {
-            name: "Cron Jobs",
+            name: "Background Jobs",
             status: "healthy",
             icon: Clock,
-            details: "Executando normalmente",
+            details: "Scheduler Active",
         },
     ];
 
-    const statusColors = {
-        healthy: "bg-green-500/10 text-green-500 border-green-500/20",
-        degraded: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-        down: "bg-red-500/10 text-red-500 border-red-500/20",
-    };
-
-    const statusIcons = {
-        healthy: CheckCircle,
-        degraded: AlertTriangle,
-        down: XCircle,
-    };
+    if (loading) {
+        return <div className="grid grid-cols-4 gap-4 animate-pulse">
+            {[1, 2, 3, 4].map(i => <div key={i} className="h-32 bg-white/5 rounded-2xl" />)}
+        </div>;
+    }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
+        <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <div>
-                    <h3 className="text-lg font-semibold">Saúde do Sistema</h3>
+                    <h3 className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                        Status Operacional
+                    </h3>
                     <p className="text-sm text-muted-foreground">
-                        Monitoramento em tempo real dos serviços
+                        Monitoramento em tempo real da infraestrutura
                     </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={fetchHealthData} disabled={loading}>
-                    <RefreshCcw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+                <Button variant="outline" size="sm" onClick={fetchHealthData} disabled={loading} className="bg-white/5 border-white/10">
+                    <RefreshCcw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
                     Atualizar
                 </Button>
             </div>
 
-            {/* Services Status */}
+            {/* Services Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {services.map((service) => {
-                    const StatusIcon = statusIcons[service.status];
-                    return (
-                        <Card key={service.name} className="relative overflow-hidden">
-                            <CardContent className="pt-6">
-                                <div className="flex items-start justify-between mb-4">
-                                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                                        <service.icon className="h-5 w-5 text-primary" />
-                                    </div>
-                                    <Badge className={statusColors[service.status]}>
-                                        <StatusIcon className="h-3 w-3 mr-1" />
-                                        {service.status === "healthy" && "OK"}
-                                        {service.status === "degraded" && "Alerta"}
-                                        {service.status === "down" && "Offline"}
-                                    </Badge>
-                                </div>
-                                <h4 className="font-semibold">{service.name}</h4>
-                                <p className="text-sm text-muted-foreground">{service.details}</p>
-                            </CardContent>
-                        </Card>
-                    );
-                })}
+                {services.map((service) => (
+                    <ServiceCard key={service.name} service={service} />
+                ))}
             </div>
 
-            {/* System Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Performance Metrics */}
-                <Card>
+            {/* Metrics & Activity */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Performance */}
+                <Card className="lg:col-span-2 border-white/10 bg-black/20 backdrop-blur-xl">
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Cpu className="h-5 w-5 text-primary" />
-                            Métricas de Performance
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                            <Cpu className="h-5 w-5 text-purple-400" />
+                            Recursos do Sistema
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-6">
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm text-muted-foreground">Memória Utilizada</span>
-                                <span className="text-sm font-medium">
-                                    {healthData?.system?.memoryUsedMB || 0} MB
+                    <CardContent className="space-y-8">
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-white/70">Memória RAM</span>
+                                <span className="text-sm font-mono text-white">
+                                    {healthData?.system?.memoryUsedMB || 0} MB / 512 MB
                                 </span>
                             </div>
                             <Progress
-                                value={Math.min((healthData?.system?.memoryUsedMB || 0) / 5, 100)}
-                                className="h-2"
+                                value={Math.min((healthData?.system?.memoryUsedMB || 0) / 5.12, 100)}
+                                className="h-2 bg-white/5"
+                                indicatorClassName="bg-gradient-to-r from-purple-500 to-pink-500"
                             />
                         </div>
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm text-muted-foreground">Uptime</span>
-                                <span className="text-sm font-medium">
+
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-white/70">Disponibilidade (Uptime)</span>
+                                <span className="text-sm font-mono text-white">
                                     {healthData ? formatUptime(healthData.system.uptime) : "-"}
                                 </span>
                             </div>
-                            <Progress value={100} className="h-2" />
+                            <Progress
+                                value={100}
+                                className="h-2 bg-white/5"
+                                indicatorClassName="bg-gradient-to-r from-emerald-500 to-cyan-500"
+                            />
                         </div>
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm text-muted-foreground">Erros (24h)</span>
-                                <span className="text-sm font-medium">
-                                    {healthData?.errors?.count24h || 0}
-                                </span>
+
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-white/70">Taxa de Erros (24h)</span>
+                                <div className="flex items-center gap-2">
+                                    <span className={cn(
+                                        "text-sm font-bold px-2 py-0.5 rounded",
+                                        (healthData?.errors?.count24h || 0) > 0 ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400"
+                                    )}>
+                                        {healthData?.errors?.count24h || 0}
+                                    </span>
+                                </div>
                             </div>
                             <Progress
                                 value={Math.min((healthData?.errors?.count24h || 0) * 10, 100)}
-                                className="h-2"
+                                className="h-2 bg-white/5"
+                                indicatorClassName="bg-gradient-to-r from-red-500 to-orange-500"
                             />
                         </div>
                     </CardContent>
                 </Card>
 
-                {/* Activity Summary */}
-                <Card>
+                {/* Environment Check */}
+                <Card className="border-white/10 bg-black/20 backdrop-blur-xl">
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Activity className="h-5 w-5 text-primary" />
-                            Resumo de Atividade
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                            <HardDrive className="h-5 w-5 text-blue-400" />
+                            Ambiente
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="text-center p-4 rounded-lg bg-muted/50">
-                                <div className="text-2xl font-bold text-primary">
-                                    {healthData?.offers?.total || 0}
+                        <div className="space-y-3">
+                            {[
+                                { name: "MongoDB", configured: true },
+                                { name: "JWT Secret", configured: true },
+                                { name: "Mercado Pago", configured: true },
+                                { name: "Instagram", configured: true },
+                                { name: "Vectorizer", configured: true, highlight: true },
+                                { name: "Groq AI", configured: false },
+                                { name: "WhatsApp", configured: false },
+                            ].map((env) => (
+                                <div
+                                    key={env.name}
+                                    className={cn(
+                                        "flex items-center justify-between p-2.5 rounded-lg border transition-colors",
+                                        env.highlight
+                                            ? "bg-emerald-500/5 border-emerald-500/20"
+                                            : "bg-white/5 border-white/5 hover:bg-white/10"
+                                    )}
+                                >
+                                    <span className={cn("text-xs font-medium", env.highlight ? "text-emerald-400" : "text-white/70")}>
+                                        {env.name}
+                                    </span>
+                                    {env.configured ? (
+                                        <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
+                                    ) : (
+                                        <AlertTriangle className="h-3.5 w-3.5 text-amber-500/70" />
+                                    )}
                                 </div>
-                                <div className="text-sm text-muted-foreground">Total Ofertas</div>
-                            </div>
-                            <div className="text-center p-4 rounded-lg bg-muted/50">
-                                <div className="text-2xl font-bold text-green-500">
-                                    {healthData?.offers?.active || 0}
-                                </div>
-                                <div className="text-sm text-muted-foreground">Ofertas Ativas</div>
-                            </div>
-                            <div className="text-center p-4 rounded-lg bg-muted/50">
-                                <div className="text-2xl font-bold text-blue-500">
-                                    {healthData?.users?.total || 0}
-                                </div>
-                                <div className="text-sm text-muted-foreground">Total Usuários</div>
-                            </div>
-                            <div className="text-center p-4 rounded-lg bg-muted/50">
-                                <div className="text-2xl font-bold text-purple-500">
-                                    {healthData?.users?.new24h || 0}
-                                </div>
-                                <div className="text-sm text-muted-foreground">Novos (24h)</div>
-                            </div>
+                            ))}
                         </div>
                     </CardContent>
                 </Card>
             </div>
-
-            {/* Environment Variables Check */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <HardDrive className="h-5 w-5 text-primary" />
-                        Variáveis de Ambiente
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {[
-                            { name: "MongoDB", configured: true },
-                            { name: "JWT Secret", configured: true },
-                            { name: "Mercado Pago", configured: true },
-                            { name: "Telegram", configured: false },
-                            { name: "Instagram", configured: true },
-                            { name: "WhatsApp", configured: false },
-                            { name: "Groq AI", configured: false },
-                            { name: "Vectorizer", configured: true },
-                        ].map((envVar) => (
-                            <div
-                                key={envVar.name}
-                                className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                            >
-                                <span className="text-sm">{envVar.name}</span>
-                                {envVar.configured ? (
-                                    <CheckCircle className="h-4 w-4 text-green-500" />
-                                ) : (
-                                    <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                </CardContent>
-            </Card>
         </div>
     );
 }

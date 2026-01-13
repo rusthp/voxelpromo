@@ -1,20 +1,27 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { OfferModel } from '../models/Offer';
 import { logger } from '../utils/logger';
+import { authenticate, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
+// All stats routes require authentication
+router.use(authenticate);
+
 /**
  * GET /api/stats
- * Get basic statistics
+ * Get basic statistics (USER-SCOPED)
  */
-router.get('/', async (_req: Request, res: Response) => {
+router.get('/', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
+
     const [total, posted, notPosted, avgDiscountResult] = await Promise.all([
-      OfferModel.countDocuments(),
-      OfferModel.countDocuments({ isPosted: true }),
-      OfferModel.countDocuments({ isPosted: false }),
+      OfferModel.countDocuments({ userId }),
+      OfferModel.countDocuments({ userId, isPosted: true }),
+      OfferModel.countDocuments({ userId, isPosted: false }),
       OfferModel.aggregate([
+        { $match: { userId: userId } },
         {
           $group: {
             _id: null,
@@ -40,10 +47,11 @@ router.get('/', async (_req: Request, res: Response) => {
 
 /**
  * GET /api/stats/analytics
- * Get comprehensive analytics data
+ * Get comprehensive analytics data (USER-SCOPED)
  */
-router.get('/analytics', async (req: Request, res: Response) => {
+router.get('/analytics', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { startDate, endDate, days = 30 } = req.query;
 
     // Calculate date range
@@ -52,13 +60,15 @@ router.get('/analytics', async (req: Request, res: Response) => {
       ? new Date(startDate as string)
       : new Date(end.getTime() - parseInt(days as string) * 24 * 60 * 60 * 1000);
 
+    // Base match for all queries (userId + date range)
+    const baseMatch = {
+      userId: userId,
+      createdAt: { $gte: start, $lte: end },
+    };
+
     // Get offers by source
     const offersBySource = await OfferModel.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: start, $lte: end },
-        },
-      },
+      { $match: baseMatch },
       {
         $group: {
           _id: '$source',
@@ -67,18 +77,12 @@ router.get('/analytics', async (req: Request, res: Response) => {
           totalRevenue: { $sum: '$currentPrice' },
         },
       },
-      {
-        $sort: { count: -1 },
-      },
+      { $sort: { count: -1 } },
     ]);
 
     // Get offers by category
     const offersByCategory = await OfferModel.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: start, $lte: end },
-        },
-      },
+      { $match: baseMatch },
       {
         $group: {
           _id: '$category',
@@ -86,21 +90,13 @@ router.get('/analytics', async (req: Request, res: Response) => {
           avgDiscount: { $avg: '$discountPercentage' },
         },
       },
-      {
-        $sort: { count: -1 },
-      },
-      {
-        $limit: 10,
-      },
+      { $sort: { count: -1 } },
+      { $limit: 10 },
     ]);
 
     // Get offers by day (time series)
     const offersByDay = await OfferModel.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: start, $lte: end },
-        },
-      },
+      { $match: baseMatch },
       {
         $group: {
           _id: {
@@ -110,13 +106,12 @@ router.get('/analytics', async (req: Request, res: Response) => {
           avgDiscount: { $avg: '$discountPercentage' },
         },
       },
-      {
-        $sort: { _id: 1 },
-      },
+      { $sort: { _id: 1 } },
     ]);
 
     // Get top offers by discount
     const topOffers = await OfferModel.find({
+      userId: userId,
       createdAt: { $gte: start, $lte: end },
     })
       .sort({ discountPercentage: -1 })
@@ -125,11 +120,7 @@ router.get('/analytics', async (req: Request, res: Response) => {
 
     // Get posting statistics
     const postingStats = await OfferModel.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: start, $lte: end },
-        },
-      },
+      { $match: baseMatch },
       {
         $group: {
           _id: null,
@@ -191,11 +182,14 @@ router.get('/analytics', async (req: Request, res: Response) => {
 
 /**
  * GET /api/stats/sources
- * Get statistics by source
+ * Get statistics by source (USER-SCOPED)
  */
-router.get('/sources', async (_req: Request, res: Response) => {
+router.get('/sources', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
+
     const sourceStats = await OfferModel.aggregate([
+      { $match: { userId: userId } },
       {
         $group: {
           _id: '$source',
@@ -207,9 +201,7 @@ router.get('/sources', async (_req: Request, res: Response) => {
           maxDiscount: { $max: '$discountPercentage' },
         },
       },
-      {
-        $sort: { total: -1 },
-      },
+      { $sort: { total: -1 } },
     ]);
 
     res.json({

@@ -7,8 +7,12 @@ import { DashboardStats } from "@/components/admin/DashboardStats";
 import { SubscriptionsTable } from "@/components/admin/SubscriptionsTable";
 import { SystemHealth } from "@/components/admin/SystemHealth";
 import { GlobalSettings } from "@/components/admin/GlobalSettings";
-import { Shield, Key, FileText, Activity, CreditCard, Server, Settings } from "lucide-react";
+import { NewsList } from "@/components/admin/news/NewsList";
+import { VectorizerManage } from "@/components/admin/VectorizerManage";
+import { Shield, Key, FileText, Activity, CreditCard, Server, Settings, Megaphone, DollarSign, BrainCircuit } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
+
+import { FinancialReports } from "@/components/admin/FinancialReports";
 
 const Admin = () => {
     const [activeTab, setActiveTab] = useState("dashboard");
@@ -31,6 +35,10 @@ const Admin = () => {
                             <Activity className="h-4 w-4" />
                             Visão Geral
                         </TabsTrigger>
+                        <TabsTrigger value="finance" className="flex items-center gap-2">
+                            <DollarSign className="h-4 w-4" />
+                            Financeiro
+                        </TabsTrigger>
                         <TabsTrigger value="subscriptions" className="flex items-center gap-2">
                             <CreditCard className="h-4 w-4" />
                             Assinaturas
@@ -43,6 +51,10 @@ const Admin = () => {
                             <Server className="h-4 w-4" />
                             Sistema
                         </TabsTrigger>
+                        <TabsTrigger value="vectors" className="flex items-center gap-2">
+                            <BrainCircuit className="h-4 w-4" />
+                            IA & Vetores
+                        </TabsTrigger>
                         <TabsTrigger value="settings" className="flex items-center gap-2">
                             <Settings className="h-4 w-4" />
                             Configurações
@@ -51,11 +63,20 @@ const Admin = () => {
                             <FileText className="h-4 w-4" />
                             Audit Logs
                         </TabsTrigger>
+                        <TabsTrigger value="news" className="flex items-center gap-2">
+                            <Megaphone className="h-4 w-4" />
+                            Novidades
+                        </TabsTrigger>
                     </TabsList>
 
                     {/* Tab: Dashboard */}
                     <TabsContent value="dashboard" className="space-y-4">
                         <DashboardStats />
+                    </TabsContent>
+
+                    {/* Tab: Finance */}
+                    <TabsContent value="finance" className="space-y-4">
+                        <FinancialReports />
                     </TabsContent>
 
                     {/* Tab: Subscriptions */}
@@ -93,6 +114,11 @@ const Admin = () => {
                         <SystemHealth />
                     </TabsContent>
 
+                    {/* Tab: Vectorizer / AI */}
+                    <TabsContent value="vectors" className="space-y-4">
+                        <VectorizerManage />
+                    </TabsContent>
+
                     {/* Tab: Global Settings */}
                     <TabsContent value="settings" className="space-y-4">
                         <GlobalSettings />
@@ -112,9 +138,24 @@ const Admin = () => {
                             </CardContent>
                         </Card>
                     </TabsContent>
-                </Tabs>
-            </div>
-        </Layout>
+
+                    {/* Tab: News */}
+                    <TabsContent value="news" className="space-y-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Gerenciamento de Novidades</CardTitle>
+                                <CardDescription>
+                                    Publique atualizações, correções e anúncios para os usuários.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <NewsList />
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                </Tabs >
+            </div >
+        </Layout >
     );
 };
 

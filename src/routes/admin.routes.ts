@@ -454,4 +454,226 @@ router.get('/users/:id/details', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * PATCH /api/admin/users/:id/status
+ * Toggle user active status (suspend/activate)
+ */
+router.patch('/users/:id/status', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body;
+
+    const user = await UserModel.findByIdAndUpdate(
+      id,
+      { isActive },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      res.status(404).json({ success: false, error: 'User not found' });
+      return;
+    }
+
+    await LogService.log({
+      req,
+      action: isActive ? 'USER_ACTIVATE' : 'USER_SUSPEND',
+      category: 'USER',
+      resource: { type: 'User', id: user._id.toString(), name: user.username },
+      details: { reason: req.body.reason || 'Admin action' },
+      actor: req.user as any
+    });
+
+    res.json({ success: true, user });
+  } catch (error: any) {
+    logger.error('Error updating user status:', error);
+    res.status(500).json({ success: false, error: 'Failed to update user status' });
+  }
+});
+
+/**
+ * GET /api/admin/finance/stats
+ * Get financial statistics
+ */
+router.get('/finance/stats', async (_req: Request, res: Response) => {
+  try {
+    const today = new Date();
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+
+    // Import Transaction model
+    const { TransactionModel } = await import('../models/Transaction');
+
+    // 1. Calculate MRR (Monthly Recurring Revenue)
+    // Sum of prices of all active recurring subscriptions
+    const activeSubs = await UserModel.find({
+      'subscription.status': 'authorized',
+      'subscription.accessType': 'recurring'
+    }).select('subscription');
+
+    const planPrices: Record<string, number> = {
+      'basic-monthly': 2990,
+      'pro': 5990,
+      'agency': 14990,
+      'premium-annual': 49990 / 12 // Monthly equivalent
+    };
+
+    let mrr = 0;
+    activeSubs.forEach(user => {
+      const planId = user.subscription?.planId;
+      if (planId && planPrices[planId]) {
+        mrr += planPrices[planId];
+      }
+    });
+
+    // 2. Revenue This Month (from Transaction model)
+    const currentMonthRevenue = await TransactionModel.aggregate([
+      {
+        $match: {
+          status: 'approved',
+          type: { $in: ['payment_approved', 'subscription_created'] },
+          createdAt: { $gte: startOfMonth }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' }
+        }
+      }
+    ]);
+
+    // 3. Revenue Last Month (from Transaction model)
+    const lastMonthRevenue = await TransactionModel.aggregate([
+      {
+        $match: {
+          status: 'approved',
+          type: { $in: ['payment_approved', 'subscription_created'] },
+          createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' }
+        }
+      }
+    ]);
+
+    const currentMonthTotal = currentMonthRevenue[0]?.total || 0;
+    const lastMonthTotal = lastMonthRevenue[0]?.total || 0;
+
+    // Calculate growth percentage
+    let growth = 0;
+    if (lastMonthTotal > 0) {
+      growth = Math.round(((currentMonthTotal - lastMonthTotal) / lastMonthTotal) * 100);
+    } else if (currentMonthTotal > 0) {
+      growth = 100; // 100% growth if last month was zero
+    }
+
+    // 4. Recent Transactions (last 20)
+    const recentTransactions = await TransactionModel.find({})
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .lean();
+
+    res.json({
+      success: true,
+      data: {
+        mrr,
+        activeSubscriptions: activeSubs.length,
+        revenue: {
+          currentMonth: currentMonthTotal,
+          lastMonth: lastMonthTotal,
+          growth
+        },
+        recentTransactions
+      }
+    });
+  } catch (error: any) {
+    logger.error('Error fetching finance stats:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch finance stats' });
+  }
+});
+
+
+/**
+ * GET /api/admin/dashboard
+ * Aggregated dashboard stats
+ */
+router.get('/dashboard', async (_req: Request, res: Response) => {
+  // Delegate to existing specific stats endpoints or aggregate here
+  // For now redirecting to health-stats which has most info
+  res.redirect('/api/admin/health-stats');
+});
+
+/**
+ * GET /api/admin/vectorizer/health
+ * Check Vectorizer service status
+ * PROTECTED ROUTE - Requires authentication & Admin
+ */
+router.get('/vectorizer/health', async (_req: Request, res: Response) => {
+  try {
+    const { getVectorizerService } = await import('../services/vectorizer/VectorizerService');
+    const vectorizer = getVectorizerService();
+
+    const isHealthy = await vectorizer.healthCheck();
+    const collections = await vectorizer.listCollections();
+
+    res.json({
+      success: true,
+      data: {
+        status: isHealthy ? 'ONLINE' : 'OFFLINE',
+        collections: collections.data || [],
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error: any) {
+    logger.error('Error checking Vectorizer health:', error);
+    res.json({
+      success: true,
+      data: {
+        status: 'ERROR',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+});
+
+
+/**
+ * POST /api/admin/vectorizer/search
+ * Test vector search from admin panel
+ * PROTECTED ROUTE - Requires authentication & Admin
+ */
+router.post('/vectorizer/search', async (req: AuthRequest, res: Response) => {
+  try {
+    const { query, collection, limit } = req.body;
+
+    if (!query) {
+      res.status(400).json({ success: false, error: 'Query is required' });
+      return;
+    }
+
+    const { getVectorizerService } = await import('../services/vectorizer/VectorizerService');
+    const vectorizer = getVectorizerService();
+
+    const results = await vectorizer.search(query, {
+      collection: collection || 'voxelpromo-offers',
+      maxResults: parseInt(limit as string) || 5
+    });
+
+    res.json({
+      success: true,
+      data: results.data
+    });
+  } catch (error: any) {
+    logger.error('Error searching vectors:', error);
+    res.status(500).json({ success: false, error: 'Failed to search vectors' });
+  }
+});
+
 export { router as adminRoutes };
+
+

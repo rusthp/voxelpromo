@@ -19,9 +19,12 @@ import {
     Calendar,
     TrendingUp,
     Clock,
-    LogIn
+    LogIn,
+    Shield,
+    CheckCircle2
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { cn } from "@/lib/utils";
 
 interface UserDetailDrawerProps {
     userId: string | null;
@@ -115,139 +118,153 @@ export function UserDetailDrawer({ userId, open, onClose }: UserDetailDrawerProp
 
     return (
         <Sheet open={open} onOpenChange={onClose}>
-            <SheetContent className="w-[400px] sm:w-[540px]">
-                <SheetHeader>
-                    <SheetTitle className="flex items-center gap-2">
-                        <User className="h-5 w-5" />
-                        {details?.user.username || 'Carregando...'}
+            <SheetContent className="w-[400px] sm:w-[540px] border-l border-white/10 bg-black/40 backdrop-blur-2xl text-white">
+                <SheetHeader className="pb-4 border-b border-white/10">
+                    <SheetTitle className="flex items-center gap-3 text-white">
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                            <User className="h-5 w-5 text-white" />
+                        </div>
+                        <div className="flex flex-col items-start gap-0.5">
+                            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">
+                                {details?.user.username || 'Carregando...'}
+                            </span>
+                            <SheetDescription className="text-white/40 text-xs">
+                                {details?.user.email}
+                            </SheetDescription>
+                        </div>
                     </SheetTitle>
-                    <SheetDescription>
-                        {details?.user.email}
-                    </SheetDescription>
                 </SheetHeader>
 
                 {loading ? (
-                    <div className="py-8 text-center text-muted-foreground">Carregando...</div>
+                    <div className="py-20 text-center text-white/30 animate-pulse">
+                        Carregando detalhes do usuário...
+                    </div>
                 ) : details ? (
-                    <ScrollArea className="h-[calc(100vh-120px)] pr-4">
-                        <div className="space-y-6 mt-6">
+                    <ScrollArea className="h-[calc(100vh-120px)] pr-4 -mr-4">
+                        <div className="space-y-8 mt-6 pr-4">
 
                             {/* Quick Actions */}
-                            <div className="space-y-2">
-                                <h3 className="text-sm font-semibold">Ações Rápidas</h3>
+                            <div className="space-y-3">
+                                <h3 className="text-xs font-semibold uppercase tracking-wider text-white/40">Ações Rápidas</h3>
                                 <div className="flex gap-2">
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="flex-1"
+                                        className="flex-1 bg-white/5 border-white/10 hover:bg-purple-500/20 hover:text-purple-300 hover:border-purple-500/50 transition-all font-medium"
                                         onClick={handleImpersonate}
                                     >
                                         <LogIn className="h-4 w-4 mr-2" />
-                                        Entrar como Usuário
+                                        Entrar como {details.user.username}
                                     </Button>
                                 </div>
                             </div>
 
-                            <Separator />
-
-                            {/* User Info */}
-                            <div className="space-y-2">
-                                <h3 className="text-sm font-semibold">Informações</h3>
-                                <div className="grid grid-cols-2 gap-2 text-sm">
-                                    <div>
-                                        <span className="text-muted-foreground">Conta criada:</span>
-                                        <p className="font-medium">{new Date(details.user.createdAt).toLocaleDateString()}</p>
+                            {/* User Info Stats */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Shield className={`h-4 w-4 ${details.user.role === 'admin' ? 'text-purple-400' : 'text-blue-400'}`} />
+                                        <span className="text-xs text-white/60">Função</span>
                                     </div>
-                                    <div>
-                                        <span className="text-muted-foreground">Última atividade:</span>
-                                        <p className="font-medium flex items-center gap-1">
-                                            <Clock className="h-3 w-3" />
-                                            {details.activity.lastActive
-                                                ? new Date(details.activity.lastActive).toLocaleString()
-                                                : 'Nunca'}
-                                        </p>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-semibold text-lg">{details.user.role === 'admin' ? 'Administrador' : 'Usuário'}</span>
                                     </div>
-                                    <div>
-                                        <span className="text-muted-foreground">Plano:</span>
-                                        <p className="font-medium">
-                                            <Badge variant="outline">{details.usage.planTier}</Badge>
-                                        </p>
+                                </div>
+                                <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Calendar className="h-4 w-4 text-emerald-400" />
+                                        <span className="text-xs text-white/60">Desde</span>
                                     </div>
-                                    <div>
-                                        <span className="text-muted-foreground">Função:</span>
-                                        <p className="font-medium">
-                                            <Badge variant={details.user.role === 'admin' ? 'default' : 'secondary'}>
-                                                {details.user.role}
-                                            </Badge>
-                                        </p>
+                                    <div className="font-semibold text-lg">
+                                        {new Date(details.user.createdAt).toLocaleDateString()}
                                     </div>
                                 </div>
                             </div>
 
-                            <Separator />
+                            {/* Plan & Usage */}
+                            <div className="p-5 rounded-xl bg-gradient-to-br from-white/5 to-transparent border border-white/5 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <TrendingUp className="h-5 w-5 text-cyan-400" />
+                                        <span className="font-semibold">Plano Atual</span>
+                                    </div>
+                                    <Badge variant="outline" className="bg-cyan-500/10 text-cyan-400 border-cyan-500/30 px-3 py-1">
+                                        {details.usage.planTier}
+                                    </Badge>
+                                </div>
 
-                            {/* Usage Stats */}
-                            <div className="space-y-3">
-                                <h3 className="text-sm font-semibold flex items-center gap-2">
-                                    <TrendingUp className="h-4 w-4" />
-                                    Uso
-                                </h3>
                                 <div className="space-y-2">
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-muted-foreground">Posts hoje</span>
-                                        <span className="font-medium">{details.usage.postsToday} / {details.usage.postsLimit}</span>
+                                    <div className="flex justify-between text-xs text-white/60">
+                                        <span>Consumo de Posts (Diário)</span>
+                                        <span>{usagePercentage.toFixed(0)}% Utilizado</span>
                                     </div>
-                                    <Progress value={usagePercentage} className="h-2" />
+                                    <Progress
+                                        value={usagePercentage}
+                                        className="h-2 bg-black/40"
+                                        indicatorClassName="bg-gradient-to-r from-cyan-500 to-blue-500"
+                                    />
+                                    <div className="flex justify-between text-[10px] text-white/40 font-mono">
+                                        <span>0</span>
+                                        <span>{details.usage.postsToday} / {details.usage.postsLimit}</span>
+                                    </div>
                                 </div>
                             </div>
-
-                            <Separator />
 
                             {/* Health Status */}
-                            <div className="space-y-2">
-                                <h3 className="text-sm font-semibold flex items-center gap-2">
+                            <div className="space-y-3">
+                                <h3 className="text-xs font-semibold uppercase tracking-wider text-white/40 flex items-center gap-2">
                                     <AlertTriangle className="h-4 w-4" />
-                                    Saúde
+                                    Saúde & Erros
                                 </h3>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div className="p-3 border rounded-lg">
-                                        <p className="text-2xl font-bold text-red-500">{details.activity.errors24h}</p>
-                                        <p className="text-xs text-muted-foreground">Erros (24h)</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="p-3 rounded-lg border border-white/5 bg-red-500/5 hover:bg-red-500/10 transition-colors">
+                                        <p className="text-3xl font-bold text-red-500 mb-1">{details.activity.errors24h}</p>
+                                        <p className="text-xs text-red-300/60 font-medium uppercase tracking-wide">Erros 24h</p>
                                     </div>
-                                    <div className="p-3 border rounded-lg">
-                                        <p className="text-2xl font-bold text-orange-500">{details.activity.errors7d}</p>
-                                        <p className="text-xs text-muted-foreground">Erros (7d)</p>
+                                    <div className="p-3 rounded-lg border border-white/5 bg-orange-500/5 hover:bg-orange-500/10 transition-colors">
+                                        <p className="text-3xl font-bold text-orange-500 mb-1">{details.activity.errors7d}</p>
+                                        <p className="text-xs text-orange-300/60 font-medium uppercase tracking-wide">Erros 7 dias</p>
                                     </div>
                                 </div>
                             </div>
 
-                            <Separator />
-
                             {/* Recent Activity */}
-                            <div className="space-y-2">
-                                <h3 className="text-sm font-semibold flex items-center gap-2">
-                                    <Activity className="h-4 w-4" />
-                                    Atividade Recente
-                                </h3>
-                                {details.activity.recent.length === 0 ? (
-                                    <p className="text-sm text-muted-foreground">Nenhuma atividade registrada.</p>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {details.activity.recent.map((log: any, idx: number) => (
-                                            <div key={idx} className="flex items-start gap-2 p-2 rounded-lg border text-sm">
-                                                <div className="flex-1">
-                                                    <p className="font-medium font-mono text-xs">{log.action}</p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {new Date(log.createdAt).toLocaleString()}
-                                                    </p>
-                                                </div>
-                                                <Badge variant={log.status === 'SUCCESS' ? 'outline' : 'destructive'} className="text-xs">
-                                                    {log.status}
-                                                </Badge>
-                                            </div>
-                                        ))}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-xs font-semibold uppercase tracking-wider text-white/40 flex items-center gap-2">
+                                        <Activity className="h-4 w-4" />
+                                        Atividade Recente
+                                    </h3>
+                                    <div className="text-[10px] text-white/30 flex items-center gap-1">
+                                        <Clock className="w-3 h-3" />
+                                        Último acesso: {details.activity.lastActive ? new Date(details.activity.lastActive).toLocaleString() : 'N/A'}
                                     </div>
-                                )}
+                                </div>
+
+                                <div className="rounded-xl border border-white/10 bg-black/20 overflow-hidden">
+                                    {details.activity.recent.length === 0 ? (
+                                        <div className="p-8 text-center text-sm text-white/30">Nenhuma atividade registrada Recentemente.</div>
+                                    ) : (
+                                        <div className="divide-y divide-white/5">
+                                            {details.activity.recent.map((log: any, idx: number) => (
+                                                <div key={idx} className="flex items-center justify-between p-3 hover:bg-white/5 transition-colors">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={cn("w-1.5 h-1.5 rounded-full", log.status === 'SUCCESS' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]")} />
+                                                        <div className="flex flex-col">
+                                                            <span className="text-sm font-medium text-white/90">{log.action}</span>
+                                                            <span className="text-[10px] text-white/40">{new Date(log.createdAt).toLocaleString()}</span>
+                                                        </div>
+                                                    </div>
+                                                    <Badge variant="outline" className={cn("text-[10px] border-0",
+                                                        log.status === 'SUCCESS' ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
+                                                    )}>
+                                                        {log.status}
+                                                    </Badge>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                         </div>

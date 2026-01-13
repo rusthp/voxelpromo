@@ -1,5 +1,6 @@
 export interface Offer {
   _id?: string;
+  userId?: string; // Reference to the user who owns this offer
   title: string;
   description: string;
   originalPrice: number;
@@ -41,6 +42,7 @@ export interface FilterOptions {
   skip?: number;
   sortBy?: string;
   search?: string; // Search by title (case-insensitive)
+  userId?: string; // Filter by user Owner
 }
 
 export interface AIPostRequest {

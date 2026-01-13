@@ -3,20 +3,32 @@ import { Offer } from '../../types';
 import { logger } from '../../utils/logger';
 import { AIService } from '../ai/AIService';
 
+export interface TelegramConfig {
+  botToken: string;
+  chatId: string;
+}
+
 export class TelegramService {
   private bot: TelegramBot | null = null;
   private chatId: string;
+  private token: string | undefined;
   private aiService: AIService | null = null;
 
-  constructor() {
+  constructor(config?: TelegramConfig) {
     // Don't initialize bot on startup - lazy initialization
-    this.chatId = process.env.TELEGRAM_CHAT_ID || '';
-    const token = process.env.TELEGRAM_BOT_TOKEN;
-
-    if (token && this.chatId) {
-      logger.info('✅ Telegram configured - will initialize on first use');
+    if (config) {
+      this.chatId = config.chatId;
+      this.token = config.botToken;
+      // logger.debug('TelegramService initialized with instance config');
     } else {
-      logger.warn('⚠️ Telegram bot token or chat ID not configured');
+      this.chatId = process.env.TELEGRAM_CHAT_ID || '';
+      this.token = process.env.TELEGRAM_BOT_TOKEN;
+
+      if (this.token && this.chatId) {
+        logger.info('✅ Telegram configured (Env) - will initialize on first use');
+      } else {
+        logger.warn('⚠️ Telegram bot token or chat ID not configured');
+      }
     }
   }
 
@@ -38,7 +50,7 @@ export class TelegramService {
       return; // Already initialized
     }
 
-    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const token = this.token || process.env.TELEGRAM_BOT_TOKEN;
     if (!token) {
       logger.warn('⚠️ Telegram bot token not configured');
       return;

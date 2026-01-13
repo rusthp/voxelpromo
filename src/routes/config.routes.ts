@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { logger } from '../utils/logger';
@@ -8,127 +8,120 @@ import {
   validateGroqApiKey,
   validateOpenAIApiKey
 } from '../utils/validators';
+import { authenticate, AuthRequest } from '../middleware/auth';
+import { getUserSettingsService } from '../services/user/UserSettingsService';
 
 const router = Router();
 const configPath = join(process.cwd(), 'config.json');
 
 /**
  * GET /api/config
- * Get current configuration
+ * Get current configuration (USER-SCOPED)
  */
-router.get('/', (_req, res) => {
+router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    if (existsSync(configPath)) {
-      const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-      // Don't send sensitive data
-      const safeConfig = {
-        ...config,
-        amazon: config.amazon
-          ? {
-            accessKey: config.amazon.accessKey ? '***' : '',
-            secretKey: config.amazon.secretKey ? '***' : '',
-            associateTag: config.amazon.associateTag || '',
-            region: config.amazon.region || 'sa-east-1',
-          }
-          : {},
-        aliexpress: config.aliexpress
-          ? {
-            appKey: config.aliexpress.appKey ? '***' : '',
-            appSecret: config.aliexpress.appSecret ? '***' : '',
-            trackingId: config.aliexpress.trackingId || '',
-          }
-          : {},
-        mercadolivre: config.mercadolivre
-          ? {
-            clientId: config.mercadolivre.clientId || '',
-            clientSecret: config.mercadolivre.clientSecret ? '***' : '',
-            redirectUri: config.mercadolivre.redirectUri || '',
-            affiliateCode: config.mercadolivre.affiliateCode || '',
-            accessToken: config.mercadolivre.accessToken ? '***' : '',
-            refreshToken: config.mercadolivre.refreshToken ? '***' : '',
-            tokenExpiresAt: config.mercadolivre.tokenExpiresAt || null,
-            // Internal API for affiliate links
-            sessionCookies: config.mercadolivre.sessionCookies ? '***' : '',
-            csrfToken: config.mercadolivre.csrfToken ? '***' : '',
-            affiliateTag: config.mercadolivre.affiliateTag || '',
-          }
-          : {},
-        telegram: config.telegram
-          ? {
-            botToken: config.telegram.botToken ? '***' : '',
-            chatId: config.telegram.chatId || '',
-          }
-          : {},
-        whatsapp: config.whatsapp
-          ? {
-            enabled: config.whatsapp.enabled || false,
-            targetNumber: config.whatsapp.targetNumber || '',
-            targetGroups: config.whatsapp.targetGroups || [],
-            library: config.whatsapp.library || 'baileys',
-          }
-          : {},
-        x: config.x
-          ? {
-            bearerToken: config.x.bearerToken ? '***' : '',
-            apiKey: config.x.apiKey ? '***' : '',
-            apiKeySecret: config.x.apiKeySecret ? '***' : '',
-            accessToken: config.x.accessToken ? '***' : '',
-            accessTokenSecret: config.x.accessTokenSecret ? '***' : '',
-            oauth2ClientId: config.x.oauth2ClientId ? '***' : '',
-            oauth2ClientSecret: config.x.oauth2ClientSecret ? '***' : '',
-            oauth2RedirectUri:
-              config.x.oauth2RedirectUri || 'http://localhost:3000/api/x/auth/callback',
-            oauth2AccessToken: config.x.oauth2AccessToken ? '***' : '',
-            oauth2RefreshToken: config.x.oauth2RefreshToken ? '***' : '',
-            oauth2TokenExpiresAt: config.x.oauth2TokenExpiresAt || null,
-            oauth2Scope: config.x.oauth2Scope || '',
-          }
-          : {},
-        ai: config.ai
-          ? {
-            provider: config.ai.provider || 'groq',
-            groqApiKey: config.ai.groqApiKey ? '***' : '',
-            openaiApiKey: config.ai.openaiApiKey ? '***' : '',
-          }
-          : {},
-        rss: config.rss || [],
-        instagram: config.instagram
-          ? {
-            appId: config.instagram.appId ? '***' : '',
-            appSecret: config.instagram.appSecret ? '***' : '',
-            accessToken: config.instagram.accessToken ? '***' : '',
-            pageAccessToken: config.instagram.pageAccessToken ? '***' : '',
-            pageId: config.instagram.pageId || '',
-            igUserId: config.instagram.igUserId || '',
-            webhookVerifyToken: config.instagram.webhookVerifyToken || '',
-          }
-          : {},
-        collection: config.collection || {
-          enabled: true,
-          schedule: '0 */6 * * *',
-          sources: ['amazon', 'aliexpress', 'shopee', 'rss'],
-        },
-      };
-      return res.json(safeConfig);
-    } else {
-      return res.json({
-        amazon: {},
-        aliexpress: {},
-        mercadolivre: {},
-        telegram: {},
-        whatsapp: { enabled: false, library: 'baileys' },
-        ai: { provider: 'groq' },
-        rss: [],
-        collection: {
-          enabled: true,
-          schedule: '0 */6 * * *',
-          sources: ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'rss'],
-        },
-      });
-    }
+    const userId = req.user!.id;
+    const settingsService = getUserSettingsService();
+    const safeConfig = await settingsService.getSafeSettings(userId);
+
+    return res.json(safeConfig);
   } catch (error: any) {
     logger.error('Error reading config:', error);
     return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/config
+ * Save configuration (USER-SCOPED)
+ */
+router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.body) {
+      return res.status(400).json({ error: 'Request body is required' });
+    }
+
+    const userId = req.user!.id;
+    const config = req.body;
+
+    // Log received values (for debugging)
+    logger.info(`Saving config for user: ${req.user!.username}`, {
+      telegram: {
+        hasBotToken: !!config.telegram?.botToken,
+        chatId: config.telegram?.chatId,
+      },
+      ai: {
+        hasGroqKey: !!config.ai?.groqApiKey,
+        provider: config.ai?.provider,
+      },
+    });
+
+    // Validate inputs before saving
+    const validationErrors: string[] = [];
+
+    // Validate Telegram Bot Token (if provided and not masked)
+    if (config.telegram?.botToken && config.telegram.botToken !== '***' && config.telegram.botToken.trim().length > 0) {
+      const validation = validateTelegramBotToken(config.telegram.botToken);
+      if (!validation.isValid) {
+        validationErrors.push(`Telegram Bot Token: ${validation.error}`);
+      }
+    }
+
+    // Validate Telegram Chat ID (if provided)
+    if (config.telegram?.chatId && config.telegram.chatId.trim().length > 0) {
+      const validation = validateTelegramChatId(config.telegram.chatId);
+      if (!validation.isValid) {
+        validationErrors.push(`Telegram Chat ID: ${validation.error}`);
+      }
+    }
+
+    // Validate Groq API Key (if provided and not masked)
+    if (config.ai?.groqApiKey && config.ai.groqApiKey !== '***' && config.ai.groqApiKey.trim().length > 0) {
+      const validation = validateGroqApiKey(config.ai.groqApiKey);
+      if (!validation.isValid) {
+        validationErrors.push(`Groq API Key: ${validation.error}`);
+      }
+    }
+
+    // Validate OpenAI API Key (if provided and not masked)
+    if (config.ai?.openaiApiKey && config.ai.openaiApiKey !== '***' && config.ai.openaiApiKey.trim().length > 0) {
+      const validation = validateOpenAIApiKey(config.ai.openaiApiKey);
+      if (!validation.isValid) {
+        validationErrors.push(`OpenAI API Key: ${validation.error}`);
+      }
+    }
+
+    // Log validation warnings (but don't block saving)
+    if (validationErrors.length > 0) {
+      logger.warn('❌ Validation warnings:', validationErrors);
+    }
+
+    // Save to UserSettings (multi-tenant)
+    const settingsService = getUserSettingsService();
+    const updatedSettings = await settingsService.updateSettings(userId, config);
+
+    logger.info(`Configuration saved for user: ${req.user!.username}`);
+
+    return res.json({
+      success: true,
+      message: 'Configuração salva com sucesso!',
+      saved: {
+        telegram: {
+          hasToken: updatedSettings.telegram?.isConfigured || false,
+        },
+        ai: {
+          hasKey: updatedSettings.ai?.isConfigured || false,
+        },
+      },
+    });
+  } catch (error: any) {
+    logger.error('Error saving config:', error);
+    const errorMessage = error.message || 'Erro desconhecido ao salvar configuração';
+    return res.status(500).json({
+      success: false,
+      error: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+    });
   }
 });
 

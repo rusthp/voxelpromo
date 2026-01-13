@@ -1,11 +1,15 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import Joi from 'joi';
 import { OfferService } from '../services/offer/OfferService';
 import { validateRequest } from '../middleware/validation';
+import { authenticate, AuthRequest } from '../middleware/auth';
 import { FilterOptions, Offer } from '../types';
 import { PrioritizationService, SEASONAL_EVENTS } from '../services/automation/PrioritizationService';
 
 const router = Router();
+
+// ALL routes require authentication
+router.use(authenticate);
 
 // Validation schemas for offer routes
 const deleteOffersSchema = Joi.object({
@@ -22,61 +26,22 @@ const deleteOffersSchema = Joi.object({
 });
 
 const offerService = new OfferService();
+const prioritizationService = new PrioritizationService();
 
 /**
  * @swagger
  * tags:
  *   - name: Offers
- *     description: Offer management and collection
+ *     description: Offer management and collection (user-scoped)
  */
 
 /**
- * @swagger
- * /api/offers:
- *   get:
- *     summary: Get all offers with optional filtering and pagination
- *     tags: [Offers]
- *     parameters:
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 50
- *         description: Number of offers to return
- *       - in: query
- *         name: skip
- *         schema:
- *           type: integer
- *           default: 0
- *         description: Number of offers to skip
- *       - in: query
- *         name: minDiscount
- *         schema:
- *           type: number
- *         description: Minimum discount percentage
- *       - in: query
- *         name: maxPrice
- *         schema:
- *           type: number
- *         description: Maximum price
- *       - in: query
- *         name: sources
- *         schema:
- *           type: string
- *         description: Comma-separated list of sources
- *     responses:
- *       200:
- *         description: List of offers
- *         content:
- *           application/json:\n *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Offer'
- *       500:
- *         description: Server error
+ * GET /api/offers
+ * Get all offers for the authenticated user
  */
-router.get('/', async (req, res) => {
+router.get('/', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
     const {
       minDiscount,
       maxPrice,
@@ -88,7 +53,7 @@ router.get('/', async (req, res) => {
       limit,
       skip,
       sortBy,
-      search, // NEW: search parameter for title search
+      search,
     } = req.query;
 
     if (
@@ -100,9 +65,8 @@ router.get('/', async (req, res) => {
       sources ||
       excludePosted ||
       sortBy ||
-      search // Include search in filter check
+      search
     ) {
-      // Use filter service
       const filterOptions: FilterOptions = {
         minDiscount: minDiscount ? parseFloat(minDiscount as string) : undefined,
         maxPrice: maxPrice ? parseFloat(maxPrice as string) : undefined,
@@ -114,22 +78,21 @@ router.get('/', async (req, res) => {
         limit: limit ? parseInt(limit as string) : undefined,
         skip: skip ? parseInt(skip as string) : 0,
         sortBy: sortBy as string,
-        search: search as string, // NEW: pass search to filter
+        search: search as string,
       };
 
-      const offers = await offerService.filterOffers(filterOptions);
+      const offers = await offerService.filterOffers(filterOptions, userId);
       res.json(offers);
     } else {
-      // Get all offers with default limit of 50 (use limit query param to override)
       const requestedLimit = limit ? parseInt(limit as string) : 50;
       const offers = await offerService.getAllOffers(
         requestedLimit,
         skip ? parseInt(skip as string) : 0,
-        sortBy as string
+        sortBy as string,
+        userId
       );
-      // Log for debugging
       console.log(
-        `[API] GET /offers - Limit: ${requestedLimit}, Skip: ${skip || 0}, Returned: ${offers.length} offers`
+        `[API] GET /offers - User: ${req.user!.username}, Limit: ${requestedLimit}, Skip: ${skip || 0}, Returned: ${offers.length} offers`
       );
       res.json(offers);
     }
@@ -140,10 +103,11 @@ router.get('/', async (req, res) => {
 
 /**
  * POST /api/offers
- * Create a new offer manually
+ * Create a new offer for the authenticated user
  */
-router.post('/', async (req, res) => {
+router.post('/', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
     const {
       title,
       description,
@@ -170,7 +134,8 @@ router.post('/', async (req, res) => {
         ? Math.round((1 - currentPrice / origPrice) * 100)
         : 0);
 
-    const offer: Partial<Offer> = {
+    const offer: Partial<Offer> & { userId: string } = {
+      userId: userId as any, // Will be converted to ObjectId in service
       title,
       description: description || '',
       originalPrice: origPrice,
@@ -190,7 +155,7 @@ router.post('/', async (req, res) => {
       updatedAt: new Date(),
     };
 
-    const savedOffer = await offerService.saveOffer(offer as Offer);
+    const savedOffer = await offerService.saveOffer(offer as Offer, userId);
 
     return res.status(201).json({
       success: true,
@@ -204,11 +169,12 @@ router.post('/', async (req, res) => {
 
 /**
  * GET /api/offers/:id
- * Get offer by ID
+ * Get offer by ID (only if owned by user)
  */
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const offer = await offerService.getOfferById(req.params.id);
+    const userId = req.user!.id;
+    const offer = await offerService.getOfferById(req.params.id, userId);
     if (!offer) {
       return res.status(404).json({ error: 'Offer not found' });
     }
@@ -219,26 +185,14 @@ router.get('/:id', async (req, res) => {
 });
 
 /**
- * POST /api/offers
- * Create new offer
- */
-router.post('/', async (req, res) => {
-  try {
-    const offer = await offerService.saveOffer(req.body);
-    res.status(201).json(offer);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
  * POST /api/offers/:id/generate-post
- * Generate AI post for offer
+ * Generate AI post for offer (only if owned by user)
  */
-router.post('/:id/generate-post', async (req, res) => {
+router.post('/:id/generate-post', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { tone } = req.body;
-    const post = await offerService.generateAIPost(req.params.id, tone);
+    const post = await offerService.generateAIPost(req.params.id, tone, userId);
     res.json({ post });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -247,12 +201,13 @@ router.post('/:id/generate-post', async (req, res) => {
 
 /**
  * POST /api/offers/:id/post
- * Post offer to channels
+ * Post offer to channels (only if owned by user)
  */
-router.post('/:id/post', async (req, res) => {
+router.post('/:id/post', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { channels } = req.body;
-    const success = await offerService.postOffer(req.params.id, channels || ['telegram']);
+    const success = await offerService.postOffer(req.params.id, channels || ['telegram'], userId);
     res.json({ success });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -261,10 +216,11 @@ router.post('/:id/post', async (req, res) => {
 
 /**
  * POST /api/offers/:id/schedule
- * Schedule offer for posting
+ * Schedule offer for posting (only if owned by user)
  */
-router.post('/:id/schedule', async (req, res) => {
+router.post('/:id/schedule', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { date } = req.body;
     if (!date) {
       return res.status(400).json({ error: 'Date is required' });
@@ -279,7 +235,7 @@ router.post('/:id/schedule', async (req, res) => {
       return res.status(400).json({ error: 'Schedule date must be in the future' });
     }
 
-    const success = await offerService.scheduleOffer(req.params.id, scheduledDate);
+    const success = await offerService.scheduleOffer(req.params.id, scheduledDate, userId);
     if (!success) {
       return res.status(404).json({ error: 'Offer not found' });
     }
@@ -292,13 +248,13 @@ router.post('/:id/schedule', async (req, res) => {
 
 /**
  * DELETE /api/offers/all
- * Delete ALL offers
- * Query: ?permanent=true (optional)
+ * Delete ALL offers for the authenticated user
  */
-router.delete('/all', async (req, res) => {
+router.delete('/all', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
     const permanent = req.query.permanent === 'true';
-    const deletedCount = await offerService.deleteAllOffers(permanent);
+    const deletedCount = await offerService.deleteAllOffers(permanent, userId);
 
     return res.json({
       success: true,
@@ -314,12 +270,13 @@ router.delete('/all', async (req, res) => {
 
 /**
  * DELETE /api/offers/:id
- * Delete offer (soft delete by default, use ?permanent=true for permanent deletion)
+ * Delete offer (only if owned by user)
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
     const permanent = req.query.permanent === 'true';
-    const success = await offerService.deleteOffer(req.params.id, permanent);
+    const success = await offerService.deleteOffer(req.params.id, permanent, userId);
     if (!success) {
       return res.status(404).json({ error: 'Offer not found' });
     }
@@ -334,22 +291,16 @@ router.delete('/:id', async (req, res) => {
 
 /**
  * DELETE /api/offers
- * Delete multiple offers
- * Body: { offerIds: string[], permanent?: boolean }
+ * Delete multiple offers (only if owned by user)
  */
-router.delete('/', validateRequest(deleteOffersSchema), async (req, res) => {
+router.delete('/', validateRequest(deleteOffersSchema), async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { offerIds, permanent } = req.body;
 
-    console.log('[DELETE BATCH] Received request:', {
-      offerIdsCount: offerIds?.length,
-      permanent,
-      firstIds: offerIds?.slice(0, 3),
-    });
+    console.log('[DELETE BATCH] User:', req.user!.username, 'IDs:', offerIds?.length);
 
-    const deletedCount = await offerService.deleteOffers(offerIds, permanent === true);
-
-    console.log('[DELETE BATCH] Success:', { deletedCount });
+    const deletedCount = await offerService.deleteOffers(offerIds, permanent === true, userId);
 
     return res.json({ success: true, deletedCount, message: `Deleted ${deletedCount} offers` });
   } catch (error: any) {
@@ -361,13 +312,10 @@ router.delete('/', validateRequest(deleteOffersSchema), async (req, res) => {
 // SEASONAL OFFERS ENDPOINTS
 // ============================================================
 
-const prioritizationService = new PrioritizationService();
-
 /**
  * GET /api/offers/seasonal/events
- * Get currently active seasonal events
  */
-router.get('/seasonal/events', async (_req, res) => {
+router.get('/seasonal/events', async (_req: AuthRequest, res: Response) => {
   try {
     const activeEvents = prioritizationService.getActiveSeasonalEvents();
     const allEvents = SEASONAL_EVENTS.map(event => ({
@@ -388,19 +336,20 @@ router.get('/seasonal/events', async (_req, res) => {
 
 /**
  * GET /api/offers/seasonal
- * Get offers matching active seasonal events
+ * Get offers matching active seasonal events (user-scoped)
  */
-router.get('/seasonal', async (req, res) => {
+router.get('/seasonal', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { limit = '50', skip = '0' } = req.query;
 
-    // Get all offers
     const allOffers = await offerService.getAllOffers(
-      parseInt(limit as string) * 2, // Get more to filter
-      parseInt(skip as string)
+      parseInt(limit as string) * 2,
+      parseInt(skip as string),
+      undefined,
+      userId
     );
 
-    // Filter offers that match active seasonal events
     const seasonalOffers = allOffers
       .map(offer => {
         const match = prioritizationService.matchesActiveSeasonalEvent(offer);
@@ -429,10 +378,10 @@ router.get('/seasonal', async (req, res) => {
 
 /**
  * POST /api/offers/seasonal/check
- * Check if specific offers match seasonal events
  */
-router.post('/seasonal/check', async (req, res) => {
+router.post('/seasonal/check', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { offerIds } = req.body;
 
     if (!offerIds || !Array.isArray(offerIds)) {
@@ -442,7 +391,7 @@ router.post('/seasonal/check', async (req, res) => {
     const results: { offerId: string; matches: boolean; matchedEvents: string[]; matchedKeywords: string[]; score: number }[] = [];
 
     for (const offerId of offerIds) {
-      const offer = await offerService.getOfferById(offerId);
+      const offer = await offerService.getOfferById(offerId, userId);
       if (offer) {
         const match = prioritizationService.matchesActiveSeasonalEvent(offer);
         results.push({
@@ -464,7 +413,5 @@ router.post('/seasonal/check', async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 });
-
-
 
 export { router as offerRoutes };

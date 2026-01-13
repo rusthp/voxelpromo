@@ -34,8 +34,9 @@ export class CollectorService {
   private rssService: RSSService;
   private offerService: OfferService;
   private blacklistService: BlacklistService;
+  private userId?: string;
 
-  constructor(deps: CollectorServiceDeps = {}) {
+  constructor(deps: CollectorServiceDeps = {}, userId?: string) {
     this.amazonService = deps.amazonService ?? new AmazonService();
     this.aliExpressService = deps.aliExpressService ?? new AliExpressService();
     this.mercadoLivreService = deps.mercadoLivreService ?? new MercadoLivreService();
@@ -43,6 +44,7 @@ export class CollectorService {
     this.rssService = deps.rssService ?? new RSSService();
     this.offerService = deps.offerService ?? new OfferService();
     this.blacklistService = deps.blacklistService ?? new BlacklistService();
+    this.userId = userId;
   }
 
 
@@ -101,7 +103,7 @@ export class CollectorService {
       // Apply blacklist filter
       const filteredOffers = this.filterBlacklisted(offers);
 
-      const savedCount = await this.offerService.saveOffers(filteredOffers);
+      const savedCount = await this.offerService.saveOffers(filteredOffers, this.userId);
       logger.info(`💾 Saved ${savedCount} offers from Amazon to database`);
 
       return savedCount;
@@ -354,7 +356,7 @@ export class CollectorService {
                 logger.info(
                   `📰 Found ${aliExpressOffers.length} AliExpress offers from RSS feed: ${feedUrl}`
                 );
-                const savedCount = await this.offerService.saveOffers(aliExpressOffers);
+                const savedCount = await this.offerService.saveOffers(aliExpressOffers, this.userId);
                 return savedCount;
               }
             } catch (rssError: any) {
@@ -381,7 +383,8 @@ export class CollectorService {
 
       logger.info(`✅ Converted ${offers.length} products to offers (filtered by discount)`);
       const savedCount = await this.offerService.saveOffers(
-        offers.filter((o): o is Offer => o !== null)
+        offers.filter((o): o is Offer => o !== null),
+        this.userId
       );
       logger.info(`💾 Saved ${savedCount} offers from AliExpress to database`);
 
@@ -400,7 +403,7 @@ export class CollectorService {
       logger.info(`Collecting offers from RSS: ${feedUrl}`);
       const offers = await this.rssService.parseFeed(feedUrl, source);
 
-      const savedCount = await this.offerService.saveOffers(offers);
+      const savedCount = await this.offerService.saveOffers(offers, this.userId);
       logger.info(`Saved ${savedCount} offers from RSS`);
 
       return savedCount;
@@ -449,7 +452,7 @@ export class CollectorService {
       const offersPromises = products.map(p => this.mercadoLivreService.convertToOffer(p, 'daily-deals'));
       const offersResults = await Promise.all(offersPromises);
       const offers = offersResults.filter((o): o is Offer => o !== null);
-      const savedCount = await this.offerService.saveOffers(offers);
+      const savedCount = await this.offerService.saveOffers(offers, this.userId);
 
       // Update batch
       await ScrapingBatchModel.findOneAndUpdate(
@@ -627,7 +630,8 @@ export class CollectorService {
 
       logger.info(`✅ Converted ${offers.length} products to offers (filtered by discount)`);
       const savedCount = await this.offerService.saveOffers(
-        offers.filter((o): o is Offer => o !== null)
+        offers.filter((o): o is Offer => o !== null),
+        this.userId
       );
       logger.info(`💾 Saved ${savedCount} offers from Mercado Livre to database`);
 
@@ -660,7 +664,7 @@ export class CollectorService {
         .filter((offer): offer is Offer => offer !== null);
 
       logger.info(`✅ Converted ${offers.length} products to offers`);
-      const savedCount = await this.offerService.saveOffers(offers);
+      const savedCount = await this.offerService.saveOffers(offers, this.userId);
       logger.info(`💾 Saved ${savedCount} offers from Shopee to database`);
 
       return savedCount;
@@ -771,7 +775,7 @@ export class CollectorService {
 
             if (offers.length > 0) {
               // Save all offers - Awin feeds often don't have original price so no discount filter
-              const savedCount = await this.offerService.saveOffers(offers);
+              const savedCount = await this.offerService.saveOffers(offers, this.userId);
               totalProducts += savedCount;
               logger.info(`✅ Collected ${savedCount} products from ${advertiserName}`);
             } else {
@@ -801,7 +805,7 @@ export class CollectorService {
           });
 
           if (offers.length > 0) {
-            const savedCount = await this.offerService.saveOffers(offers);
+            const savedCount = await this.offerService.saveOffers(offers, this.userId);
             totalSaved += savedCount;
           }
         } catch (error: any) {
@@ -818,7 +822,56 @@ export class CollectorService {
   }
 
   /**
-   * Get config from config.json or environment
+   * Get config from UserSettings (database) with fallback to config.json
+   */
+  private async getCollectionConfig(): Promise<{ sources: string[]; enabled: boolean; rssFeeds: string[] }> {
+    // 1. Try to get from Database (if userId is present)
+    if (this.userId) {
+      try {
+        // Dynamic import to avoid circular dependencies if any
+        const { UserSettingsModel } = await import('../../models/UserSettings');
+        const settings = await UserSettingsModel.findOne({ userId: this.userId });
+
+        if (settings) {
+          return {
+            sources: settings.collectionSettings?.sources || ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'rss'],
+            enabled: settings.collectionSettings?.enabled ?? true,
+            rssFeeds: settings.rss || []
+          };
+        }
+      } catch (error) {
+        logger.warn(`⚠️ Failed to load UserSettings for user ${this.userId}, falling back to defaults`, error);
+      }
+    }
+
+    // 2. Fallback: config.json (Legacy)
+    const legacyConfig = this.getConfig();
+    let rssFeeds: string[] = [];
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const fs = require('fs');
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const path = require('path');
+      const configPath = path.join(process.cwd(), 'config.json');
+
+      if (fs.existsSync(configPath)) {
+        const fileContent = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        rssFeeds = fileContent.rss || [];
+      }
+    } catch (error) {
+      // Ignore error, use empty array
+    }
+
+    return {
+      sources: legacyConfig.sources || ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'awin', 'rss'],
+      enabled: legacyConfig.enabled ?? true,
+      rssFeeds
+    };
+  }
+
+  /**
+   * Get config from config.json or environment (Legacy Helper)
    */
   private getConfig(): { sources?: string[]; enabled?: boolean } {
     try {
@@ -844,7 +897,7 @@ export class CollectorService {
   }
 
   /**
-   * Collect from all CONFIGURED sources (respects config.collection.sources)
+   * Collect from all CONFIGURED sources (respects UserSettings or config.collection.sources)
    */
   async collectAll(): Promise<{
     amazon: number;
@@ -855,7 +908,7 @@ export class CollectorService {
     rss: number;
     total: number;
   }> {
-    const config = this.getConfig();
+    const config = await this.getCollectionConfig();
 
     // Check if collection is disabled
     if (config.enabled === false) {
@@ -871,11 +924,12 @@ export class CollectorService {
       };
     }
 
-    const enabledSources = config.sources || ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'awin', 'rss'];
+    const enabledSources = config.sources;
 
     logger.info('🚀 ========================================');
     logger.info('🚀 Starting collection from configured sources');
     logger.info(`📋 Enabled sources: ${enabledSources.join(', ')}`);
+    if (this.userId) logger.info(`👤 User Context: ${this.userId}`);
     logger.info('🚀 ========================================');
 
     const startTime = Date.now();
@@ -921,21 +975,7 @@ export class CollectorService {
       enabledSources.includes('rss')
         ? (async () => {
           // Collect from all configured RSS feeds
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const fs = require('fs');
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const path = require('path');
-          const configPath = path.join(process.cwd(), 'config.json');
-
-          let rssFeeds: string[] = [];
-          if (fs.existsSync(configPath)) {
-            try {
-              const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-              rssFeeds = config.rss || [];
-            } catch (error) {
-              logger.warn('Could not read RSS feeds from config');
-            }
-          }
+          const rssFeeds = config.rssFeeds;
 
           if (rssFeeds.length === 0) {
             logger.info('ℹ️  No RSS feeds configured, skipping RSS collection');

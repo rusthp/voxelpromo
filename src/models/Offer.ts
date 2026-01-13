@@ -1,12 +1,19 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import { Offer } from '../types';
 
-export interface OfferDocument extends Omit<Offer, '_id'>, Document {
+export interface OfferDocument extends Omit<Offer, '_id' | 'userId'>, Document {
   _id: mongoose.Types.ObjectId;
+  userId: mongoose.Types.ObjectId;
 }
 
 const OfferSchema = new Schema<OfferDocument>(
   {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true
+    },
     title: { type: String, required: true, index: true },
     description: { type: String, required: true },
     originalPrice: { type: Number, required: true },
@@ -30,7 +37,7 @@ const OfferSchema = new Schema<OfferDocument>(
     availability: { type: String },
     brand: { type: String },
     tags: [{ type: String }],
-    coupons: [{ type: String }], // Códigos de cupom disponíveis
+    coupons: [{ type: String }],
     isActive: { type: Boolean, default: true, index: true },
     isPosted: { type: Boolean, default: false, index: true },
     postedAt: { type: Date },
@@ -62,5 +69,10 @@ OfferSchema.index({ source: 1, createdAt: -1 });
 
 // Category and discount index (finding best deals per category)
 OfferSchema.index({ category: 1, discountPercentage: -1 });
+
+// Multi-tenant indexes (critical for SaaS)
+OfferSchema.index({ userId: 1, createdAt: -1 });
+OfferSchema.index({ userId: 1, isActive: 1, createdAt: -1 });
+OfferSchema.index({ userId: 1, isPosted: 1, scheduledAt: 1 });
 
 export const OfferModel = mongoose.model<OfferDocument>('Offer', OfferSchema);

@@ -9,6 +9,7 @@ import { WhatsAppServiceFactory } from '../messaging/WhatsAppServiceFactory';
 import { IWhatsAppService } from '../messaging/IWhatsAppService';
 import { XService } from '../messaging/XService';
 import { InstagramService } from '../messaging/InstagramService';
+import { VectorizerService } from '../vectorizer/VectorizerService';
 import { sanitizeOffer } from '../../middleware/sanitization';
 
 export class OfferService {
@@ -17,6 +18,8 @@ export class OfferService {
   private whatsappService: IWhatsAppService | null = null;
   private xService: XService | null = null;
   private instagramService: InstagramService | null = null;
+  private vectorizerService: VectorizerService | null = null;
+  private telegramServices: Map<string, TelegramService> = new Map();
 
   constructor() {
     // Lazy initialization - only create services when needed
@@ -35,6 +38,43 @@ export class OfferService {
       this.telegramService = new TelegramService();
     }
     return this.telegramService;
+  }
+
+  /**
+   * Get Telegram service for specific user (Multi-tenant)
+   */
+  private async getTelegramServiceForUser(userId?: string | object): Promise<TelegramService | null> {
+    const uid = userId?.toString();
+
+    // 1. Fallback / Legacy (No User Context) -> Use ENV variables
+    if (!uid) {
+      return this.getTelegramService();
+    }
+
+    // 2. Check Cache
+    if (this.telegramServices.has(uid)) {
+      return this.telegramServices.get(uid)!;
+    }
+
+    try {
+      // 3. Load from DB
+      const { UserSettingsModel } = await import('../../models/UserSettings');
+      const settings = await UserSettingsModel.findOne({ userId: uid });
+
+      if (settings?.telegram?.isConfigured && settings.telegram.botToken && settings.telegram.channelId) {
+        const service = new TelegramService({
+          botToken: settings.telegram.botToken,
+          chatId: settings.telegram.channelId
+        });
+        this.telegramServices.set(uid, service);
+        return service;
+      }
+    } catch (e) {
+      logger.error(`Failed to load telegram settings for user ${uid}`, e);
+    }
+
+    // If user has no config, return null (do not use global/admin bot)
+    return null;
   }
 
   private getWhatsAppService(): IWhatsAppService {
@@ -57,6 +97,46 @@ export class OfferService {
       this.instagramService = new InstagramService();
     }
     return this.instagramService;
+  }
+
+  private getVectorizerService(): VectorizerService {
+    if (!this.vectorizerService) {
+      this.vectorizerService = new VectorizerService();
+    }
+    return this.vectorizerService;
+  }
+
+  /**
+   * Index offer in Vectorizer for semantic search
+   */
+  private async indexOffer(offer: Offer): Promise<void> {
+    try {
+      // Non-blocking indexing
+      const text = `${offer.title}\n\n${offer.description || ''}\n\nPreço: R$ ${offer.currentPrice}\nCategoria: ${offer.category}`;
+      const metadata = {
+        offerId: offer._id?.toString(),
+        category: offer.category,
+        source: offer.source,
+        price: offer.currentPrice,
+        url: offer.productUrl,
+        createdAt: new Date().toISOString()
+      };
+
+      this.getVectorizerService().insert(text, {
+        collection: 'voxelpromo-offers',
+        metadata
+      }).then(result => {
+        if (!result.success) {
+          logger.warn(`⚠️ Failed to index offer ${offer._id}: ${result.error}`);
+        } else {
+          logger.debug(`🧠 Indexed offer ${offer._id} in Vectorizer`);
+        }
+      }).catch(err => {
+        logger.error(`Error indexing offer ${offer._id}:`, err);
+      });
+    } catch (error) {
+      logger.error('Error preparing offer for indexing:', error);
+    }
   }
 
   /**
@@ -94,9 +174,9 @@ export class OfferService {
   }
 
   /**
-   * Save or update offer
+   * Save or update offer (user-scoped)
    */
-  async saveOffer(offer: Offer): Promise<Offer> {
+  async saveOffer(offer: Offer, userId?: string): Promise<Offer> {
     try {
       // Sanitize offer data before validation
       const sanitized = sanitizeOffer(offer);
@@ -104,8 +184,18 @@ export class OfferService {
       // Validate numeric fields after sanitization
       const validatedOffer = this.validateOfferNumbers(sanitized);
 
-      // Check if offer already exists (by URL) - check both active and inactive
-      const existing = await OfferModel.findOne({ productUrl: validatedOffer.productUrl });
+      // Apply userId if provided
+      if (userId) {
+        (validatedOffer as any).userId = userId;
+      }
+
+      // Check if offer already exists matches user scope
+      const query: any = { productUrl: validatedOffer.productUrl };
+      if (userId) {
+        query.userId = userId;
+      }
+
+      const existing = await OfferModel.findOne(query);
 
       if (existing) {
         // If inactive, reactivate it
@@ -118,12 +208,22 @@ export class OfferService {
         Object.assign(existing, validatedOffer);
         existing.updatedAt = new Date();
         await existing.save();
-        return this.convertToOffer(existing.toObject());
+
+        // Re-index updated offer
+        const updatedOffer = this.convertToOffer(existing.toObject());
+        this.indexOffer(updatedOffer);
+
+        return updatedOffer;
       } else {
         // Create new offer
         const newOffer = new OfferModel(validatedOffer);
         await newOffer.save();
-        return this.convertToOffer(newOffer.toObject());
+
+        // Index new offer
+        const savedOffer = this.convertToOffer(newOffer.toObject());
+        this.indexOffer(savedOffer);
+
+        return savedOffer;
       }
     } catch (error) {
       logger.error('Error saving offer:', error);
@@ -148,7 +248,7 @@ export class OfferService {
    * Save multiple offers, avoiding duplicates
    * Checks for existing offers by productUrl and product_id (if available)
    */
-  async saveOffers(offers: Offer[]): Promise<number> {
+  async saveOffers(offers: Offer[], userId?: string): Promise<number> {
     if (offers.length === 0) {
       return 0;
     }
@@ -166,27 +266,30 @@ export class OfferService {
       })
       .filter(Boolean);
 
-    // Batch check for existing offers - only check ACTIVE offers
-    // Also check inactive offers to reactivate them if needed
-    const activeOffers = await OfferModel.find({
-      isActive: true,
+    // Build query base
+    const baseQuery: any = {
       $or: [
         { productUrl: { $in: productUrls } },
         ...(productIds.length > 0
           ? [{ productUrl: { $regex: new RegExp(productIds.join('|')) } }]
           : []),
       ],
+    };
+
+    if (userId) {
+      baseQuery.userId = userId;
+    }
+
+    // Batch check for existing offers - only check ACTIVE offers
+    const activeOffers = await OfferModel.find({
+      ...baseQuery,
+      isActive: true,
     }).lean();
 
     // Also check inactive offers to see if we should reactivate them
     const inactiveOffers = await OfferModel.find({
+      ...baseQuery,
       isActive: false,
-      $or: [
-        { productUrl: { $in: productUrls } },
-        ...(productIds.length > 0
-          ? [{ productUrl: { $regex: new RegExp(productIds.join('|')) } }]
-          : []),
-      ],
     }).lean();
 
     // Create Sets for fast lookup - only active offers count as duplicates
@@ -209,6 +312,11 @@ export class OfferService {
         // Sanitize and validate
         const sanitized = sanitizeOffer(offer);
         const validatedOffer = this.validateOfferNumbers(sanitized);
+
+        // Apply userId if provided
+        if (userId) {
+          (validatedOffer as any).userId = userId;
+        }
 
         // Check if already exists as ACTIVE offer
         const urlMatch = validatedOffer.productUrl?.match(/\/item\/(\d+)\.html/);
@@ -236,6 +344,10 @@ export class OfferService {
           savedCount++;
           logger.info(`♻️  Reactivated offer: ${validatedOffer.title.substring(0, 50)}...`);
 
+          // Index reactivated offer
+          const reactivatedOffer = { ...validatedOffer, _id: inactiveOffer._id.toString() };
+          this.indexOffer(reactivatedOffer as Offer);
+
           // Add to active sets to avoid duplicates in the same batch
           activeUrls.add(validatedOffer.productUrl);
           if (productId) {
@@ -248,6 +360,10 @@ export class OfferService {
         const newOffer = new OfferModel(validatedOffer);
         await newOffer.save();
         savedCount++;
+
+        // Index new offer
+        const savedOffer = this.convertToOffer(newOffer.toObject());
+        this.indexOffer(savedOffer);
 
         // Add to existing sets to avoid duplicates in the same batch
         activeUrls.add(validatedOffer.productUrl);
@@ -267,11 +383,16 @@ export class OfferService {
   }
 
   /**
-   * Filter offers based on criteria
+   * Filter offers based on criteria (user-scoped)
    */
-  async filterOffers(options: FilterOptions): Promise<Offer[]> {
+  async filterOffers(options: FilterOptions, userId?: string): Promise<Offer[]> {
     try {
       const query: any = { isActive: true };
+
+      // Multi-tenant: filter by userId if provided
+      if (userId) {
+        query.userId = userId;
+      }
 
       if (options.minDiscount) {
         query.discountPercentage = { $gte: options.minDiscount };
@@ -341,12 +462,9 @@ export class OfferService {
   }
 
   /**
-   * Get all offers
+   * Get all offers (user-scoped)
    */
-  /**
-   * Get all offers
-   */
-  async getAllOffers(limit?: number, skip: number = 0, sortBy: string = 'newest'): Promise<Offer[]> {
+  async getAllOffers(limit?: number, skip: number = 0, sortBy: string = 'newest', userId?: string): Promise<Offer[]> {
     try {
       let sort: any = { createdAt: -1 };
 
@@ -366,7 +484,13 @@ export class OfferService {
           break;
       }
 
-      let query = OfferModel.find({ isActive: true }).sort(sort).skip(skip);
+      // Multi-tenant: filter by userId if provided
+      const queryFilter: any = { isActive: true };
+      if (userId) {
+        queryFilter.userId = userId;
+      }
+
+      let query = OfferModel.find(queryFilter).sort(sort).skip(skip);
 
       // Only apply limit if provided
       if (limit !== undefined && limit > 0) {
@@ -383,11 +507,18 @@ export class OfferService {
   }
 
   /**
-   * Get offer by ID
+   * Get offer by ID (user-scoped for ownership check)
    */
-  async getOfferById(id: string): Promise<Offer | null> {
+  async getOfferById(id: string, userId?: string): Promise<Offer | null> {
     try {
-      const offer = await OfferModel.findById(id).lean();
+      const query: any = { _id: id };
+
+      // Multi-tenant: verify ownership if userId provided
+      if (userId) {
+        query.userId = userId;
+      }
+
+      const offer = await OfferModel.findOne(query).lean();
       if (!offer) {
         return null;
       }
@@ -399,14 +530,15 @@ export class OfferService {
   }
 
   /**
-   * Generate AI post for offer
+   * Generate AI post for offer (user-scoped)
    */
   async generateAIPost(
     offerId: string,
-    tone?: 'casual' | 'professional' | 'viral' | 'urgent'
+    tone?: 'casual' | 'professional' | 'viral' | 'urgent',
+    userId?: string
   ): Promise<string> {
     try {
-      const offer = await this.getOfferById(offerId);
+      const offer = await this.getOfferById(offerId, userId);
       if (!offer) {
         throw new Error('Offer not found');
       }
@@ -432,11 +564,11 @@ export class OfferService {
   }
 
   /**
-   * Post offer to channels
+   * Post offer to channels (user-scoped)
    */
-  async postOffer(offerId: string, channels: string[] = ['telegram']): Promise<boolean> {
+  async postOffer(offerId: string, channels: string[] = ['telegram'], userId?: string): Promise<boolean> {
     try {
-      const offer = await this.getOfferById(offerId);
+      const offer = await this.getOfferById(offerId, userId);
       if (!offer) {
         throw new Error('Offer not found');
       }
@@ -464,27 +596,35 @@ export class OfferService {
       // Send to Telegram
       if (channels.includes('telegram') && !offer.postedChannels?.includes('telegram')) {
         try {
-          const telegramSuccess = await this.getTelegramService().sendOffer(offer);
-          if (telegramSuccess) {
-            postedChannels.push('telegram');
-            success = true;
+          const telegramService = await this.getTelegramServiceForUser(offer.userId);
 
-            // Save to history
-            await PostHistoryModel.create({
-              offerId,
-              platform: 'telegram',
-              postContent,
-              status: 'success',
-            });
+          if (telegramService) {
+            const telegramSuccess = await telegramService.sendOffer(offer);
+            if (telegramSuccess) {
+              postedChannels.push('telegram');
+              success = true;
+
+              // Save to history
+              await PostHistoryModel.create({
+                offerId,
+                platform: 'telegram',
+                postContent,
+                status: 'success',
+                userId: offer.userId // Add userId to history
+              });
+            } else {
+              // Save failed attempt
+              await PostHistoryModel.create({
+                offerId,
+                platform: 'telegram',
+                postContent,
+                status: 'failed',
+                error: 'Failed to send to Telegram',
+                userId: offer.userId
+              });
+            }
           } else {
-            // Save failed attempt
-            await PostHistoryModel.create({
-              offerId,
-              platform: 'telegram',
-              postContent,
-              status: 'failed',
-              error: 'Failed to send to Telegram',
-            });
+            logger.debug(`ℹ️ Skipping Telegram for offer ${offerId}: User not configured`);
           }
         } catch (error: any) {
           logger.error('Error posting to Telegram:', error);
@@ -494,6 +634,7 @@ export class OfferService {
             postContent,
             status: 'failed',
             error: error.message,
+            userId: offer.userId
           });
         }
       }
@@ -645,12 +786,12 @@ export class OfferService {
   /**
    * Post multiple offers
    */
-  async postOffers(offerIds: string[], channels: string[] = ['telegram']): Promise<number> {
+  async postOffers(offerIds: string[], channels: string[] = ['telegram'], userId?: string): Promise<number> {
     let successCount = 0;
 
     for (const offerId of offerIds) {
       try {
-        const success = await this.postOffer(offerId, channels);
+        const success = await this.postOffer(offerId, channels, userId);
         if (success) {
           successCount++;
           // Add delay between posts
@@ -665,17 +806,23 @@ export class OfferService {
   }
 
   /**
-   * Delete offer (soft delete - marks as inactive)
+   * Delete offer (user-scoped, soft delete - marks as inactive)
    */
-  async deleteOffer(id: string, permanent: boolean = false): Promise<boolean> {
+  async deleteOffer(id: string, permanent: boolean = false, userId?: string): Promise<boolean> {
     try {
+      // Multi-tenant: verify ownership if userId provided
+      const query: any = { _id: id };
+      if (userId) {
+        query.userId = userId;
+      }
+
       if (permanent) {
-        // Permanent deletion
-        await OfferModel.findByIdAndDelete(id);
+        const result = await OfferModel.deleteOne(query);
+        if (result.deletedCount === 0) return false;
         logger.info(`Permanently deleted offer: ${id}`);
       } else {
-        // Soft delete - mark as inactive
-        await OfferModel.findByIdAndUpdate(id, { isActive: false });
+        const result = await OfferModel.updateOne(query, { isActive: false });
+        if (result.matchedCount === 0) return false;
         logger.info(`Soft deleted offer: ${id}`);
       }
       return true;
@@ -686,20 +833,24 @@ export class OfferService {
   }
 
   /**
-   * Delete multiple offers
+   * Delete multiple offers (user-scoped)
    */
-  async deleteOffers(ids: string[], permanent: boolean = false): Promise<number> {
+  async deleteOffers(ids: string[], permanent: boolean = false, userId?: string): Promise<number> {
     try {
       let deletedCount = 0;
 
+      // Multi-tenant: filter by userId if provided
+      const query: any = { _id: { $in: ids } };
+      if (userId) {
+        query.userId = userId;
+      }
+
       if (permanent) {
-        // Permanent deletion
-        const result = await OfferModel.deleteMany({ _id: { $in: ids } });
+        const result = await OfferModel.deleteMany(query);
         deletedCount = result.deletedCount || 0;
         logger.info(`Permanently deleted ${deletedCount} offers`);
       } else {
-        // Soft delete - mark as inactive
-        const result = await OfferModel.updateMany({ _id: { $in: ids } }, { isActive: false });
+        const result = await OfferModel.updateMany(query, { isActive: false });
         deletedCount = result.modifiedCount || 0;
         logger.info(`Soft deleted ${deletedCount} offers`);
       }
@@ -712,22 +863,23 @@ export class OfferService {
   }
 
   /**
-   * Delete ALL offers
+   * Delete ALL offers (user-scoped)
    */
-  async deleteAllOffers(permanent: boolean = false): Promise<number> {
+  async deleteAllOffers(permanent: boolean = false, userId?: string): Promise<number> {
     try {
       let deletedCount = 0;
 
+      // Multi-tenant: filter by userId if provided
+      const query: any = userId ? { userId } : {};
+
       if (permanent) {
-        // Permanent deletion
-        const result = await OfferModel.deleteMany({});
+        const result = await OfferModel.deleteMany(query);
         deletedCount = result.deletedCount || 0;
-        logger.info(`Permanently deleted ALL offers (${deletedCount})`);
+        logger.info(`Permanently deleted ${userId ? 'user' : 'ALL'} offers (${deletedCount})`);
       } else {
-        // Soft delete - mark as inactive
-        const result = await OfferModel.updateMany({}, { isActive: false });
+        const result = await OfferModel.updateMany(query, { isActive: false });
         deletedCount = result.modifiedCount || 0;
-        logger.info(`Soft deleted ALL offers (${deletedCount})`);
+        logger.info(`Soft deleted ${userId ? 'user' : 'ALL'} offers (${deletedCount})`);
       }
 
       return deletedCount;
@@ -738,11 +890,17 @@ export class OfferService {
   }
 
   /**
-   * Schedule offer for posting
+   * Schedule offer for posting (user-scoped)
    */
-  async scheduleOffer(id: string, date: Date): Promise<boolean> {
+  async scheduleOffer(id: string, date: Date, userId?: string): Promise<boolean> {
     try {
-      const offer = await OfferModel.findById(id);
+      // Multi-tenant: verify ownership
+      const query: any = { _id: id };
+      if (userId) {
+        query.userId = userId;
+      }
+
+      const offer = await OfferModel.findOne(query);
       if (!offer) {
         throw new Error('Offer not found');
       }
@@ -798,8 +956,8 @@ export class OfferService {
             processedCount++;
             await this.delay(2000); // Rate limit
           }
-        } catch (error) {
-          logger.error(`Error processing scheduled offer ${offer._id}:`, error);
+        } catch (error: any) {
+          logger.error(`Error processing scheduled offer ${offer._id}:`, error.message);
         }
       }
 
@@ -811,119 +969,35 @@ export class OfferService {
   }
 
   /**
-   * Cleanup old offers
-   * Soft deletes offers created more than X days ago
+   * Helper delay function
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Cleanup old offers (older than specified days)
+   * Used by scheduler to keep database clean
    */
   async cleanupOldOffers(daysToKeep: number = 3): Promise<number> {
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
 
-      // Find offers to deactivate
-      // Criteria:
-      // 1. Currently Active
-      // 2. Created before cutoff date
-      // 3. Not scheduled for future posting (safety check)
-      const query = {
-        isActive: true,
+      const result = await OfferModel.deleteMany({
         createdAt: { $lt: cutoffDate },
-        $or: [
-          { scheduledAt: { $exists: false } },
-          { scheduledAt: { $lt: new Date() } }
-        ]
-      };
-
-      const result = await OfferModel.updateMany(query, {
-        isActive: false,
-        updatedAt: new Date()
+        isActive: false // Only delete inactive offers
       });
 
-      const cleanedCount = result.modifiedCount || 0;
-
-      if (cleanedCount > 0) {
-        logger.info(`🧹 Cleanup: Soft deleted ${cleanedCount} offers older than ${daysToKeep} days`);
-      } else {
-        logger.info(`🧹 Cleanup: No offers found older than ${daysToKeep} days`);
+      const deletedCount = result.deletedCount || 0;
+      if (deletedCount > 0) {
+        logger.info(`🗑️ Cleaned up ${deletedCount} old inactive offers (older than ${daysToKeep} days)`);
       }
 
-      return cleanedCount;
+      return deletedCount;
     } catch (error) {
       logger.error('Error cleaning up old offers:', error);
       return 0;
     }
-  }
-
-
-  /**
-   * Get statistics
-   */
-  async getStatistics(): Promise<any> {
-    try {
-      // Count all active offers
-      const total = await OfferModel.countDocuments({ isActive: true });
-
-      // Count posted offers
-      const posted = await OfferModel.countDocuments({ isActive: true, isPosted: true });
-
-      // Count not posted offers (should be total - posted)
-      const notPosted = total - posted;
-
-      // Log for debugging
-      logger.debug('Statistics calculated:', { total, posted, notPosted });
-
-      const bySource = await OfferModel.aggregate([
-        { $match: { isActive: true } },
-        { $group: { _id: '$source', count: { $sum: 1 } } },
-      ]);
-
-      const byCategory = await OfferModel.aggregate([
-        { $match: { isActive: true } },
-        { $group: { _id: '$category', count: { $sum: 1 } } },
-      ]);
-
-      // Calculate average discount - only include offers with valid discount > 0
-      // MongoDB doesn't support $ne: NaN, so we filter manually
-      const offersWithDiscount = await OfferModel.find({
-        isActive: true,
-        discountPercentage: { $exists: true, $ne: null, $gt: 0 },
-      })
-        .select('discountPercentage')
-        .lean();
-
-      let avgDiscount = 0;
-      if (offersWithDiscount.length > 0) {
-        // Filter out NaN values and calculate average
-        const validDiscounts = offersWithDiscount
-          .map((offer: any) => offer.discountPercentage)
-          .filter((discount: any) => {
-            const num = Number(discount);
-            return !isNaN(num) && num > 0 && isFinite(num);
-          });
-
-        if (validDiscounts.length > 0) {
-          const sum = validDiscounts.reduce((acc: number, discount: number) => acc + discount, 0);
-          avgDiscount = Math.round((sum / validDiscounts.length) * 10) / 10; // Round to 1 decimal
-        }
-      }
-
-      return {
-        total,
-        posted,
-        notPosted,
-        bySource,
-        byCategory,
-        avgDiscount: avgDiscount || 0,
-      };
-    } catch (error) {
-      logger.error('Error getting statistics:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Delay helper
-   */
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

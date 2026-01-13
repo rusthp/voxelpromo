@@ -22,6 +22,7 @@ const Register = () => {
     const [documentError, setDocumentError] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [acceptedPrivacyPolicy, setAcceptedPrivacyPolicy] = useState(false);
 
     // Validate document on blur
     const handleDocumentBlur = async () => {
@@ -58,9 +59,13 @@ const Register = () => {
         }
     };
 
-    // Password validation
+    // Password validation matching backend requirements:
+    // min 8 chars, 1 uppercase, 1 lowercase, 1 number
     const passwordChecks = {
-        length: password.length >= 6,
+        length: password.length >= 8,
+        uppercase: /[A-Z]/.test(password),
+        lowercase: /[a-z]/.test(password),
+        number: /[0-9]/.test(password),
         match: password === confirmPassword && confirmPassword.length > 0,
     };
 
@@ -68,7 +73,11 @@ const Register = () => {
         username.length >= 3 &&
         email.includes('@') &&
         passwordChecks.length &&
-        passwordChecks.match;
+        passwordChecks.uppercase &&
+        passwordChecks.lowercase &&
+        passwordChecks.number &&
+        passwordChecks.match &&
+        acceptedPrivacyPolicy;
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -80,17 +89,26 @@ const Register = () => {
 
         setIsLoading(true);
         try {
-            await api.post('/auth/register', {
+            // Send undefined if document is empty to avoid Joi "not allowed to be empty" error
+            const payload = {
                 username,
                 email,
                 password,
                 accountType,
                 name,
-                document,
-            });
+                document: document || undefined,
+            };
 
-            toast.success('Conta criada com sucesso! Faça login para continuar.');
-            navigate('/login');
+            const response = await api.post('/auth/register', payload);
+
+            if (response.data.requiresVerification) {
+                toast.success('Conta criada! Verifique seu email para ativar sua conta.');
+                // Navigate to login with message
+                navigate('/login', { state: { message: 'Verifique seu email antes de fazer login.' } });
+            } else {
+                toast.success('Conta criada com sucesso!');
+                navigate('/login');
+            }
         } catch (error: any) {
             console.error('Register error:', error);
             const message = error.response?.data?.error || 'Erro ao criar conta';
@@ -237,7 +255,7 @@ const Register = () => {
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         required
-                                        minLength={6}
+                                        minLength={8}
                                         disabled={isLoading}
                                         className="bg-background pr-10"
                                     />
@@ -266,15 +284,60 @@ const Register = () => {
                             </div>
 
                             {/* Password Requirements */}
-                            <div className="space-y-2 text-sm">
-                                <div className={cn('flex items-center gap-2', passwordChecks.length ? 'text-success' : 'text-muted-foreground')}>
-                                    {passwordChecks.length ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-                                    <span>Mínimo 6 caracteres</span>
+                            <div className="space-y-2 text-sm bg-muted/50 p-3 rounded-lg">
+                                <p className="font-medium text-xs mb-2">Requisitos da senha:</p>
+                                <div className={cn('flex items-center gap-2 text-xs', passwordChecks.length ? 'text-green-500' : 'text-muted-foreground')}>
+                                    {passwordChecks.length ? <Check className="w-3 h-3" /> : <div className="w-3 h-3 rounded-full border border-current" />}
+                                    <span>Mínimo 8 caracteres</span>
                                 </div>
-                                <div className={cn('flex items-center gap-2', passwordChecks.match ? 'text-success' : 'text-muted-foreground')}>
-                                    {passwordChecks.match ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                                <div className={cn('flex items-center gap-2 text-xs', passwordChecks.uppercase ? 'text-green-500' : 'text-muted-foreground')}>
+                                    {passwordChecks.uppercase ? <Check className="w-3 h-3" /> : <div className="w-3 h-3 rounded-full border border-current" />}
+                                    <span>Uma letra maiúscula</span>
+                                </div>
+                                <div className={cn('flex items-center gap-2 text-xs', passwordChecks.lowercase ? 'text-green-500' : 'text-muted-foreground')}>
+                                    {passwordChecks.lowercase ? <Check className="w-3 h-3" /> : <div className="w-3 h-3 rounded-full border border-current" />}
+                                    <span>Uma letra minúscula</span>
+                                </div>
+                                <div className={cn('flex items-center gap-2 text-xs', passwordChecks.number ? 'text-green-500' : 'text-muted-foreground')}>
+                                    {passwordChecks.number ? <Check className="w-3 h-3" /> : <div className="w-3 h-3 rounded-full border border-current" />}
+                                    <span>Um número</span>
+                                </div>
+                                <div className={cn('flex items-center gap-2 text-xs', passwordChecks.match ? 'text-green-500' : 'text-muted-foreground')}>
+                                    {passwordChecks.match ? <Check className="w-3 h-3" /> : <div className="w-3 h-3 rounded-full border border-current" />}
                                     <span>Senhas coincidem</span>
                                 </div>
+                            </div>
+
+                            {/* LGPD Privacy Consent - MANDATORY */}
+                            <div className="flex items-start gap-3 p-4 bg-muted/30 rounded-lg border border-border/50">
+                                <input
+                                    id="privacyConsent"
+                                    type="checkbox"
+                                    checked={acceptedPrivacyPolicy}
+                                    onChange={(e) => setAcceptedPrivacyPolicy(e.target.checked)}
+                                    disabled={isLoading}
+                                    className="mt-1 w-4 h-4 rounded border-border text-primary focus:ring-primary focus:ring-offset-0"
+                                    required
+                                />
+                                <label htmlFor="privacyConsent" className="text-sm text-foreground cursor-pointer select-none">
+                                    Li e aceito a{' '}
+                                    <Link
+                                        to="/privacy"
+                                        target="_blank"
+                                        className="text-primary hover:underline font-medium"
+                                    >
+                                        Política de Privacidade
+                                    </Link>
+                                    {' '}e os{' '}
+                                    <Link
+                                        to="/terms"
+                                        target="_blank"
+                                        className="text-primary hover:underline font-medium"
+                                    >
+                                        Termos de Uso
+                                    </Link>
+                                    {' '}*
+                                </label>
                             </div>
 
                             <Button

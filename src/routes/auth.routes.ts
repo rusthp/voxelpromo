@@ -7,7 +7,7 @@ import { logger } from '../utils/logger';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { loginSchema, registerSchema, changePasswordSchema } from '../validation/auth.validation';
-import { authLimiter, registerLimiter, refreshLimiter } from '../middleware/rate-limit';
+import { authLimiter, registerLimiter, refreshLimiter, passwordResetLimiter } from '../middleware/rate-limit';
 
 const router = Router();
 
@@ -123,6 +123,23 @@ router.post('/register', registerLimiter, validate(registerSchema), async (req: 
       return res.status(400).json({ error: 'Usuário ou email já existe' });
     }
 
+    // Validate Document (CPF/CNPJ) if provided
+    if (document) {
+      const { DocumentValidatorService } = await import('../services/DocumentValidatorService');
+      const cleanDoc = document.replace(/\D/g, '');
+
+      if (accountType === 'company') {
+        if (!DocumentValidatorService.validateCNPJ(cleanDoc)) {
+          return res.status(400).json({ error: 'CNPJ inválido' });
+        }
+      } else {
+        // Individual - expect CPF
+        if (!DocumentValidatorService.validateCPF(cleanDoc)) {
+          return res.status(400).json({ error: 'CPF inválido' });
+        }
+      }
+    }
+
     // Create user (only admin can create admin users)
     const userRole = role === 'admin' ? 'user' : role || 'user';
 
@@ -142,27 +159,39 @@ router.post('/register', registerLimiter, validate(registerSchema), async (req: 
       }
     });
 
-    await user.save();
-    logger.info(`New user registered: ${username} (${email})`);
+    // Generate email verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
 
-    // Generate tokens
-    const { accessToken, refreshToken } = await generateTokens(
-      user._id.toString(),
-      user.username,
-      user.role,
-      req
-    );
+    user.emailVerificationToken = hashedToken;
+    user.emailVerificationExpire = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    user.emailVerified = false;
+
+    await user.save();
+    logger.info(`New user registered: ${username} (${email}) - awaiting email verification`);
+
+    // Send verification email
+    try {
+      const { getEmailService } = await import('../services/EmailService');
+      const emailService = getEmailService();
+      if (emailService.isConfigured()) {
+        const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/verify-email?token=${verificationToken}`;
+        emailService.sendVerificationEmail(email, username, verificationUrl).catch(err => {
+          logger.warn(`Failed to send verification email to ${email}:`, err.message);
+        });
+      }
+    } catch (emailError) {
+      logger.warn('Could not send verification email:', emailError);
+    }
 
     return res.status(201).json({
       success: true,
-      message: 'Usuário criado com sucesso',
-      accessToken,
-      refreshToken,
+      message: 'Conta criada! Verifique seu email para ativar sua conta.',
+      requiresVerification: true,
       user: {
         id: user._id,
         username: user.username,
         email: user.email,
-        role: user.role,
       },
     });
   } catch (error: any) {
@@ -245,6 +274,14 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
 
     if (!user.isActive) {
       return res.status(401).json({ error: 'Usuário inativo' });
+    }
+
+    // Check email verification
+    if (!user.emailVerified) {
+      return res.status(401).json({
+        error: 'Email não verificado. Verifique sua caixa de entrada.',
+        requiresVerification: true
+      });
     }
 
     // Check password
@@ -465,5 +502,271 @@ router.put(
     }
   }
 );
+
+/**
+ * POST /api/auth/forgot-password
+ * Request password reset email
+ * 
+ * SECURITY:
+ * - Rate limited (5 req / 15 min per IP)
+ * - Generic response (prevents user enumeration)
+ * - Token hashed with SHA256 before storage
+ * - 15 minute expiration
+ */
+router.post('/forgot-password', passwordResetLimiter, async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email é obrigatório' });
+    }
+
+    // Log request (without exposing full email)
+    const emailHash = crypto.createHash('sha256').update(email.toLowerCase()).digest('hex').substring(0, 8);
+    logger.info(`Password reset requested for email hash: ${emailHash}`);
+
+    // Find user (don't reveal if exists or not)
+    const user = await UserModel.findOne({ email: email.toLowerCase() });
+
+    if (user && user.isActive) {
+      // Generate random token
+      const resetToken = crypto.randomBytes(32).toString('hex');
+
+      // Hash token before storing (never store plain token)
+      const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+      // Set token and expiry (15 minutes)
+      user.resetPasswordToken = hashedToken;
+      user.resetPasswordExpire = new Date(Date.now() + 15 * 60 * 1000);
+      await user.save({ validateBeforeSave: false });
+
+      // Build reset URL
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+      const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
+
+      // Send email
+      const { getEmailService } = await import('../services/EmailService');
+      const emailService = getEmailService();
+
+      if (emailService.isConfigured()) {
+        await emailService.sendPasswordResetEmail(user.email, resetUrl);
+        logger.info(`Password reset email sent to hash: ${emailHash}`);
+      } else {
+        // Development fallback: log the URL
+        logger.warn(`Email not configured. Reset URL: ${resetUrl}`);
+      }
+    }
+
+    // ALWAYS return same response (prevents user enumeration)
+    return res.json({
+      success: true,
+      message: 'Se existe uma conta com este email, você receberá um link para redefinir sua senha.',
+    });
+
+  } catch (error: any) {
+    logger.error('Forgot password error:', error);
+    // Still return success to prevent enumeration
+    return res.json({
+      success: true,
+      message: 'Se existe uma conta com este email, você receberá um link para redefinir sua senha.',
+    });
+  }
+});
+
+/**
+ * POST /api/auth/reset-password/:token
+ * Reset password using token from email
+ * 
+ * SECURITY:
+ * - Token is hashed and compared
+ * - Token expires after 15 minutes
+ * - Token invalidated after use
+ * - All sessions revoked after reset
+ */
+router.post('/reset-password/:token', passwordResetLimiter, async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ error: 'Token e nova senha são obrigatórios' });
+    }
+
+    // Validate password strength
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'A senha deve ter pelo menos 8 caracteres' });
+    }
+
+    // Hash the provided token to compare with stored hash
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Find user with valid token
+    const user = await UserModel.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpire: { $gt: new Date() },
+    }).select('+resetPasswordToken +resetPasswordExpire');
+
+    if (!user) {
+      logger.warn(`Invalid/expired reset token attempted`);
+      return res.status(400).json({
+        error: 'Este link expirou ou é inválido. Solicite um novo link de redefinição.',
+      });
+    }
+
+    // Update password
+    user.password = password;
+
+    // Invalidate token (one-time use)
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+
+    await user.save();
+
+    // Revoke all refresh tokens (force re-login everywhere)
+    await RefreshTokenModel.updateMany(
+      { userId: user._id, isRevoked: false },
+      { isRevoked: true }
+    );
+
+    logger.info(`Password reset successful for user: ${user.username}`);
+
+    return res.json({
+      success: true,
+      message: 'Senha redefinida com sucesso! Faça login com sua nova senha.',
+    });
+
+  } catch (error: any) {
+    logger.error('Reset password error:', error);
+    return res.status(500).json({ error: 'Erro ao redefinir senha. Tente novamente.' });
+  }
+});
+
+/**
+ * GET /api/auth/validate-reset-token/:token
+ * Validate if a reset token is still valid (for frontend pre-check)
+ */
+router.get('/validate-reset-token/:token', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+
+    if (!token) {
+      return res.status(400).json({ valid: false });
+    }
+
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await UserModel.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpire: { $gt: new Date() },
+    }).select('_id');
+
+    return res.json({ valid: !!user });
+
+  } catch (error: any) {
+    logger.error('Validate reset token error:', error);
+    return res.json({ valid: false });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/verify-email:
+ *   post:
+ *     summary: Verify user email with token
+ *     tags: [Authentication]
+ */
+router.post('/verify-email', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token de verificação é obrigatório' });
+    }
+
+    // Hash the token to compare with stored hash
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Find user with valid token
+    const user = await UserModel.findOne({
+      emailVerificationToken: hashedToken,
+      emailVerificationExpire: { $gt: new Date() },
+    }).select('+emailVerificationToken +emailVerificationExpire');
+
+    if (!user) {
+      return res.status(400).json({ error: 'Token inválido ou expirado' });
+    }
+
+    // Mark email as verified
+    user.emailVerified = true;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpire = undefined;
+    await user.save();
+
+    logger.info(`Email verified for user: ${user.email}`);
+
+    return res.json({
+      success: true,
+      message: 'Email verificado com sucesso! Você já pode fazer login.',
+    });
+
+  } catch (error: any) {
+    logger.error('Email verification error:', error);
+    return res.status(500).json({ error: 'Erro ao verificar email' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/resend-verification:
+ *   post:
+ *     summary: Resend verification email
+ *     tags: [Authentication]
+ */
+router.post('/resend-verification', async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email é obrigatório' });
+    }
+
+    const user = await UserModel.findOne({ email });
+
+    if (!user) {
+      // Don't reveal if user exists
+      return res.json({ success: true, message: 'Se o email existir, enviaremos um novo link de verificação.' });
+    }
+
+    if (user.emailVerified) {
+      return res.status(400).json({ error: 'Este email já foi verificado' });
+    }
+
+    // Generate new token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
+
+    user.emailVerificationToken = hashedToken;
+    user.emailVerificationExpire = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await user.save();
+
+    // Send verification email
+    try {
+      const { getEmailService } = await import('../services/EmailService');
+      const emailService = getEmailService();
+      if (emailService.isConfigured()) {
+        const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/verify-email?token=${verificationToken}`;
+        await emailService.sendVerificationEmail(email, user.username, verificationUrl);
+      }
+    } catch (emailError) {
+      logger.warn('Could not resend verification email:', emailError);
+    }
+
+    return res.json({ success: true, message: 'Se o email existir, enviaremos um novo link de verificação.' });
+
+  } catch (error: any) {
+    logger.error('Resend verification error:', error);
+    return res.status(500).json({ error: 'Erro ao reenviar email de verificação' });
+  }
+});
 
 export { router as authRoutes };

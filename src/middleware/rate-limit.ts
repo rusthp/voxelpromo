@@ -83,3 +83,14 @@ export const configLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
 });
+
+// Password reset rate limit (prevent email bombing and brute force)
+export const passwordResetLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // 5 requests per 15 minutes per IP
+    message: {
+        error: 'Muitas tentativas. Aguarde 15 minutos antes de tentar novamente.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});

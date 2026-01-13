@@ -1,33 +1,72 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { Mail, Loader2, AlertCircle } from "lucide-react";
+import api from "@/services/api";
 
 const Login = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
+    const [verificationRequired, setVerificationRequired] = useState(false);
+    const [resendingEmail, setResendingEmail] = useState(false);
     const navigate = useNavigate();
+    const location = useLocation();
     const { login } = useAuth();
+
+    // Show message from registration
+    useEffect(() => {
+        const state = location.state as { message?: string } | null;
+        if (state?.message) {
+            toast.info(state.message);
+            // Clear the state
+            window.history.replaceState({}, document.title);
+        }
+    }, [location]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
+        setVerificationRequired(false);
 
         try {
-            // Use the auth hook's login function - this properly updates React state
             await login(email, password);
             toast.success("Login realizado com sucesso!");
             navigate("/products");
         } catch (error: any) {
             console.error("Login error:", error);
-            toast.error(error.response?.data?.error || "Erro ao fazer login");
+
+            // Check if email verification is required
+            if (error.response?.data?.requiresVerification) {
+                setVerificationRequired(true);
+                toast.error("Verifique seu email antes de fazer login.");
+            } else {
+                toast.error(error.response?.data?.error || "Erro ao fazer login");
+            }
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleResendVerification = async () => {
+        if (!email) {
+            toast.error("Digite seu email primeiro");
+            return;
+        }
+
+        setResendingEmail(true);
+        try {
+            await api.post('/auth/resend-verification', { email });
+            toast.success("Email de verificação reenviado! Verifique sua caixa de entrada.");
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || "Erro ao reenviar email");
+        } finally {
+            setResendingEmail(false);
         }
     };
 
@@ -49,13 +88,45 @@ const Login = () => {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
+                        {/* Verification Required Alert */}
+                        {verificationRequired && (
+                            <div className="mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                                <div className="flex items-start gap-3">
+                                    <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                                    <div className="flex-1">
+                                        <p className="text-sm font-medium text-amber-400">
+                                            Email não verificado
+                                        </p>
+                                        <p className="text-xs text-white/60 mt-1">
+                                            Verifique sua caixa de entrada e clique no link de confirmação.
+                                        </p>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handleResendVerification}
+                                            disabled={resendingEmail}
+                                            className="mt-2 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 p-0 h-auto"
+                                        >
+                                            {resendingEmail ? (
+                                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                            ) : (
+                                                <Mail className="w-3 h-3 mr-1" />
+                                            )}
+                                            Reenviar email de verificação
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         <form onSubmit={handleLogin} className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="email">Email</Label>
                                 <Input
                                     id="email"
                                     type="email"
-                                    placeholder="admin@voxelpromo.com"
+                                    placeholder="seu@email.com"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
@@ -74,11 +145,21 @@ const Login = () => {
                                 />
                             </div>
                             <Button type="submit" variant="glow" className="w-full" disabled={loading}>
-                                {loading ? "Entrando..." : "Entrar"}
+                                {loading ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        Entrando...
+                                    </>
+                                ) : (
+                                    "Entrar"
+                                )}
                             </Button>
                         </form>
                     </CardContent>
                     <CardFooter className="flex flex-col gap-4">
+                        <Link to="/forgot-password" className="text-sm text-muted-foreground hover:text-primary">
+                            Esqueceu sua senha?
+                        </Link>
                         <div className="text-sm text-muted-foreground text-center">
                             Não tem uma conta?{' '}
                             <Link to="/register" className="text-primary hover:underline font-medium">
@@ -90,7 +171,7 @@ const Login = () => {
 
                 {/* Footer */}
                 <p className="text-center text-xs text-muted-foreground mt-8">
-                    © 2024 VoxelPromo. Todos os direitos reservados.
+                    © {new Date().getFullYear()} VoxelPromo. Todos os direitos reservados.
                 </p>
             </div>
         </div>
@@ -98,4 +179,3 @@ const Login = () => {
 };
 
 export default Login;
-

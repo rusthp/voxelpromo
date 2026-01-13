@@ -46,13 +46,25 @@ export interface IUser extends Document {
     };
   };
   subscription?: {
-    planId: string; // 'trial', 'pro', 'agency'
-    status: 'active' | 'pending' | 'canceled';
+    planId: string; // 'trial', 'basic-monthly', 'pro', 'agency', 'premium-annual'
+    status: 'authorized' | 'pending' | 'paused' | 'cancelled';
+    accessType: 'recurring' | 'fixed'; // recurring = card, fixed = pix/boleto
     startDate: Date;
     nextBillingDate?: Date;
-    mpPreferenceId?: string;
-    mpPaymentId?: string;
+    endDate?: Date; // Only for annual plans
+    mpSubscriptionId?: string; // MP subscription ID (for recurring)
+    mpPaymentId?: string; // Last payment ID
+    paymentMethod?: 'card' | 'pix' | 'boleto';
+    lastPaymentDate?: Date;
+    failedAttempts?: number; // Failed billing attempts
   };
+  // Email Verification
+  emailVerified: boolean;
+  emailVerificationToken?: string;
+  emailVerificationExpire?: Date;
+  // Password Reset
+  resetPasswordToken?: string;
+  resetPasswordExpire?: Date;
 }
 
 const UserSchema = new Schema<IUser>(
@@ -156,13 +168,47 @@ const UserSchema = new Schema<IUser>(
       planId: String,
       status: {
         type: String,
-        enum: ['active', 'pending', 'canceled'],
-        default: 'active'
+        enum: ['authorized', 'pending', 'paused', 'cancelled'],
+        default: 'pending'
+      },
+      accessType: {
+        type: String,
+        enum: ['recurring', 'fixed'],
+        default: 'recurring'
       },
       startDate: Date,
       nextBillingDate: Date,
-      mpPreferenceId: String,
-      mpPaymentId: String
+      endDate: Date,
+      mpSubscriptionId: String,
+      mpPaymentId: String,
+      paymentMethod: {
+        type: String,
+        enum: ['card', 'pix', 'boleto']
+      },
+      lastPaymentDate: Date,
+      failedAttempts: { type: Number, default: 0 }
+    },
+    // Email Verification
+    emailVerified: {
+      type: Boolean,
+      default: false
+    },
+    emailVerificationToken: {
+      type: String,
+      select: false
+    },
+    emailVerificationExpire: {
+      type: Date,
+      select: false
+    },
+    // Password Reset (token stored as SHA256 hash)
+    resetPasswordToken: {
+      type: String,
+      select: false // Never return by default
+    },
+    resetPasswordExpire: {
+      type: Date,
+      select: false
     }
   },
   {

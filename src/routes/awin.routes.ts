@@ -1,10 +1,11 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { AwinService } from '../services/awin/AwinService';
 import { AwinFeedManager } from '../services/awin/AwinFeedManager';
 import { OfferModel } from '../models/Offer';
 import { logger } from '../utils/logger';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { authenticate, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 const configPath = join(process.cwd(), 'config.json');
@@ -34,14 +35,15 @@ router.get('/test', async (_req, res) => {
  * @swagger
  * /api/awin/collect:
  *   post:
- *     summary: Manually trigger Awin offer collection
+ *     summary: Manually trigger Awin offer collection (USER-SCOPED)
  *     tags: [Awin]
  *     responses:
  *       200:
  *         description: Collection result with count of offers
  */
-router.post('/collect', async (_req, res) => {
+router.post('/collect', authenticate, async (req: AuthRequest, res: Response) => {
     try {
+        const userId = req.user!.id;
         const awinService = new AwinService();
 
         if (!awinService.isConfigured()) {
@@ -51,7 +53,7 @@ router.post('/collect', async (_req, res) => {
             });
         }
 
-        logger.info('📡 Starting manual Awin collection...');
+        logger.info(`📡 Starting manual Awin collection for user: ${req.user!.username}...`);
         const offers = await awinService.getCoupons();
 
         if (offers.length === 0) {
@@ -62,21 +64,24 @@ router.post('/collect', async (_req, res) => {
             });
         }
 
-        // Save offers to database
+        // Save offers to database with userId
         let savedCount = 0;
         let skippedCount = 0;
 
         for (const offer of offers) {
             try {
-                // Check if offer already exists (by productUrl)
-                const existing = await OfferModel.findOne({ productUrl: offer.productUrl });
+                // Check if offer already exists FOR THIS USER (by productUrl + userId)
+                const existing = await OfferModel.findOne({
+                    userId,
+                    productUrl: offer.productUrl
+                });
                 if (existing) {
                     skippedCount++;
                     continue;
                 }
 
-                // Create new offer
-                await OfferModel.create(offer);
+                // Create new offer with userId
+                await OfferModel.create({ ...offer, userId });
                 savedCount++;
             } catch (saveError: any) {
                 if (saveError.code === 11000) {
@@ -88,7 +93,7 @@ router.post('/collect', async (_req, res) => {
             }
         }
 
-        logger.info(`✅ Awin collection complete: ${savedCount} saved, ${skippedCount} skipped`);
+        logger.info(`✅ Awin collection complete for ${req.user!.username}: ${savedCount} saved, ${skippedCount} skipped`);
 
         return res.json({
             success: true,
@@ -237,7 +242,7 @@ router.get('/feeds', async (_req, res) => {
  * @swagger
  * /api/awin/feeds/download:
  *   post:
- *     summary: Download and import products from a feed URL
+ *     summary: Download and import products from a feed URL (USER-SCOPED)
  *     tags: [Awin]
  *     requestBody:
  *       required: true
@@ -260,8 +265,9 @@ router.get('/feeds', async (_req, res) => {
  *       200:
  *         description: Products downloaded and optionally saved
  */
-router.post('/feeds/download', async (req, res) => {
+router.post('/feeds/download', authenticate, async (req: AuthRequest, res: Response) => {
     try {
+        const userId = req.user!.id;
         const { feedUrl, maxProducts = 100, save = false } = req.body;
 
         if (!feedUrl) {
@@ -290,12 +296,15 @@ router.post('/feeds/download', async (req, res) => {
         if (save) {
             for (const offer of offers) {
                 try {
-                    const existing = await OfferModel.findOne({ affiliateUrl: offer.affiliateUrl });
+                    const existing = await OfferModel.findOne({
+                        userId,
+                        affiliateUrl: offer.affiliateUrl
+                    });
                     if (existing) {
                         skippedCount++;
                         continue;
                     }
-                    await OfferModel.create(offer);
+                    await OfferModel.create({ ...offer, userId });
                     savedCount++;
                 } catch (saveError: any) {
                     if (saveError.code === 11000) {
@@ -359,7 +368,7 @@ router.get('/advertisers', async (_req, res) => {
  * @swagger
  * /api/awin/products/{advertiserId}:
  *   post:
- *     summary: Fetch products from an advertiser's product feed
+ *     summary: Fetch products from an advertiser's product feed (USER-SCOPED)
  *     tags: [Awin]
  *     parameters:
  *       - in: path
@@ -384,8 +393,9 @@ router.get('/advertisers', async (_req, res) => {
  *       200:
  *         description: Products fetched from advertiser feed
  */
-router.post('/products/:advertiserId', async (req, res) => {
+router.post('/products/:advertiserId', authenticate, async (req: AuthRequest, res: Response) => {
     try {
+        const userId = req.user!.id;
         const { advertiserId } = req.params;
         const { locale = 'pt_BR', save = false } = req.body;
 
@@ -417,12 +427,15 @@ router.post('/products/:advertiserId', async (req, res) => {
         if (save) {
             for (const offer of offers) {
                 try {
-                    const existing = await OfferModel.findOne({ productUrl: offer.productUrl });
+                    const existing = await OfferModel.findOne({
+                        userId,
+                        productUrl: offer.productUrl
+                    });
                     if (existing) {
                         skippedCount++;
                         continue;
                     }
-                    await OfferModel.create(offer);
+                    await OfferModel.create({ ...offer, userId });
                     savedCount++;
                 } catch (saveError: any) {
                     if (saveError.code === 11000) {

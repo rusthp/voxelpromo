@@ -17,6 +17,7 @@ import {
     TemplatesSettings,
 } from "@/components/settings";
 import { AffiliateNetworksCard } from "@/components/settings/AffiliateNetworksCard";
+import { SubscriptionManager } from "@/components/billing/SubscriptionManager";
 
 // Initial config state
 const initialConfig: ConfigState = {
@@ -118,7 +119,7 @@ const Settings = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const [activeTab, setActiveTab] = useState(() => {
         const tabFromUrl = searchParams.get('tab');
-        const validTabs = ['automation', 'ai', 'messaging', 'affiliate', 'collection', 'templates'];
+        const validTabs = ['automation', 'ai', 'messaging', 'affiliate', 'collection', 'templates', 'subscription'];
         return validTabs.includes(tabFromUrl || '') ? tabFromUrl! : 'automation';
     });
 
@@ -610,13 +611,14 @@ const Settings = () => {
                 </div>
 
                 <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-                    <TabsList className="grid w-full grid-cols-6">
+                    <TabsList className="grid w-full grid-cols-7">
                         <TabsTrigger value="automation">Automação</TabsTrigger>
                         <TabsTrigger value="ai">IA</TabsTrigger>
                         <TabsTrigger value="messaging">Mensageria</TabsTrigger>
                         <TabsTrigger value="affiliate">Afiliados</TabsTrigger>
                         <TabsTrigger value="collection">Coleta</TabsTrigger>
                         <TabsTrigger value="templates">Templates</TabsTrigger>
+                        <TabsTrigger value="subscription">Assinatura</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="automation">
@@ -696,6 +698,18 @@ const Settings = () => {
 
                     <TabsContent value="templates">
                         <TemplatesSettings />
+                    </TabsContent>
+
+                    <TabsContent value="subscription">
+                        <div className="space-y-6">
+                            <div>
+                                <h2 className="text-lg font-semibold text-foreground mb-2">Gerenciar Assinatura</h2>
+                                <p className="text-sm text-muted-foreground mb-4">
+                                    Veja o status da sua assinatura, data de renovação e gerencie seu plano.
+                                </p>
+                            </div>
+                            <SubscriptionManager />
+                        </div>
                     </TabsContent>
                 </Tabs>
             </div>

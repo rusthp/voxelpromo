@@ -3,6 +3,8 @@ import { InstagramService } from '../services/messaging/InstagramService';
 import { logger } from '../utils/logger';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { authenticate, AuthRequest } from '../middleware/auth';
+import { getUserSettingsService } from '../services/user/UserSettingsService';
 
 const router = Router();
 
@@ -23,32 +25,42 @@ function getInstagramService(): InstagramService {
  * @swagger
  * /api/instagram/status:
  *   get:
- *     summary: Get Instagram connection status
+ *     summary: Get Instagram connection status (user-scoped)
  *     tags: [Instagram]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Instagram status
+ *         description: Instagram status for current user
  */
-router.get('/status', async (_req: Request, res: Response) => {
+router.get('/status', authenticate, async (req: AuthRequest, res: Response) => {
     try {
-        const service = getInstagramService();
-        const configured = service.isConfigured();
-        const authenticated = service.isAuthenticated();
-        const rateLimit = service.getRateLimitStatus();
+        const userId = req.user!.id;
+        const settingsService = getUserSettingsService();
+        const userSettings = await settingsService.getSettings(userId);
 
-        let accountInfo = null;
-        if (authenticated) {
-            accountInfo = await service.getAccountInfo();
+        // Return user-specific Instagram status
+        if (userSettings.instagram.isConfigured) {
+            return res.json({
+                success: true,
+                configured: true,
+                authenticated: true,
+                account: {
+                    username: userSettings.instagram.username || 'Unknown',
+                    accountType: userSettings.instagram.accountType || 'BUSINESS',
+                    igUserId: userSettings.instagram.igUserId,
+                },
+                rateLimit: { remaining: 200, limit: 200, resetAt: new Date(Date.now() + 3600000) },
+            });
         }
 
+        // Not configured for this user
         return res.json({
             success: true,
-            configured,
-            authenticated,
-            account: accountInfo,
-            rateLimit,
+            configured: false,
+            authenticated: false,
+            account: null,
+            rateLimit: null,
         });
     } catch (error: any) {
         logger.error('Error getting Instagram status:', error);
