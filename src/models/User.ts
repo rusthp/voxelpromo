@@ -47,7 +47,7 @@ export interface IUser extends Document {
   };
   subscription?: {
     planId: string; // 'trial', 'basic-monthly', 'pro', 'agency', 'premium-annual'
-    status: 'authorized' | 'pending' | 'paused' | 'cancelled';
+    status: 'active' | 'authorized' | 'pending' | 'paused' | 'cancelled';
     accessType: 'recurring' | 'fixed'; // recurring = card, fixed = pix/boleto
     startDate: Date;
     nextBillingDate?: Date;
@@ -170,7 +170,7 @@ const UserSchema = new Schema<IUser>(
       planId: String,
       status: {
         type: String,
-        enum: ['authorized', 'pending', 'paused', 'cancelled'],
+        enum: ['active', 'authorized', 'pending', 'paused', 'cancelled'],
         default: 'pending'
       },
       accessType: {
