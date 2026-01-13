@@ -20,8 +20,10 @@ import { cn } from "@/lib/utils";
 
 export function GlobalSettings() {
     const [config, setConfig] = useState<any>({
-        amazon: { associateTag: "" },
-        x: { apiKey: "", apiKeySecret: "", accessToken: "", accessTokenSecret: "" },
+        amazon: { associateTag: "", accessKey: "", secretKey: "" },
+        x: { apiKey: "", apiKeySecret: "", accessToken: "", accessTokenSecret: "", bearerToken: "" },
+        payment: { mpAccessToken: "", mpPublicKey: "", mpWebhookSecret: "" },
+        resend: { apiKey: "", from: "" },
         maintenanceMode: false,
         registrationEnabled: true,
         maxOffersPerUser: 1000,
@@ -212,6 +214,98 @@ export function GlobalSettings() {
                                         />
                                     </div>
                                 </div>
+                            </div>
+                        </CardContent>
+                    </GlassCard>
+
+                    {/* Mercado Pago Payment */}
+                    <GlassCard>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-white">
+                                <DollarSign className="h-5 w-5 text-green-400" />
+                                Mercado Pago (Pagamentos)
+                            </CardTitle>
+                            <CardDescription className="text-white/50">
+                                Configuração de pagamentos compartilhada (todos os usuários)
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <Label className="text-white/80">Access Token</Label>
+                                <div className="relative">
+                                    <Key className="absolute left-3 top-2.5 h-4 w-4 text-white/40" />
+                                    <StyledInput
+                                        type="password"
+                                        placeholder="APP_USR-..."
+                                        value={config.payment?.mpAccessToken || ""}
+                                        onChange={(e) => handleConfigChange("payment", "mpAccessToken", e.target.value)}
+                                        className="pl-9 font-mono text-xs"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label className="text-white/80">Public Key</Label>
+                                    <StyledInput
+                                        type="password"
+                                        placeholder="APP_USR-..."
+                                        value={config.payment?.mpPublicKey || ""}
+                                        onChange={(e) => handleConfigChange("payment", "mpPublicKey", e.target.value)}
+                                        className="font-mono text-xs"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-white/80">Webhook Secret</Label>
+                                    <StyledInput
+                                        type="password"
+                                        placeholder="Chave secreta..."
+                                        value={config.payment?.mpWebhookSecret || ""}
+                                        onChange={(e) => handleConfigChange("payment", "mpWebhookSecret", e.target.value)}
+                                        className="font-mono text-xs"
+                                    />
+                                </div>
+                            </div>
+                        </CardContent>
+                    </GlassCard>
+
+                    {/* Email - Resend API */}
+                    <GlassCard>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-white">
+                                <Globe className="h-5 w-5 text-blue-400" />
+                                Email (Resend)
+                            </CardTitle>
+                            <CardDescription className="text-white/50">
+                                Configuração de email para todos os usuários
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <Label className="text-white/80">Resend API Key</Label>
+                                <div className="relative">
+                                    <Key className="absolute left-3 top-2.5 h-4 w-4 text-white/40" />
+                                    <StyledInput
+                                        type="password"
+                                        placeholder="re_..."
+                                        value={config.resend?.apiKey || ""}
+                                        onChange={(e) => handleConfigChange("resend", "apiKey", e.target.value)}
+                                        className="pl-9 font-mono text-xs"
+                                    />
+                                </div>
+                                <p className="text-xs text-white/40">
+                                    Obtenha em: <a href="https://resend.com/api-keys" target="_blank" className="text-blue-400 hover:underline">resend.com/api-keys</a>
+                                </p>
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-white/80">Remetente (From)</Label>
+                                <StyledInput
+                                    placeholder="VoxelPromo <noreply@voxelpromo.com>"
+                                    value={config.resend?.from || ""}
+                                    onChange={(e) => handleConfigChange("resend", "from", e.target.value)}
+                                />
+                                <p className="text-xs text-white/40">
+                                    Domínio deve estar verificado no Resend
+                                </p>
                             </div>
                         </CardContent>
                     </GlassCard>
