@@ -426,9 +426,16 @@ router.get('/users/:id/details', async (req: Request, res: Response) => {
       )
     ]);
 
-    // 4. Calculate "posts used today" (based on Post History or similar)
-    // For now, using a placeholder - you'd integrate with your actual post tracking
-    const postsToday = 0; // TODO: Implement based on your post tracking system
+    // 4. Calculate "posts used today" (based on Post History)
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const { PostHistoryModel } = await import('../models/PostHistory');
+    const postsToday = await PostHistoryModel.countDocuments({
+      userId: id,
+      postedAt: { $gte: startOfToday },
+      status: 'success'
+    });
 
     res.json({
       success: true,

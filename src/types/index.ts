@@ -26,6 +26,8 @@ export interface Offer {
   postedChannels?: string[];
   aiGeneratedPost?: string;
   scheduledAt?: Date;
+  shortCode?: string;
+  clicks?: number;
   createdAt: Date;
   updatedAt: Date;
 }

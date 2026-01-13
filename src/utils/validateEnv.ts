@@ -38,8 +38,18 @@ export function validateEnv(): EnvValidationResult {
     }
   }
 
-  // Check important variables
-  for (const varName of important) {
+  // Check that at least ONE AI provider is configured
+  const aiProviders = ['GROQ_API_KEY', 'OPENAI_API_KEY', 'DEEPSEEK_API_KEY'];
+  const hasAnyAI = aiProviders.some(key => process.env[key] && process.env[key]?.trim() !== '');
+
+  if (!hasAnyAI) {
+    result.warnings.push('No AI provider configured (GROQ_API_KEY, OPENAI_API_KEY, or DEEPSEEK_API_KEY)');
+    result.warnings.push('⚠️  AI content generation will not work without at least one provider');
+  }
+
+  // Check important variables (excluding AI keys since we checked above)
+  const nonAIImportant = important.filter(v => !aiProviders.includes(v));
+  for (const varName of nonAIImportant) {
     if (!process.env[varName] || process.env[varName]?.trim() === '') {
       result.warnings.push(`${varName} is not set (recommended)`);
     }
@@ -55,7 +65,14 @@ export function validateEnv(): EnvValidationResult {
   }
 
   if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
-    result.warnings.push('JWT_SECRET should be at least 32 characters long for security');
+    result.warnings.push('⚠️  JWT_SECRET should be at least 32 characters long for security');
+  }
+
+  // Check for unsafe defaults in production
+  if (process.env.NODE_ENV === 'production') {
+    if (process.env.JWT_SECRET?.includes('change') || process.env.JWT_SECRET?.includes('secret')) {
+      result.warnings.push('🚨 JWT_SECRET appears to be a default value - CHANGE IT IN PRODUCTION!');
+    }
   }
 
   return result;

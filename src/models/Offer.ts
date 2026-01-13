@@ -44,6 +44,8 @@ const OfferSchema = new Schema<OfferDocument>(
     postedChannels: [{ type: String }],
     aiGeneratedPost: { type: String },
     scheduledAt: { type: Date, index: true },
+    shortCode: { type: String, unique: true, sparse: true, index: true },
+    clicks: { type: Number, default: 0 },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
   },
@@ -74,5 +76,29 @@ OfferSchema.index({ category: 1, discountPercentage: -1 });
 OfferSchema.index({ userId: 1, createdAt: -1 });
 OfferSchema.index({ userId: 1, isActive: 1, createdAt: -1 });
 OfferSchema.index({ userId: 1, isPosted: 1, scheduledAt: 1 });
+
+// Generate unique shortCode on creation (with collision prevention)
+OfferSchema.pre('save', async function (next) {
+  if (this.isNew && !this.shortCode) {
+    let code;
+    let exists = true;
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    while (exists && attempts < maxAttempts) {
+      code = Math.random().toString(36).substring(2, 8);
+      const doc = await mongoose.models.Offer.exists({ shortCode: code });
+      exists = doc !== null;
+      attempts++;
+    }
+
+    if (attempts >= maxAttempts) {
+      throw new Error('Failed to generate unique shortCode after 10 attempts');
+    }
+
+    this.shortCode = code;
+  }
+  next();
+});
 
 export const OfferModel = mongoose.model<OfferDocument>('Offer', OfferSchema);

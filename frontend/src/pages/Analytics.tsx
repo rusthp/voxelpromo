@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, Package, Share2, Target, RefreshCw } from "lucide-react";
+import { TrendingUp, Package, Share2, Target, RefreshCw, MousePointerClick } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import api from "@/services/api";
 import {
@@ -51,6 +51,7 @@ const SOURCE_COLORS: Record<string, string> = {
 const Analytics = () => {
     const [stats, setStats] = useState<Stats | null>(null);
     const [sourceStats, setSourceStats] = useState<SourceStats[]>([]);
+    const [clickStats, setClickStats] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -60,13 +61,15 @@ const Analytics = () => {
     const fetchStats = async () => {
         setLoading(true);
         try {
-            const [statsRes, sourcesRes] = await Promise.all([
+            const [statsRes, sourcesRes, clicksRes] = await Promise.all([
                 api.get('/stats'),
                 api.get('/stats/sources').catch(() => ({ data: { sources: [] } })),
+                api.get('/stats/clicks').catch(() => ({ data: { clicksToday: 0, clicksByChannel: [] } })),
             ]);
 
             setStats(statsRes.data);
             setSourceStats(sourcesRes.data.sources || []);
+            setClickStats(clicksRes.data);
         } catch (error) {
             console.error("Error fetching analytics:", error);
         } finally {
@@ -112,7 +115,7 @@ const Analytics = () => {
                 ) : (
                     <>
                         {/* Overview Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                     <CardTitle className="text-sm font-medium">Total de Ofertas</CardTitle>
@@ -154,6 +157,17 @@ const Analytics = () => {
                                 <CardContent>
                                     <div className="text-2xl font-bold text-primary">{stats?.avgDiscount?.toFixed(1) || 0}%</div>
                                     <p className="text-xs text-muted-foreground">Todas as ofertas</p>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <CardTitle className="text-sm font-medium">Cliques Hoje</CardTitle>
+                                    <MousePointerClick className="h-4 w-4 text-muted-foreground" />
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-bold text-blue-500">{clickStats?.clicksToday || 0}</div>
+                                    <p className="text-xs text-muted-foreground">Links rastreados</p>
                                 </CardContent>
                             </Card>
                         </div>

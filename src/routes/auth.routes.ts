@@ -140,6 +140,18 @@ router.post('/register', registerLimiter, validate(registerSchema), async (req: 
       }
     }
 
+    // ✅ Check if email already used trial (READ-ONLY - don't mark here)
+    const existingTrialUser = await UserModel.findOne({
+      email,
+      hasUsedTrial: true
+    });
+
+    if (existingTrialUser) {
+      return res.status(400).json({
+        error: 'Este email já utilizou o período de teste gratuito.'
+      });
+    }
+
     // Create user (only admin can create admin users)
     const userRole = role === 'admin' ? 'user' : role || 'user';
 
@@ -157,6 +169,7 @@ router.post('/register', registerLimiter, validate(registerSchema), async (req: 
         tier: 'free',
         status: 'active',
       }
+      // ❌ NOT marking hasUsedTrial here - will be marked in PaymentService when trial is activated
     });
 
     // Generate email verification token

@@ -26,7 +26,7 @@ import afilioRoutes from './afilio.routes';
 import rakutenRoutes from './rakuten.routes';
 import instagramRoutes from './instagram.routes';
 import linksRoutes from './links.routes';
-import redirectRoutes from './redirect.routes';
+import { shorturlRoutes } from './shorturl.routes';
 import { documentsRoutes } from './documents.routes';
 import { paymentRoutes } from './payment.routes';
 import newsRoutes from './news.routes';
@@ -106,7 +106,7 @@ export function setupRoutes(app: Express): void {
   app.use('/api/documents', apiLimiter, documentsRoutes); // CPF/CNPJ validation (public for registration)
   app.use('/api/users', authenticate, apiLimiter, usersRoutes); // LGPD: account deletion and data export
 
-  // Public route for redirect (must be accessible without auth)
-  app.use('/s', redirectRoutes); // Short URL redirect: /s/:code
+  // Public route for redirect with click tracking (must be accessible without auth)
+  app.use('/s', shorturlRoutes); // Short URL redirect with click tracking: /s/:code?ch=telegram
 }
 

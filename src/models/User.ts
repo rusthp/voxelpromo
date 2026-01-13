@@ -65,6 +65,8 @@ export interface IUser extends Document {
   // Password Reset
   resetPasswordToken?: string;
   resetPasswordExpire?: Date;
+  // Trial Tracking
+  hasUsedTrial: boolean;
 }
 
 const UserSchema = new Schema<IUser>(
@@ -209,6 +211,11 @@ const UserSchema = new Schema<IUser>(
     resetPasswordExpire: {
       type: Date,
       select: false
+    },
+    // Trial Tracking
+    hasUsedTrial: {
+      type: Boolean,
+      default: false
     }
   },
   {

@@ -53,7 +53,21 @@ export class PaymentService {
 
             // Trial plans are free, no subscription needed
             if (plan.id === 'trial') {
-                logger.info(`Trial plan requested for user ${data.userId}, no subscription required`);
+                // ✅ Validate trial hasn't been used
+                const { UserModel } = await import('../models/User');
+                const user = await UserModel.findById(data.userId);
+
+                if (user?.hasUsedTrial) {
+                    throw new Error('Trial já utilizado anteriormente');
+                }
+
+                // ✅ Mark trial as used (ONLY here, ONLY if successful)
+                if (user) {
+                    user.hasUsedTrial = true;
+                    await user.save();
+                }
+
+                logger.info(`Trial activated for user ${data.userId}`);
                 return { success: true, isTrial: true, planId: 'trial' };
             }
 

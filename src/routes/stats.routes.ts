@@ -1,7 +1,9 @@
 import { Router, Response } from 'express';
 import { OfferModel } from '../models/Offer';
+import { ClickModel } from '../models/Click';
 import { logger } from '../utils/logger';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import mongoose from 'mongoose';
 
 const router = Router();
 
@@ -42,6 +44,59 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     logger.error('Error getting stats:', error);
     res.status(500).json({ error: error.message || 'Erro ao buscar estatísticas' });
+  }
+});
+
+/**
+ * GET /api/stats/clicks
+ * Get click statistics (USER-SCOPED)
+ */
+router.get('/clicks', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const [clicksToday, clicksByChannel, topOffers] = await Promise.all([
+      // Clicks today
+      ClickModel.countDocuments({
+        userId: new mongoose.Types.ObjectId(userId),
+        clickedAt: { $gte: startOfToday }
+      }),
+
+      // Clicks by channel
+      ClickModel.aggregate([
+        { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+        { $group: { _id: '$channel', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]),
+
+      // Top 5 offers by clicks
+      ClickModel.aggregate([
+        { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+        { $group: { _id: '$offerId', clicks: { $sum: 1 } } },
+        { $sort: { clicks: -1 } },
+        { $limit: 5 },
+        {
+          $lookup: {
+            from: 'offers',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'offer'
+          }
+        }
+      ])
+    ]);
+
+    res.json({
+      success: true,
+      clicksToday,
+      clicksByChannel,
+      topOffers
+    });
+  } catch (error: any) {
+    logger.error('Error fetching click stats:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
