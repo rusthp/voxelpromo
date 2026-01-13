@@ -310,15 +310,17 @@ const Register = () => {
 
                             {/* LGPD Privacy Consent - MANDATORY */}
                             <div className="flex items-start gap-3 p-4 bg-muted/30 rounded-lg border border-border/50">
-                                <input
-                                    id="privacyConsent"
-                                    type="checkbox"
-                                    checked={acceptedPrivacyPolicy}
-                                    onChange={(e) => setAcceptedPrivacyPolicy(e.target.checked)}
-                                    disabled={isLoading}
-                                    className="mt-1 w-4 h-4 rounded border-border text-primary focus:ring-primary focus:ring-offset-0"
-                                    required
-                                />
+                                <div
+                                    onClick={() => !isLoading && setAcceptedPrivacyPolicy(!acceptedPrivacyPolicy)}
+                                    className={cn(
+                                        "mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all shrink-0",
+                                        acceptedPrivacyPolicy
+                                            ? "bg-primary border-primary"
+                                            : "border-muted-foreground/50 hover:border-primary/70"
+                                    )}
+                                >
+                                    {acceptedPrivacyPolicy && <Check className="w-3 h-3 text-primary-foreground" />}
+                                </div>
                                 <label htmlFor="privacyConsent" className="text-sm text-foreground cursor-pointer select-none">
                                     Li e aceito a{' '}
                                     <Link
