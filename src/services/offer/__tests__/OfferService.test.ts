@@ -16,6 +16,8 @@ jest.mock('../../../utils/logger', () => ({
 jest.mock('../../ai/AIService');
 jest.mock('../../messaging/TelegramService');
 jest.mock('../../messaging/WhatsAppService');
+jest.mock('../../user/UserSettingsService');
+jest.mock('../../../models/UserSettings');
 
 describe('OfferService', () => {
   let offerService: OfferService;
@@ -46,6 +48,7 @@ describe('OfferService', () => {
         tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
+        userId: new mongoose.Types.ObjectId().toString(),
       };
 
       // Mock should return validated values (NaN -> 0)
@@ -62,6 +65,7 @@ describe('OfferService', () => {
         toObject: () => ({
           ...validatedOffer,
           _id: new mongoose.Types.ObjectId(),
+          userId: new mongoose.Types.ObjectId(),
         }),
       };
       (OfferModel as any).mockImplementation(() => mockOfferInstance);
@@ -95,6 +99,7 @@ describe('OfferService', () => {
         tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
+        userId: new mongoose.Types.ObjectId().toString(),
       };
 
       // Mock should return validated values (originalPrice adjusted to >= currentPrice)
@@ -143,6 +148,7 @@ describe('OfferService', () => {
         tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
+        userId: new mongoose.Types.ObjectId().toString(),
       };
 
       const mockOfferInstance = {
@@ -150,6 +156,7 @@ describe('OfferService', () => {
         toObject: () => ({
           ...newOffer,
           _id: new mongoose.Types.ObjectId(),
+          userId: new mongoose.Types.ObjectId(),
         }),
       };
       (OfferModel as any).mockImplementation(() => mockOfferInstance);
@@ -174,6 +181,7 @@ describe('OfferService', () => {
           title: 'Updated Product',
           productUrl: 'http://example.com/product/1',
           isActive: true,
+          userId: new mongoose.Types.ObjectId(),
         }),
       };
 
@@ -195,6 +203,7 @@ describe('OfferService', () => {
         tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
+        userId: new mongoose.Types.ObjectId().toString(),
       };
 
       (OfferModel.findOne as jest.Mock) = jest.fn().mockResolvedValue(existingOffer);
@@ -217,6 +226,7 @@ describe('OfferService', () => {
           title: 'Reactivated Product',
           productUrl: 'http://example.com/product/1',
           isActive: true,
+          userId: new mongoose.Types.ObjectId(),
         }),
       };
 
@@ -238,6 +248,7 @@ describe('OfferService', () => {
         tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
+        userId: new mongoose.Types.ObjectId().toString(),
       };
 
       (OfferModel.findOne as jest.Mock) = jest.fn().mockResolvedValue(inactiveOffer);
@@ -276,6 +287,7 @@ describe('OfferService', () => {
           tags: [],
           createdAt: new Date(),
           updatedAt: new Date(),
+          userId: new mongoose.Types.ObjectId().toString(),
         },
         {
           title: 'Product 2',
@@ -295,6 +307,7 @@ describe('OfferService', () => {
           tags: [],
           createdAt: new Date(),
           updatedAt: new Date(),
+          userId: new mongoose.Types.ObjectId().toString(),
         },
       ];
 
@@ -335,6 +348,7 @@ describe('OfferService', () => {
           tags: [],
           createdAt: new Date(),
           updatedAt: new Date(),
+          userId: new mongoose.Types.ObjectId().toString(),
         },
         {
           title: 'Product 2',
@@ -354,6 +368,7 @@ describe('OfferService', () => {
           tags: [],
           createdAt: new Date(),
           updatedAt: new Date(),
+          userId: new mongoose.Types.ObjectId().toString(),
         },
       ];
 
@@ -433,9 +448,10 @@ describe('OfferService', () => {
         _id: offerId,
         title: 'Test Product',
         isActive: true,
+        userId: new mongoose.Types.ObjectId().toString(),
       };
 
-      (OfferModel.findById as jest.Mock) = jest.fn().mockReturnValue({
+      (OfferModel.findOne as jest.Mock) = jest.fn().mockReturnValue({
         lean: jest.fn().mockResolvedValue(mockOffer),
       });
 
@@ -448,7 +464,7 @@ describe('OfferService', () => {
     it('should return null when offer not found', async () => {
       const offerId = new mongoose.Types.ObjectId().toString();
 
-      (OfferModel.findById as jest.Mock) = jest.fn().mockReturnValue({
+      (OfferModel.findOne as jest.Mock) = jest.fn().mockReturnValue({
         lean: jest.fn().mockResolvedValue(null),
       });
 
@@ -462,28 +478,27 @@ describe('OfferService', () => {
     it('should soft delete offer by default', async () => {
       const offerId = new mongoose.Types.ObjectId().toString();
 
-      (OfferModel.findByIdAndUpdate as jest.Mock) = jest.fn().mockResolvedValue({
-        _id: offerId,
-        isActive: false,
+      (OfferModel.updateOne as jest.Mock) = jest.fn().mockResolvedValue({
+        matchedCount: 1,
       });
 
       const result = await offerService.deleteOffer(offerId);
 
       expect(result).toBe(true);
-      expect(OfferModel.findByIdAndUpdate).toHaveBeenCalledWith(offerId, { isActive: false });
+      expect(OfferModel.updateOne).toHaveBeenCalledWith({ _id: offerId }, { isActive: false });
     });
 
     it('should permanently delete when permanent=true', async () => {
       const offerId = new mongoose.Types.ObjectId().toString();
 
-      (OfferModel.findByIdAndDelete as jest.Mock) = jest.fn().mockResolvedValue({
-        _id: offerId,
+      (OfferModel.deleteOne as jest.Mock) = jest.fn().mockResolvedValue({
+        deletedCount: 1,
       });
 
       const result = await offerService.deleteOffer(offerId, true);
 
       expect(result).toBe(true);
-      expect(OfferModel.findByIdAndDelete).toHaveBeenCalledWith(offerId);
+      expect(OfferModel.deleteOne).toHaveBeenCalledWith({ _id: offerId });
     });
   });
 

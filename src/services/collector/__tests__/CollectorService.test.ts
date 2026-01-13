@@ -7,6 +7,9 @@ import { ShopeeService } from '../../shopee/ShopeeService';
 import { RSSService } from '../../rss/RSSService';
 import { OfferService } from '../../offer/OfferService';
 import { BlacklistService } from '../../blacklist/BlacklistService';
+// Mock UserSettings
+jest.mock('../../user/UserSettingsService');
+jest.mock('../../../models/UserSettings');
 
 // Mock logger and retry utilities only (not the services themselves)
 jest.mock('../../../utils/logger', () => ({
@@ -45,6 +48,7 @@ const createMockOffer = (overrides: Partial<Offer> = {}): Offer => ({
     tags: [],
     createdAt: new Date(),
     updatedAt: new Date(),
+    userId: 'user123', // Mock userId
     ...overrides,
 });
 
@@ -87,6 +91,10 @@ const createMockDeps = () => {
         saveOffers: jest.fn().mockResolvedValue(0),
     };
 
+    const userSettingsService = {
+        getSafeSettings: jest.fn(),
+    };
+
     const blacklistService = {
         getConfig: jest.fn().mockReturnValue({ enabled: false, keywords: [], regex: [] }),
         isOfferBlacklisted: jest.fn().mockReturnValue(false),
@@ -110,6 +118,7 @@ const createMockDeps = () => {
             rssService,
             offerService,
             blacklistService,
+            userSettingsService,
         },
     };
 };
@@ -161,7 +170,7 @@ describe('CollectorService', () => {
 
             const result = await collectorService.collectFromAmazon('test', 'electronics');
 
-            expect(mocks.offerService.saveOffers).toHaveBeenCalledWith([]);
+            expect(mocks.offerService.saveOffers).toHaveBeenCalledWith([], undefined);
             expect(result).toBe(0);
         });
     });
@@ -273,18 +282,11 @@ describe('CollectorService', () => {
             jest.spyOn(collectorService, 'collectFromAwin').mockResolvedValue(4);
             jest.spyOn(collectorService, 'collectFromRSS').mockResolvedValue(1);
 
-            // Mock getConfig to return all sources
-            // Using Object.defineProperty to avoid accessing private method directly
-            const originalGetConfig = Object.getOwnPropertyDescriptor(
-                Object.getPrototypeOf(collectorService),
-                'getConfig'
-            );
-            Object.defineProperty(collectorService, 'getConfig', {
-                value: () => ({
-                    enabled: true,
-                    sources: ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'awin', 'rss'],
-                }),
-                configurable: true,
+            // Mock getCollectionConfig to return all sources
+            jest.spyOn(collectorService as any, 'getCollectionConfig').mockResolvedValue({
+                enabled: true,
+                sources: ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'awin', 'rss'],
+                rssFeeds: ['http://example.com/feed'],
             });
 
             const result = await collectorService.collectAll();
@@ -295,16 +297,15 @@ describe('CollectorService', () => {
             expect(result).toHaveProperty('total');
             expect(result.total).toBeGreaterThanOrEqual(0);
 
-            // Restore original
-            if (originalGetConfig) {
-                Object.defineProperty(collectorService, 'getConfig', originalGetConfig);
-            }
+            // Restore handled by checking spy in next test or beforeEach
+            // const result is checked below
         });
 
         it('should return zeros when collection is disabled', async () => {
-            Object.defineProperty(collectorService, 'getConfig', {
-                value: () => ({ enabled: false }),
-                configurable: true,
+            jest.spyOn(collectorService as any, 'getCollectionConfig').mockResolvedValue({
+                enabled: false,
+                sources: [],
+                rssFeeds: [],
             });
 
             const result = await collectorService.collectAll();
