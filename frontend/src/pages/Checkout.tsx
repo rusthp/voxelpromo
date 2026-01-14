@@ -102,8 +102,8 @@ export default function Checkout() {
 
     useEffect(() => {
         if (!MP_PUBLIC_KEY && planId !== 'trial') {
-            console.error('VITE_MP_PUBLIC_KEY is not set!');
-            setErrorMessage('Configuração de pagamento não encontrada.');
+            console.error('VITE_MP_PUBLIC_KEY is not set! Configure in frontend/.env and rebuild.');
+            setErrorMessage('Sistema de pagamento não configurado. Entre em contato com o suporte.');
         }
     }, [planId]);
 

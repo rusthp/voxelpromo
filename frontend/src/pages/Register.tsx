@@ -77,7 +77,8 @@ const Register = () => {
         passwordChecks.lowercase &&
         passwordChecks.number &&
         passwordChecks.match &&
-        acceptedPrivacyPolicy;
+        acceptedPrivacyPolicy &&
+        document.replace(/\D/g, '').length >= 11; // CPF/CNPJ required
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -178,7 +179,7 @@ const Register = () => {
                             {/* Dynamic Document Field */}
                             <div className="space-y-2">
                                 <Label htmlFor="document">
-                                    {accountType === 'individual' ? 'CPF (opcional)' : 'CNPJ'}
+                                    {accountType === 'individual' ? 'CPF' : 'CNPJ'} *
                                 </Label>
                                 <div className="relative">
                                     <Input

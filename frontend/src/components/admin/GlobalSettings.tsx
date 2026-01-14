@@ -18,6 +18,20 @@ import { useToast } from "@/hooks/use-toast";
 import api from "@/services/api";
 import { cn } from "@/lib/utils";
 
+// Moved outside component to prevent re-creation on re-render
+const GlassCard = ({ children, className }: { children: React.ReactNode, className?: string }) => (
+    <Card className={cn("border-white/10 bg-black/20 backdrop-blur-xl shadow-xl", className)}>
+        {children}
+    </Card>
+);
+
+const StyledInput = (props: React.ComponentProps<typeof Input>) => (
+    <Input
+        {...props}
+        className={cn("bg-black/20 border-white/10 text-white placeholder:text-white/30 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20", props.className)}
+    />
+);
+
 export function GlobalSettings() {
     const [config, setConfig] = useState<any>({
         amazon: { associateTag: "", accessKey: "", secretKey: "" },
@@ -94,18 +108,6 @@ export function GlobalSettings() {
         return <div className="p-8 text-center text-white/50 animate-pulse">Carregando configurações...</div>;
     }
 
-    const GlassCard = ({ children, className }: { children: React.ReactNode, className?: string }) => (
-        <Card className={cn("border-white/10 bg-black/20 backdrop-blur-xl shadow-xl", className)}>
-            {children}
-        </Card>
-    );
-
-    const StyledInput = (props: React.ComponentProps<typeof Input>) => (
-        <Input
-            {...props}
-            className={cn("bg-black/20 border-white/10 text-white placeholder:text-white/30 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20", props.className)}
-        />
-    );
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto">
@@ -230,6 +232,12 @@ export function GlobalSettings() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                            {/* Warning Notice */}
+                            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                                <p className="text-xs text-amber-400">
+                                    ⚠️ <strong>Configuração via .env</strong>: As credenciais de pagamento são gerenciadas no arquivo .env do servidor por segurança.
+                                </p>
+                            </div>
                             <div className="space-y-2">
                                 <Label className="text-white/80">Access Token</Label>
                                 <div className="relative">
@@ -280,6 +288,12 @@ export function GlobalSettings() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                            {/* Warning Notice */}
+                            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                                <p className="text-xs text-amber-400">
+                                    ⚠️ <strong>Configuração via .env</strong>: As credenciais de email são gerenciadas no arquivo .env do servidor por segurança.
+                                </p>
+                            </div>
                             <div className="space-y-2">
                                 <Label className="text-white/80">Resend API Key</Label>
                                 <div className="relative">
