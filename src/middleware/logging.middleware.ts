@@ -5,12 +5,10 @@ import { logger } from '../utils/logger';
 /**
  * Extend Express Request to include correlationId
  */
-declare global {
-    namespace Express {
-        interface Request {
-            correlationId?: string;
-            startTime?: number;
-        }
+declare module 'express-serve-static-core' {
+    interface Request {
+        correlationId?: string;
+        startTime?: number;
     }
 }
 

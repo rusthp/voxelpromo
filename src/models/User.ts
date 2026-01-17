@@ -67,6 +67,10 @@ export interface IUser extends Document {
   resetPasswordExpire?: Date;
   // Trial Tracking
   hasUsedTrial: boolean;
+  // Brute Force Protection
+  failedLoginAttempts: number;
+  lockUntil?: Date;
+  isLocked(): boolean;
 }
 
 const UserSchema = new Schema<IUser>(
@@ -216,6 +220,15 @@ const UserSchema = new Schema<IUser>(
     hasUsedTrial: {
       type: Boolean,
       default: false
+    },
+    // Brute Force Protection
+    failedLoginAttempts: {
+      type: Number,
+      default: 0
+    },
+    lockUntil: {
+      type: Date,
+      select: false
     }
   },
   {
@@ -241,6 +254,12 @@ UserSchema.pre('save', async function (next) {
 // Method to compare password
 UserSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
+};
+
+// Method to check if account is locked
+UserSchema.methods.isLocked = function (): boolean {
+  if (!this.lockUntil) return false;
+  return this.lockUntil > new Date();
 };
 
 export const UserModel = mongoose.model<IUser>('User', UserSchema);

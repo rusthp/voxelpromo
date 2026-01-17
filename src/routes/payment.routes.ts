@@ -71,8 +71,7 @@ router.post('/process-subscription', authenticate, async (req: AuthRequest, res:
             planId,
             token,
             paymentMethodId,
-            issuerId: _issuerId,
-            installments: _installments,
+            // issuerId and installments intentionally omitted - reserved for future use
             payerEmail,
             payerIdentification
         } = req.body;

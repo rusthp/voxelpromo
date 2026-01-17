@@ -224,7 +224,7 @@ export function setupCronJobs(): void {
             await feedManager.getProducts(feed.advertiserId, { forceRefresh: true });
             refreshedCount++;
             await new Promise(resolve => setTimeout(resolve, 15000));
-          } catch (e) { }
+          } catch (e) { /* Ignore individual feed refresh errors */ }
         }
         logger.info(`✅ Awin Feed Sync: Refreshed ${refreshedCount} feeds`);
       }

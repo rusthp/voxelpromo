@@ -278,11 +278,21 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
     const { email, password } = req.body;
     logger.info(`🔐 Login attempt for email: ${email}`);
 
-    // Find user and include password
-    const user = await UserModel.findOne({ email }).select('+password');
+    // Find user and include password + lockout fields
+    const user = await UserModel.findOne({ email }).select('+password +lockUntil');
 
     if (!user) {
       return res.status(401).json({ error: 'Credenciais inválidas' });
+    }
+
+    // BRUTE FORCE PROTECTION: Check if account is locked
+    if (user.isLocked()) {
+      const minutesRemaining = Math.ceil((user.lockUntil!.getTime() - Date.now()) / 60000);
+      logger.warn(`🔒 Account locked for ${email}, ${minutesRemaining} min remaining`);
+      return res.status(423).json({
+        error: `Conta temporariamente bloqueada. Tente novamente em ${minutesRemaining} minutos.`,
+        lockedUntil: user.lockUntil
+      });
     }
 
     if (!user.isActive) {
@@ -301,10 +311,29 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
     const isPasswordValid = await user.comparePassword(password);
 
     if (!isPasswordValid) {
+      // BRUTE FORCE: Increment failed attempts
+      user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+
+      // Lock account after 5 failed attempts (15 minutes)
+      if (user.failedLoginAttempts >= 5) {
+        user.lockUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+        logger.warn(`🔒 Account LOCKED for ${email} after ${user.failedLoginAttempts} failed attempts`);
+      }
+
+      await user.save({ validateBeforeSave: false });
+
+      const attemptsRemaining = Math.max(0, 5 - user.failedLoginAttempts);
+      if (attemptsRemaining > 0) {
+        return res.status(401).json({
+          error: `Credenciais inválidas. ${attemptsRemaining} tentativas restantes.`
+        });
+      }
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
-    // Update last login
+    // SUCCESS: Reset failed attempts and lockout
+    user.failedLoginAttempts = 0;
+    user.lockUntil = undefined;
     user.lastLogin = new Date();
     await user.save();
 
@@ -316,7 +345,7 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
       req
     );
 
-    logger.info(`User logged in: ${user.username} (${user.email})`);
+    logger.info(`✅ User logged in: ${user.username} (${user.email})`);
 
     return res.json({
       success: true,

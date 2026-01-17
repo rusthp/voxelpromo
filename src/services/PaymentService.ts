@@ -1,6 +1,7 @@
 import { MercadoPagoConfig, Preference, Payment, PreApproval } from 'mercadopago';
 import { logger } from '../utils/logger';
 import { getPlan } from '../config/plans.config';
+import crypto from 'crypto';
 
 /**
  * Mercado Pago Payment Service
@@ -603,7 +604,7 @@ export class PaymentService {
             const manifest = `${dataId};${requestId};${ts}`;
 
             // Calculate HMAC-SHA256
-            const crypto = require('crypto');
+            // crypto is imported at the top level
             const expectedHash = crypto
                 .createHmac('sha256', webhookSecret)
                 .update(manifest)

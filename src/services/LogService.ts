@@ -30,7 +30,7 @@ export class LogService {
             // Extract actor info from req if not provided specifically
             const user = actor || ((req as any)?.user); // Type assertion if req.user is not fully typed yet
 
-            let actorData = {
+            const actorData = {
                 userId: user?._id,
                 username: user?.username || 'system',
                 email: user?.email || 'system@voxelpromo.com',

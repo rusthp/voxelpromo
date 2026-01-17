@@ -16,6 +16,9 @@ import { loadConfigFromFile } from './utils/loadConfig';
 import { validateAndLogEnv } from './utils/validateEnv';
 import { forceHttpsMiddleware, securityHeadersMiddleware } from './middleware/https.middleware';
 import { initializeSentry, Sentry } from './utils/sentry';
+import { globalDDoSLimiter, sustainedRateLimiter } from './middleware/ddos-protection';
+import { ipMonitorMiddleware } from './middleware/ip-blacklist';
+import { sanitizeRequest } from './middleware/sanitization';
 
 // Validate critical environment variables
 validateAndLogEnv();
@@ -98,8 +101,22 @@ app.use(
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
   })
 );
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// SECURITY: Request body size limits (DDoS protection)
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+// SECURITY: Global DDoS Protection (100 req/s burst, 300 req/min sustained)
+app.use(globalDDoSLimiter);
+app.use(sustainedRateLimiter);
+
+// SECURITY: IP Monitoring (logs suspicious activity)
+app.use(ipMonitorMiddleware);
+
+// SECURITY: Global XSS Sanitization
+app.use(sanitizeRequest);
+
+logger.info('🛡️ Security middlewares loaded: DDoS, IP Monitor, XSS Sanitization');
 
 // Serve static files from uploads directory (avatars, etc.)
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
