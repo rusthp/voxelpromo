@@ -18,6 +18,10 @@ export interface IUser extends Document {
   displayName?: string;
   avatarUrl?: string;
   preferences: IUserPreferences;
+  filters?: {
+    whitelist: string[];
+    blacklist: string[];
+  };
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -133,6 +137,11 @@ const UserSchema = new Schema<IUser>(
         type: Boolean,
         default: true,
       },
+    },
+    // Content Filters
+    filters: {
+      whitelist: [{ type: String, trim: true }],
+      blacklist: [{ type: String, trim: true }],
     },
     // Billing & Plan
     billing: {

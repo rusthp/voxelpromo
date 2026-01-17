@@ -18,48 +18,47 @@ interface Plan {
 const PLANS: Plan[] = [
     {
         id: 'trial',
-        name: 'Trial',
-        displayName: 'Teste Grátis',
+        name: 'Gratis',
+        displayName: 'Grátis',
         price: 0,
-        priceDisplay: 'Grátis por 7 dias',
+        priceDisplay: 'Sempre Grátis',
         features: [
-            '7 dias de teste grátis',
             '10 posts por dia',
             '2 regras de automação',
             'Telegram e WhatsApp',
-            'Suporte por email'
+            'Suporte por email',
+            'Acesso à comunidade'
         ],
-        trialDays: 7
+        trialDays: undefined // It's a free tier now, not just a trial
     },
     {
         id: 'pro',
-        name: 'Pro',
-        displayName: 'Profissional',
+        name: 'Performance',
+        displayName: 'Performance',
         price: 4990,
         priceDisplay: 'R$ 49,90/mês',
         features: [
-            '100 posts por dia',
+            '200 posts por dia',
             '10 regras de automação',
             'Todos os canais disponíveis',
+            'Filtros inteligentes (Whitelist/Blacklist)',
             'Analytics e relatórios',
-            'Suporte prioritário',
-            'Sem marca d\'água'
+            'Suporte prioritário (Email)'
         ],
         recommended: true
     },
     {
         id: 'agency',
-        name: 'Agency',
-        displayName: 'Agência',
-        price: 19990,
-        priceDisplay: 'R$ 199,90/mês',
+        name: 'Plus',
+        displayName: 'Plus',
+        price: 9990,
+        priceDisplay: 'R$ 99,90/mês',
         features: [
             'Posts ilimitados',
             'Regras de automação ilimitadas',
             'Todos os canais disponíveis',
-            'White-label (sua marca)',
+            'Filtros Avançados',
             'API de integração',
-            'Multi-usuários (até 5)',
             'Suporte dedicado (WhatsApp)',
             'Consultoria mensal'
         ]
@@ -95,8 +94,8 @@ export default function Pricing() {
                         <Card
                             key={plan.id}
                             className={`relative flex flex-col ${plan.recommended
-                                    ? 'border-primary shadow-lg scale-105'
-                                    : 'border-border'
+                                ? 'border-primary shadow-lg scale-105'
+                                : 'border-border'
                                 }`}
                         >
                             {plan.recommended && (

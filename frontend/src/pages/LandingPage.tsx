@@ -94,44 +94,49 @@ const LandingPage = () => {
 
     const plans = [
         {
-            name: "Starter",
-            price: "Grátis",
-            period: "7 dias",
-            description: "Ideal para testar a plataforma",
+            name: "Grátis",
+            price: "R$ 0",
+            period: "/mês",
+            description: "Para quem está começando",
             features: [
-                "Até 50 ofertas/mês",
-                "1 canal de publicação",
-                "Suporte por email"
+                "10 posts por dia",
+                "2 regras de automação",
+                "Telegram e WhatsApp",
+                "Suporte por email",
+                "Acesso à comunidade"
             ],
             cta: "Começar Grátis",
             popular: false
         },
         {
-            name: "Profissional",
+            name: "Performance",
             price: "R$ 49,90",
             period: "/mês",
-            description: "Para criadores de conteúdo",
+            description: "Para criadores em crescimento",
             features: [
-                "Ofertas ilimitadas",
-                "Todos os canais",
+                "200 posts por dia",
+                "10 regras de automação",
+                "Todos os canais (Instagram/X)",
                 "Analytics avançado",
                 "Suporte prioritário",
-                "API de integração"
+                "Filtros inteligentes (Whitelist/Blacklist)"
             ],
             cta: "Assinar Agora",
             popular: true
         },
         {
-            name: "Agência",
-            price: "R$ 199,90",
+            name: "Plus",
+            price: "R$ 99,90",
             period: "/mês",
-            description: "Para equipes e agências",
+            description: "Para operação em escala",
             features: [
-                "Tudo do Profissional",
-                "Multi-usuários",
-                "White-label",
-                "Gerente dedicado",
-                "SLA garantido"
+                "Posts ilimitados",
+                "Regras ilimitadas",
+                "Todos os canais",
+                "Filtros avançados",
+                "API de integração",
+                "Suporte via WhatsApp dedicado",
+                "Consultoria mensal"
             ],
             cta: "Falar com Vendas",
             popular: false

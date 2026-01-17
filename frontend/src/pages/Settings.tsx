@@ -18,6 +18,7 @@ import {
 } from "@/components/settings";
 import { AffiliateNetworksCard } from "@/components/settings/AffiliateNetworksCard";
 import { SubscriptionManager } from "@/components/billing/SubscriptionManager";
+import { FiltersSettings } from "@/components/settings/FiltersSettings";
 
 // Initial config state
 const initialConfig: ConfigState = {
@@ -611,13 +612,14 @@ const Settings = () => {
                 </div>
 
                 <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-                    <TabsList className="grid w-full grid-cols-7">
+                    <TabsList className="grid w-full grid-cols-8">
                         <TabsTrigger value="automation">Automação</TabsTrigger>
                         <TabsTrigger value="ai">IA</TabsTrigger>
                         <TabsTrigger value="messaging">Mensageria</TabsTrigger>
                         <TabsTrigger value="affiliate">Afiliados</TabsTrigger>
                         <TabsTrigger value="collection">Coleta</TabsTrigger>
                         <TabsTrigger value="templates">Templates</TabsTrigger>
+                        <TabsTrigger value="filters">Filtros</TabsTrigger>
                         <TabsTrigger value="subscription">Assinatura</TabsTrigger>
                     </TabsList>
 
@@ -698,6 +700,10 @@ const Settings = () => {
 
                     <TabsContent value="templates">
                         <TemplatesSettings />
+                    </TabsContent>
+
+                    <TabsContent value="filters">
+                        <FiltersSettings />
                     </TabsContent>
 
                     <TabsContent value="subscription">

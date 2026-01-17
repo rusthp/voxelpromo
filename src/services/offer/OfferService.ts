@@ -596,6 +596,40 @@ export class OfferService {
       // Send to Telegram
       if (channels.includes('telegram') && !offer.postedChannels?.includes('telegram')) {
         try {
+          // Retrieve user settings to check for filters
+          const { UserModel } = await import('../../models/User');
+          const user = await UserModel.findById(offer.userId);
+
+          // Apply Content Filters (Whitelist/Blacklist)
+          if (user?.filters) {
+            const { whitelist, blacklist } = user.filters;
+
+            // Helper to normalize text (remove accents, lowercase)
+            const normalize = (text: string) =>
+              text.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+            const textToScan = normalize(`${offer.title} ${offer.description || ''}`);
+
+            // 1. Whitelist Check (Match at least one)
+            if (whitelist && whitelist.length > 0) {
+              const hasMatch = whitelist.some(term => textToScan.includes(normalize(term)));
+              if (!hasMatch) {
+                logger.info(`🚫 Offer blocked by whitelist: ${offer.title}`);
+                // Return true to "pretend" success so it doesn't retry, but don't post
+                return true;
+              }
+            }
+
+            // 2. Blacklist Check (Must NOT match any)
+            if (blacklist && blacklist.length > 0) {
+              const hasForbidden = blacklist.some(term => textToScan.includes(normalize(term)));
+              if (hasForbidden) {
+                logger.info(`🚫 Offer blocked by blacklist: ${offer.title}`);
+                return true;
+              }
+            }
+          }
+
           const telegramService = await this.getTelegramServiceForUser(offer.userId);
 
           if (telegramService) {
