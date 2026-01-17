@@ -3,6 +3,7 @@ import { join } from 'path';
 import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { logger } from '../../utils/logger';
 import { Offer } from '../../types';
+import { UrlShortenerService } from '../link/UrlShortenerService';
 import crypto from 'crypto';
 
 interface MercadoLivreConfig {
@@ -71,6 +72,27 @@ export class MercadoLivreService {
   private baseUrl = 'https://api.mercadolibre.com';
   private authUrl = 'https://auth.mercadolivre.com.br';
   private scraper: any = null;
+  private urlShortener: UrlShortenerService | null = null;
+
+  private getUrlShortener(): UrlShortenerService {
+    if (!this.urlShortener) {
+      this.urlShortener = new UrlShortenerService();
+    }
+    return this.urlShortener;
+  }
+
+  private needsShortening(url: string): boolean {
+    // Already our short link
+    if (url.includes('voxelpromo.com/s/') || url.includes('/s/')) return false;
+
+    // Official ML short link
+    if (url.includes('mercadolivre.com/sec/')) return false;
+
+    // Link is already short enough (e.g. < 40 chars)
+    if (url.length < 40) return false;
+
+    return true;
+  }
 
   // Cache em memória para resultados de busca
   private searchCache = new Map<string, CacheEntry<MercadoLivreProduct[]>>();
@@ -818,6 +840,27 @@ export class MercadoLivreService {
         } else {
           // Priority 3: Legacy/Standard method (URL param appending)
           affiliateLink = this.buildAffiliateLink(product.permalink, product.id);
+        }
+      }
+
+      // Final check: Apply internal shortener fallback if link is still long
+      if (this.needsShortening(affiliateLink)) {
+        try {
+          const shortener = this.getUrlShortener();
+          // Pass offerId if we have it, although we are creating the offer now so we might not have the ID yet if it's new.
+          // But we can update it later or just track the source.
+          const shortLinkDoc = await shortener.createShortLink(affiliateLink, {
+            source: 'mercadolivre_fallback',
+            offerId: product.id // Use product ID as reference for now
+          });
+
+          if (shortLinkDoc && shortLinkDoc.shortUrl) {
+            affiliateLink = shortLinkDoc.shortUrl;
+            logger.info(`✂️ Shortened long ML link for ${product.id}`);
+          }
+        } catch (shortenerError: any) {
+          logger.warn('⚠️ Failed to shorten ML link (using original):', shortenerError.message);
+          // Fallback is automatic: affiliateLink remains the long version
         }
       }
 
