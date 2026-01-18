@@ -1,8 +1,6 @@
 import { MercadoLivreService } from '../MercadoLivreService';
 import axios from 'axios';
 
-import { MercadoLivreScraper } from '../MercadoLivreScraper';
-
 // Mock dependencies
 jest.mock('axios');
 jest.mock('fs');
@@ -15,14 +13,17 @@ jest.mock('../../../utils/logger', () => ({
     },
 }));
 
-// Mock Scraper
+// Mock Scraper with Singleton Pattern
+const mockScraperInstance = {
+    generateAffiliateLink: jest.fn().mockResolvedValue('http://affiliate.link'),
+    scrapeSearchResults: jest.fn().mockResolvedValue([]),
+    getHeaders: jest.fn().mockResolvedValue({}),
+    scrapeDailyDeals: jest.fn().mockResolvedValue([]),
+};
 jest.mock('../MercadoLivreScraper', () => ({
-    MercadoLivreScraper: jest.fn().mockImplementation(() => ({
-        generateAffiliateLink: jest.fn().mockResolvedValue('http://affiliate.link'),
-        scrapeSearchResults: jest.fn().mockResolvedValue([]),
-        getHeaders: jest.fn().mockResolvedValue({}),
-        scrapeDailyDeals: jest.fn().mockResolvedValue([]),
-    })),
+    MercadoLivreScraper: {
+        getInstance: jest.fn(() => mockScraperInstance),
+    },
 }));
 
 // Mock UrlShortenerService
@@ -101,16 +102,15 @@ describe('MercadoLivreService', () => {
         it('should fallback to scraping when API fails', async () => {
             mockedAxios.get.mockRejectedValue(new Error('API Error'));
 
-            (MercadoLivreScraper as jest.Mock).mockImplementation(() => ({
-                scrapeSearchResults: jest.fn().mockResolvedValue([{
-                    id: 'MLB456',
-                    title: 'Scraped Product',
-                    price: 200,
-                    permalink: 'http://ml.com/scraped',
-                    thumbnail: 'http://ml.com/img.jpg'
-                }]),
-                getHeaders: jest.fn().mockRejectedValue(new Error('Header Error')),
-            }));
+            // Update the mock instance for fallback scraping
+            mockScraperInstance.scrapeSearchResults = jest.fn().mockResolvedValue([{
+                id: 'MLB456',
+                title: 'Scraped Product',
+                price: 200,
+                permalink: 'http://ml.com/scraped',
+                thumbnail: 'http://ml.com/img.jpg'
+            }]);
+            mockScraperInstance.getHeaders = jest.fn().mockRejectedValue(new Error('Header Error'));
 
             const result = await service.searchProducts('test');
 

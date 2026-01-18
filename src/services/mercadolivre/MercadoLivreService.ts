@@ -830,7 +830,7 @@ export class MercadoLivreService {
             if (!this.scraper) {
               // eslint-disable-next-line @typescript-eslint/no-var-requires
               const { MercadoLivreScraper } = require('./MercadoLivreScraper');
-              this.scraper = new MercadoLivreScraper();
+              this.scraper = MercadoLivreScraper.getInstance();
             }
             affiliateLink = await this.scraper.generateAffiliateLink(product.permalink);
           } catch (e) {
@@ -903,7 +903,7 @@ export class MercadoLivreService {
       if (!this.scraper) {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const { MercadoLivreScraper } = require('./MercadoLivreScraper');
-        this.scraper = new MercadoLivreScraper();
+        this.scraper = MercadoLivreScraper.getInstance();
       }
 
       const encodedKeyword = encodeURIComponent(keyword).replace(/%20/g, '-');
@@ -992,7 +992,7 @@ export class MercadoLivreService {
       if (!this.scraper) {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const { MercadoLivreScraper } = require('./MercadoLivreScraper');
-        this.scraper = new MercadoLivreScraper();
+        this.scraper = MercadoLivreScraper.getInstance();
       }
 
       return await this.scraper.scrapeDailyDeals();

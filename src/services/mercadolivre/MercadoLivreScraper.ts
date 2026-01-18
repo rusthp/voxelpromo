@@ -8,6 +8,12 @@ import { existsSync } from 'fs';
 puppeteer.use(StealthPlugin());
 
 export class MercadoLivreScraper {
+    // Singleton instance
+    private static instance: MercadoLivreScraper | null = null;
+
+    // Mutex for session operations - ensures one operation at a time
+    private sessionLock: Promise<void> = Promise.resolve();
+
     private browser: Browser | null = null;
     private page: Page | null = null;
     private cookies: any[] = [];
@@ -15,7 +21,52 @@ export class MercadoLivreScraper {
     private lastActivity: number = 0;
     private SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 
-    constructor() { }
+    private constructor() { } // Private constructor for singleton
+
+    /**
+     * Get the singleton instance of MercadoLivreScraper
+     */
+    static getInstance(): MercadoLivreScraper {
+        if (!MercadoLivreScraper.instance) {
+            MercadoLivreScraper.instance = new MercadoLivreScraper();
+        }
+        return MercadoLivreScraper.instance;
+    }
+
+    /**
+     * Acquire exclusive lock for browser operations
+     * This prevents race conditions when multiple requests try to use the browser
+     */
+    private async acquireLock(): Promise<() => void> {
+        let releaseFn: () => void;
+        const waitForLock = this.sessionLock;
+
+        this.sessionLock = new Promise<void>((resolve) => {
+            releaseFn = resolve;
+        });
+
+        await waitForLock;
+        return releaseFn!;
+    }
+
+    /**
+     * Execute an operation with exclusive session access
+     * Automatically handles session initialization and lock management
+     */
+    async withSession<T>(operation: (page: Page) => Promise<T>): Promise<T> {
+        const release = await this.acquireLock();
+        try {
+            await this.initSession();
+            if (!this.page) {
+                throw new Error('Failed to initialize browser session');
+            }
+            const result = await operation(this.page);
+            this.lastActivity = Date.now();
+            return result;
+        } finally {
+            release();
+        }
+    }
 
     /**
      * Initializes the browser session to bypass Cloudflare and get valid cookies
@@ -634,11 +685,36 @@ export class MercadoLivreScraper {
         }
     }
 
-    async closeSession() {
-        if (this.browser) {
-            await this.browser.close();
+    /**
+     * Close the browser session safely
+     * Handles errors gracefully to prevent crashes
+     */
+    async closeSession(): Promise<void> {
+        const release = await this.acquireLock();
+        try {
+            if (this.browser) {
+                logger.info('🔒 Closing browser session...');
+                try {
+                    await this.browser.close();
+                } catch (error: any) {
+                    // Ignore errors during close (browser may already be crashed)
+                    logger.warn(`⚠️ Error closing browser (ignored): ${error.message}`);
+                }
+            }
+        } finally {
             this.browser = null;
             this.page = null;
+            release();
+        }
+    }
+
+    /**
+     * Force reset the singleton instance (for testing/recovery)
+     */
+    static resetInstance(): void {
+        if (MercadoLivreScraper.instance) {
+            MercadoLivreScraper.instance.closeSession().catch(() => { });
+            MercadoLivreScraper.instance = null;
         }
     }
 }

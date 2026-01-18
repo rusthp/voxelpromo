@@ -1,4 +1,5 @@
 import axios from 'axios';
+import https from 'https';
 import { logger } from '../../utils/logger';
 import { Offer } from '../../types';
 import { CategoryService } from '../category/CategoryService';
@@ -147,15 +148,61 @@ export class ShopeeService {
       logger.info(`📥 Downloading Shopee feed: ${feedUrl.substring(0, 80)}...`);
       const startTime = Date.now();
 
-      const response = await axios.get(feedUrl, {
-        headers: {
-          Accept: 'text/csv, application/csv',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        },
-        timeout: 120000, // 120 seconds for large CSV files
-        responseType: 'text',
-        maxContentLength: 200 * 1024 * 1024, // 200MB max (Shopee feeds can be large)
+      // Custom HTTPS agent to handle TLS connection issues
+      const httpsAgent = new https.Agent({
+        keepAlive: true,
+        rejectUnauthorized: true,
+        timeout: 60000,
       });
+
+      // Retry logic for TLS connection issues
+      const maxRetries = 3;
+      let lastError: Error | null = null;
+      let response: any = null;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          response = await axios.get(feedUrl, {
+            headers: {
+              Accept: 'text/csv, application/csv, */*',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+              'Accept-Encoding': 'gzip, deflate, br',
+              'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+              'Connection': 'keep-alive',
+            },
+            httpsAgent,
+            timeout: 120000, // 120 seconds for large CSV files
+            responseType: 'text',
+            maxContentLength: 200 * 1024 * 1024, // 200MB max
+            maxRedirects: 5,
+          });
+          break; // Success, exit retry loop
+        } catch (error: any) {
+          lastError = error;
+          const isTLSError = error.message?.includes('TLS') ||
+            error.message?.includes('socket disconnected') ||
+            error.code === 'ECONNRESET' ||
+            error.code === 'ETIMEDOUT';
+
+          if (isTLSError && attempt < maxRetries) {
+            const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // Exponential backoff: 2s, 4s, 8s
+            logger.warn(`⚠️ TLS/Connection error on attempt ${attempt}/${maxRetries}. Retrying in ${delay}ms...`, {
+              error: error.message,
+              code: error.code,
+            });
+            await new Promise(resolve => setTimeout(resolve, delay));
+          } else if (attempt >= maxRetries) {
+            logger.error(`❌ All ${maxRetries} attempts failed for Shopee feed`, {
+              error: error.message,
+              url: feedUrl.substring(0, 80),
+            });
+          }
+        }
+      }
+
+      if (!response) {
+        throw lastError || new Error('Failed to download feed after retries');
+      }
 
       logger.info(`✅ Downloaded feed (${(response.data.length / 1024).toFixed(2)} KB)`);
       logger.info('📊 Parsing CSV...');

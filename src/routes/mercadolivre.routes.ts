@@ -417,58 +417,55 @@ router.post('/scrape-url', async (req, res) => {
 
     logger.info(`🕷️ Starting custom URL scrape: ${url}`);
 
-    // Use the scraper to get products
+    // Use singleton instance to avoid concurrency issues
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { MercadoLivreScraper } = require('../services/mercadolivre/MercadoLivreScraper');
-    const scraper = new MercadoLivreScraper();
+    const scraper = MercadoLivreScraper.getInstance();
 
-    try {
-      const products = await scraper.scrapeSearchResults(url);
+    // Note: Don't call closeSession() - the singleton manages its own session lifecycle
+    const products = await scraper.scrapeSearchResults(url);
 
-      logger.info(`✅ Scraped ${products.length} products from custom URL`);
+    logger.info(`✅ Scraped ${products.length} products from custom URL`);
 
-      if (products.length === 0) {
-        return res.json({
-          success: true,
-          message: 'No products found on this page',
-          products: [],
-          saved: 0,
-        });
-      }
-
-      let savedCount = 0;
-
-      if (saveToDatabase) {
-        // Convert and save to database
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { OfferService } = require('../services/offer/OfferService');
-        const offerService = new OfferService();
-
-        const offers = await Promise.all(
-          products.map(async (product: any) => {
-            try {
-              return await mercadoLivreService.convertToOffer(product, 'ofertas');
-            } catch (e) {
-              return null;
-            }
-          })
-        );
-
-        const validOffers = offers.filter((o: any) => o !== null);
-        savedCount = await offerService.saveOffers(validOffers);
-        logger.info(`💾 Saved ${savedCount} offers to database`);
-      }
-
+    if (products.length === 0) {
       return res.json({
         success: true,
-        message: `Scraped ${products.length} products`,
-        products: products.slice(0, 10), // Return first 10 for preview
-        totalFound: products.length,
-        saved: savedCount,
+        message: 'No products found on this page',
+        products: [],
+        saved: 0,
       });
-    } finally {
-      await scraper.closeSession();
     }
+
+    let savedCount = 0;
+
+    if (saveToDatabase) {
+      // Convert and save to database
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { OfferService } = require('../services/offer/OfferService');
+      const offerService = new OfferService();
+
+      const offers = await Promise.all(
+        products.map(async (product: any) => {
+          try {
+            return await mercadoLivreService.convertToOffer(product, 'ofertas');
+          } catch (e) {
+            return null;
+          }
+        })
+      );
+
+      const validOffers = offers.filter((o: any) => o !== null);
+      savedCount = await offerService.saveOffers(validOffers);
+      logger.info(`💾 Saved ${savedCount} offers to database`);
+    }
+
+    return res.json({
+      success: true,
+      message: `Scraped ${products.length} products`,
+      products: products.slice(0, 10), // Return first 10 for preview
+      totalFound: products.length,
+      saved: savedCount,
+    });
   } catch (error: any) {
     logger.error('Error scraping custom URL:', error);
     return res.status(500).json({
@@ -489,55 +486,53 @@ router.get('/collect-daily-offers', async (_req, res) => {
 
     logger.info(`🔥 Collecting daily offers from default page: ${DEFAULT_OFFERS_URL}`);
 
+    // Use singleton instance to avoid concurrency issues
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { MercadoLivreScraper } = require('../services/mercadolivre/MercadoLivreScraper');
-    const scraper = new MercadoLivreScraper();
+    const scraper = MercadoLivreScraper.getInstance();
 
-    try {
-      const products = await scraper.scrapeDailyDeals();
+    // Note: Don't call closeSession() - the singleton manages its own session lifecycle
+    const products = await scraper.scrapeDailyDeals();
 
-      logger.info(`✅ Collected ${products.length} offers from daily deals page`);
+    logger.info(`✅ Collected ${products.length} offers from daily deals page`);
 
-      if (products.length === 0) {
-        return res.json({
-          success: true,
-          message: 'No offers found on the page',
-          products: [],
-          saved: 0,
-        });
-      }
-
-      // Convert and save to database
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { OfferService } = require('../services/offer/OfferService');
-      const offerService = new OfferService();
-
-      const offers = await Promise.all(
-        products.map(async (product: any) => {
-          try {
-            return await mercadoLivreService.convertToOffer(product, 'ofertas');
-          } catch (e) {
-            return null;
-          }
-        })
-      );
-
-      const validOffers = offers.filter((o: any) => o !== null);
-      const savedCount = await offerService.saveOffers(validOffers);
-
-      logger.info(`💾 Saved ${savedCount} offers to database`);
-
+    if (products.length === 0) {
       return res.json({
         success: true,
-        message: `Collected ${products.length} offers, saved ${savedCount} to database`,
-        url: DEFAULT_OFFERS_URL,
-        products: products.slice(0, 5), // Preview first 5
-        totalFound: products.length,
-        saved: savedCount,
+        message: 'No offers found on the page',
+        products: [],
+        saved: 0,
       });
-    } finally {
-      await scraper.closeSession();
     }
+
+    // Convert and save to database
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { OfferService } = require('../services/offer/OfferService');
+    const offerService = new OfferService();
+
+    const offers = await Promise.all(
+      products.map(async (product: any) => {
+        try {
+          return await mercadoLivreService.convertToOffer(product, 'ofertas');
+        } catch (e) {
+          return null;
+        }
+      })
+    );
+
+    const validOffers = offers.filter((o: any) => o !== null);
+    const savedCount = await offerService.saveOffers(validOffers);
+
+    logger.info(`💾 Saved ${savedCount} offers to database`);
+
+    return res.json({
+      success: true,
+      message: `Collected ${products.length} offers, saved ${savedCount} to database`,
+      url: DEFAULT_OFFERS_URL,
+      products: products.slice(0, 5), // Preview first 5
+      totalFound: products.length,
+      saved: savedCount,
+    });
   } catch (error: any) {
     logger.error('Error collecting daily offers:', error);
     return res.status(500).json({
