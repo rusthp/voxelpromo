@@ -143,7 +143,10 @@ const Products = () => {
                 description: "Aguarde enquanto buscamos ofertas de todas as fontes.",
             });
 
-            const response = await api.post('/collector/run-all');
+            // Collection can take up to 2+ minutes, use extended timeout
+            const response = await api.post('/collector/run-all', {}, {
+                timeout: 180000, // 3 minutes timeout for collection
+            });
             const result = response.data;
 
             // Dismiss loading toast
@@ -171,9 +174,15 @@ const Products = () => {
             if (productsResponse.data.length < 20) {
                 setHasMore(false);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error collecting products:", error);
-            toast.error("Erro ao coletar produtos. Tente novamente.");
+            toast.dismiss(); // Dismiss any loading toasts
+
+            if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+                toast.error("A coleta está demorando muito. Tente novamente ou verifique os logs do servidor.");
+            } else {
+                toast.error("Erro ao coletar produtos. Tente novamente.");
+            }
         } finally {
             setCollecting(false);
         }
