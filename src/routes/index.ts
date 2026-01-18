@@ -108,5 +108,37 @@ export function setupRoutes(app: Express): void {
 
   // Public route for redirect with click tracking (must be accessible without auth)
   app.use('/s', shorturlRoutes); // Short URL redirect with click tracking: /s/:code?ch=telegram
+
+  // ==========================================
+  // PRODUCTION: Serve frontend static files
+  // ==========================================
+  const isProduction = process.env.NODE_ENV === 'production';
+  const frontendDistPath = path.join(process.cwd(), 'frontend', 'dist');
+
+  if (isProduction) {
+    // Serve static files from frontend/dist
+    app.use(express.static(frontendDistPath, {
+      maxAge: '1d', // Cache static assets for 1 day
+      etag: true,
+    }));
+
+    // SPA catch-all: Any route not handled by API should return index.html
+    // This allows React Router to handle client-side routing
+    app.get('*', (req, res, next) => {
+      // Skip API routes
+      if (req.path.startsWith('/api/') || req.path.startsWith('/s/') || req.path.startsWith('/uploads/')) {
+        return next();
+      }
+
+      // Serve index.html for all other routes (SPA routing)
+      const indexPath = path.join(frontendDistPath, 'index.html');
+      res.sendFile(indexPath, (err) => {
+        if (err) {
+          // If index.html doesn't exist, 404
+          res.status(404).json({ error: 'Frontend not built. Run: npm run build:frontend' });
+        }
+      });
+    });
+  }
 }
 
