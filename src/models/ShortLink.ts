@@ -15,7 +15,7 @@ export interface ShortLinkDocument extends Document {
 
 const ShortLinkSchema = new Schema<ShortLinkDocument>(
     {
-        code: { type: String, required: true, unique: true, index: true },
+        code: { type: String, required: true, unique: true },
         originalUrl: { type: String, required: true },
         shortUrl: { type: String, required: true },
         clicks: { type: Number, default: 0 },

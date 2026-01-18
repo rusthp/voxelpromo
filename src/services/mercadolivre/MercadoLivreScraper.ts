@@ -34,6 +34,13 @@ export class MercadoLivreScraper {
     }
 
     /**
+     * Get current session cookies
+     */
+    getCookies(): any[] {
+        return this.cookies;
+    }
+
+    /**
      * Acquire exclusive lock for browser operations
      * This prevents race conditions when multiple requests try to use the browser
      */

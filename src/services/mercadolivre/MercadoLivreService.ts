@@ -666,8 +666,12 @@ export class MercadoLivreService {
 
     // Check if internal API is configured
     if (!config.sessionCookies || !config.csrfToken) {
-      logger.debug('🔗 Internal API not configured, will use fallback method');
-      return null;
+      logger.debug('🔗 Internal API not configured, falling back to Scraper');
+      if (!this.scraper) {
+        const { MercadoLivreScraper } = await import('./MercadoLivreScraper');
+        this.scraper = MercadoLivreScraper.getInstance();
+      }
+      return this.scraper.generateAffiliateLink(productUrl);
     }
 
     const tag = config.affiliateTag || 'voxelpromo';
@@ -682,11 +686,6 @@ export class MercadoLivreService {
         // eslint-disable-next-line no-control-regex
         .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
         .trim();
-
-      if (!sanitizedCookies) {
-        logger.warn('⚠️ No valid session cookies found');
-        return null;
-      }
 
       const response = await axios.post(
         'https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink',
@@ -716,14 +715,21 @@ export class MercadoLivreService {
       }
 
       logger.warn('⚠️ Internal API response missing short_url:', response.data);
-      return null;
+      throw new Error('Missing short_url in response');
     } catch (error: any) {
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        logger.error('❌ Session expired or invalid. Please update cookies and csrf-token in settings.');
-      } else {
-        logger.error(`❌ Failed to generate affiliate link via internal API: ${error.message}`);
+      logger.warn(`⚠️ Internal API failed (${error.response?.status || error.message}). Trying Scraper fallback...`);
+
+      // Fallback to Scraper method (uses Puppeteer session)
+      try {
+        if (!this.scraper) {
+          const { MercadoLivreScraper } = await import('./MercadoLivreScraper');
+          this.scraper = MercadoLivreScraper.getInstance();
+        }
+        return await this.scraper.generateAffiliateLink(productUrl);
+      } catch (fallbackError: any) {
+        logger.error(`❌ Scraper fallback also failed: ${fallbackError.message}`);
+        return null; // Return null to use original URL
       }
-      return null;
     }
   }
 

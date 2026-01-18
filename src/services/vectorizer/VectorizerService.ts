@@ -47,6 +47,12 @@ export class VectorizerService {
       defaultCollection: config?.defaultCollection || 'voxelpromo-backend',
       timeout: config?.timeout || 30000,
     };
+    // Log configuration on startup to debug connection issues
+    if (this.config.apiUrl.includes('localhost') || this.config.apiUrl.includes('127.0.0.1')) {
+      console.log(`[Vectorizer] ⚠️ Using local API URL: ${this.config.apiUrl}. Ensure Vectorizer is running locally.`);
+    } else {
+      console.log(`[Vectorizer] 🚀 Using remote API URL: ${this.config.apiUrl}`);
+    }
   }
 
   /**
