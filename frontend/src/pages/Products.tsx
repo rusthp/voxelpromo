@@ -137,17 +137,31 @@ const Products = () => {
     const handleCollect = async () => {
         try {
             setCollecting(true);
-            toast.info("Iniciando coleta de produtos...");
+
+            // Show persistent loading toast
+            const loadingToast = toast.loading("Coletando produtos... Isso pode levar até 2 minutos.", {
+                description: "Aguarde enquanto buscamos ofertas de todas as fontes.",
+            });
 
             const response = await api.post('/collector/run-all');
             const result = response.data;
 
-            toast.success(`Coleta finalizada! ${result.total} novos produtos encontrados.`);
+            // Dismiss loading toast
+            toast.dismiss(loadingToast);
+
+            // Show success toast with details
+            toast.success(`Coleta finalizada! ${result.total} produtos coletados.`, {
+                description: `Shopee: ${result.shopee || 0} | ML: ${result.mercadolivre || 0} | Amazon: ${result.amazon || 0}`,
+                duration: 5000,
+            });
 
             // Force refresh: directly fetch page 1 from server
             setPage(1);
             setHasMore(true);
             setSelectedOffers(new Set());
+
+            // Small delay to ensure database has committed all writes
+            await new Promise(resolve => setTimeout(resolve, 500));
 
             // Fetch directly with page 1 to avoid stale closure
             const url = `/offers?limit=20&skip=0&sortBy=${sortBy}${selectedSource !== 'all' ? `&sources=${selectedSource}` : ''}`;
@@ -159,7 +173,7 @@ const Products = () => {
             }
         } catch (error) {
             console.error("Error collecting products:", error);
-            toast.error("Erro ao coletar produtos.");
+            toast.error("Erro ao coletar produtos. Tente novamente.");
         } finally {
             setCollecting(false);
         }
