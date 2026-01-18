@@ -54,8 +54,17 @@ export function setupCronJobs(): void {
   // Runs at 4:00, 10:00, 16:00, 22:00
   cron.schedule('0 4,10,16,22 * * *', async () => {
     await runJobForActiveUsers('Collection', async (user) => {
+      // Ensure userId is a string (user._id is an ObjectId)
+      const userId = user._id?.toString() || user.id?.toString();
+      if (!userId) {
+        logger.error(`❌ User ${user.email} has no valid ID. Skipping collection.`);
+        return;
+      }
+
+      logger.debug(`📋 Starting collection for user ${user.email} (ID: ${userId})`);
+
       // Instantiate collector with user context
-      const collectorService = new CollectorService({}, user.id);
+      const collectorService = new CollectorService({}, userId);
 
       // collectAll now looks up UserSettings for this user
       const result = await collectorService.collectAll();

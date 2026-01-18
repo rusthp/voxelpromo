@@ -1,17 +1,23 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { CollectorService } from '../services/collector/CollectorService';
 import { logger } from '../utils/logger';
+import { authenticate, AuthRequest } from '../middleware/auth';
 
 const router = Router();
-const collectorService = new CollectorService();
+
+// Protect all collector routes with authentication
+router.use(authenticate);
 
 /**
  * POST /api/collector/amazon
  * Collect offers from Amazon
  */
-router.post('/amazon', async (req, res) => {
+router.post('/amazon', async (req: Request, res: Response) => {
   try {
+    const authReq = req as AuthRequest;
+    const userId = authReq.user?.id;
     const { keywords, category } = req.body;
+    const collectorService = new CollectorService({}, userId);
     const count = await collectorService.collectFromAmazon(keywords || 'electronics', category);
     res.json({ success: true, collected: count });
   } catch (error: any) {
@@ -23,9 +29,12 @@ router.post('/amazon', async (req, res) => {
  * POST /api/collector/aliexpress
  * Collect offers from AliExpress
  */
-router.post('/aliexpress', async (req, res) => {
+router.post('/aliexpress', async (req: Request, res: Response) => {
   try {
+    const authReq = req as AuthRequest;
+    const userId = authReq.user?.id;
     const { category } = req.body;
+    const collectorService = new CollectorService({}, userId);
     const count = await collectorService.collectFromAliExpress(category);
     res.json({ success: true, collected: count });
   } catch (error: any) {
@@ -37,9 +46,12 @@ router.post('/aliexpress', async (req, res) => {
  * POST /api/collector/mercadolivre
  * Collect offers from Mercado Livre
  */
-router.post('/mercadolivre', async (req, res) => {
+router.post('/mercadolivre', async (req: Request, res: Response) => {
   try {
+    const authReq = req as AuthRequest;
+    const userId = authReq.user?.id;
     const { category } = req.body;
+    const collectorService = new CollectorService({}, userId);
     const count = await collectorService.collectFromMercadoLivre(category || 'electronics');
     res.json({ success: true, collected: count });
   } catch (error: any) {
@@ -51,9 +63,12 @@ router.post('/mercadolivre', async (req, res) => {
  * POST /api/collector/shopee
  * Collect offers from Shopee
  */
-router.post('/shopee', async (req, res) => {
+router.post('/shopee', async (req: Request, res: Response) => {
   try {
+    const authReq = req as AuthRequest;
+    const userId = authReq.user?.id;
     const { category } = req.body;
+    const collectorService = new CollectorService({}, userId);
     const count = await collectorService.collectFromShopee(category || 'electronics');
     res.json({ success: true, collected: count });
   } catch (error: any) {
@@ -65,9 +80,12 @@ router.post('/shopee', async (req, res) => {
  * POST /api/collector/rss
  * Collect offers from RSS feeds
  */
-router.post('/rss', async (req, res) => {
+router.post('/rss', async (req: Request, res: Response) => {
   try {
+    const authReq = req as AuthRequest;
+    const userId = authReq.user?.id;
     const { feedUrl, source } = req.body;
+    const collectorService = new CollectorService({}, userId);
     const count = await collectorService.collectFromRSS(feedUrl, source);
     res.json({ success: true, collected: count });
   } catch (error: any) {
@@ -79,8 +97,11 @@ router.post('/rss', async (req, res) => {
  * POST /api/collector/run-all
  * Run all collectors
  */
-router.post('/run-all', async (_req, res) => {
+router.post('/run-all', async (req: Request, res: Response) => {
   try {
+    const authReq = req as AuthRequest;
+    const userId = authReq.user?.id;
+    const collectorService = new CollectorService({}, userId);
     const result = await collectorService.collectAll();
     res.json(result);
   } catch (error: any) {
@@ -90,3 +111,4 @@ router.post('/run-all', async (_req, res) => {
 });
 
 export { router as collectorRoutes };
+
