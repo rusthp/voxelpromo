@@ -5,6 +5,7 @@ import { logger } from '../utils/logger';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import axios from 'axios';
+import { authenticate } from '../middleware/auth';
 
 const router = Router();
 const mercadoLivreService = new MercadoLivreService();
@@ -396,9 +397,10 @@ router.get('/auth/status', async (_req, res) => {
  * Scrape products from a custom Mercado Livre URL
  * Useful for specific offers pages like /ofertas?container_id=MLB779362-1
  */
-router.post('/scrape-url', async (req, res) => {
+router.post('/scrape-url', authenticate, async (req: any, res) => {
   try {
     const { url, saveToDatabase = true } = req.body;
+    const userId = req.user?.id;
 
     if (!url) {
       return res.status(400).json({
@@ -455,7 +457,13 @@ router.post('/scrape-url', async (req, res) => {
       );
 
       const validOffers = offers.filter((o: any) => o !== null);
-      savedCount = await offerService.saveOffers(validOffers);
+      // Add userId to each offer before saving
+      validOffers.forEach((offer: any) => {
+        if (offer && !offer.userId && userId) {
+          offer.userId = userId;
+        }
+      });
+      savedCount = await offerService.saveOffers(validOffers, userId);
       logger.info(`💾 Saved ${savedCount} offers to database`);
     }
 
@@ -480,8 +488,9 @@ router.post('/scrape-url', async (req, res) => {
  * Collect offers from the default ML offers page (one-click collection)
  * Uses: https://www.mercadolivre.com.br/ofertas#nav-header
  */
-router.get('/collect-daily-offers', async (_req, res) => {
+router.get('/collect-daily-offers', authenticate, async (req: any, res) => {
   try {
+    const userId = req.user?.id;
     const DEFAULT_OFFERS_URL = 'https://www.mercadolivre.com.br/ofertas#nav-header';
 
     logger.info(`🔥 Collecting daily offers from default page: ${DEFAULT_OFFERS_URL}`);
@@ -521,7 +530,13 @@ router.get('/collect-daily-offers', async (_req, res) => {
     );
 
     const validOffers = offers.filter((o: any) => o !== null);
-    const savedCount = await offerService.saveOffers(validOffers);
+    // Add userId to each offer before saving
+    validOffers.forEach((offer: any) => {
+      if (offer && !offer.userId && userId) {
+        offer.userId = userId;
+      }
+    });
+    const savedCount = await offerService.saveOffers(validOffers, userId);
 
     logger.info(`💾 Saved ${savedCount} offers to database`);
 
