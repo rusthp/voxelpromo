@@ -8,6 +8,8 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { loginSchema, registerSchema, changePasswordSchema } from '../validation/auth.validation';
 import { authLimiter, registerLimiter, refreshLimiter, passwordResetLimiter } from '../middleware/rate-limit';
+import { getErrorMessage } from '../types/domain.types';
+import { isMongoDBDuplicateError, isMongooseValidationError } from '../types/auth.types';
 
 const router = Router();
 
@@ -207,22 +209,22 @@ router.post('/register', registerLimiter, validate(registerSchema), async (req: 
         email: user.email,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Registration error:', error);
 
-    if (error.code === 11000) {
+    if (isMongoDBDuplicateError(error)) {
       const field = Object.keys(error.keyPattern)[0];
       const message =
         field === 'email' ? 'Este email já está em uso' : 'Este username já está em uso';
       return res.status(400).json({ error: message });
     }
 
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map((e: any) => e.message);
+    if (isMongooseValidationError(error)) {
+      const messages = Object.values(error.errors).map((e) => e.message);
       return res.status(400).json({ error: messages.join(', ') });
     }
 
-    return res.status(500).json({ error: error.message || 'Erro ao criar usuário' });
+    return res.status(500).json({ error: getErrorMessage(error) || 'Erro ao criar usuário' });
   }
 });
 
@@ -359,9 +361,9 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
         role: user.role,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Login error:', error);
-    return res.status(500).json({ error: error.message || 'Erro ao fazer login' });
+    return res.status(500).json({ error: getErrorMessage(error) || 'Erro ao fazer login' });
   }
 });
 
@@ -418,9 +420,9 @@ router.post('/refresh', refreshLimiter, async (req: Request, res: Response) => {
         role: user.role,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Refresh token error:', error);
-    return res.status(500).json({ error: error.message || 'Erro ao renovar token' });
+    return res.status(500).json({ error: getErrorMessage(error) || 'Erro ao renovar token' });
   }
 });
 
@@ -442,9 +444,9 @@ router.post('/logout', authenticate, async (req: AuthRequest, res: Response) => 
 
     logger.info(`User logged out: ${req.user!.username}`);
     res.json({ success: true, message: 'Logout realizado com sucesso' });
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Logout error:', error);
-    res.status(500).json({ error: error.message || 'Erro ao fazer logout' });
+    res.status(500).json({ error: getErrorMessage(error) || 'Erro ao fazer logout' });
   }
 });
 
@@ -461,9 +463,9 @@ router.post('/logout-all', authenticate, async (req: AuthRequest, res: Response)
 
     logger.info(`All sessions revoked for user: ${req.user!.username}`);
     res.json({ success: true, message: 'Todos os dispositivos foram desconectados' });
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Logout all error:', error);
-    res.status(500).json({ error: error.message || 'Erro ao desconectar dispositivos' });
+    res.status(500).json({ error: getErrorMessage(error) || 'Erro ao desconectar dispositivos' });
   }
 });
 
@@ -491,9 +493,9 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
         createdAt: user.createdAt,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Get user error:', error);
-    return res.status(500).json({ error: error.message || 'Erro ao buscar usuário' });
+    return res.status(500).json({ error: getErrorMessage(error) || 'Erro ao buscar usuário' });
   }
 });
 
@@ -538,9 +540,9 @@ router.put(
         success: true,
         message: 'Senha alterada com sucesso. Faça login novamente em todos os dispositivos.',
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Change password error:', error);
-      return res.status(500).json({ error: error.message || 'Erro ao alterar senha' });
+      return res.status(500).json({ error: getErrorMessage(error) || 'Erro ao alterar senha' });
     }
   }
 );
@@ -605,7 +607,7 @@ router.post('/forgot-password', passwordResetLimiter, async (req: Request, res: 
       message: 'Se existe uma conta com este email, você receberá um link para redefinir sua senha.',
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Forgot password error:', error);
     // Still return success to prevent enumeration
     return res.json({
@@ -677,7 +679,7 @@ router.post('/reset-password/:token', passwordResetLimiter, async (req: Request,
       message: 'Senha redefinida com sucesso! Faça login com sua nova senha.',
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Reset password error:', error);
     return res.status(500).json({ error: 'Erro ao redefinir senha. Tente novamente.' });
   }
@@ -704,7 +706,7 @@ router.get('/validate-reset-token/:token', async (req: Request, res: Response) =
 
     return res.json({ valid: !!user });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Validate reset token error:', error);
     return res.json({ valid: false });
   }
@@ -751,7 +753,7 @@ router.post('/verify-email', async (req: Request, res: Response) => {
       message: 'Email verificado com sucesso! Você já pode fazer login.',
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Email verification error:', error);
     return res.status(500).json({ error: 'Erro ao verificar email' });
   }
@@ -805,7 +807,7 @@ router.post('/resend-verification', async (req: Request, res: Response) => {
 
     return res.json({ success: true, message: 'Se o email existir, enviaremos um novo link de verificação.' });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Resend verification error:', error);
     return res.status(500).json({ error: 'Erro ao reenviar email de verificação' });
   }

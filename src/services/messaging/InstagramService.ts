@@ -79,6 +79,9 @@ interface InstagramAccount {
 export class InstagramService {
     private aiService: AIService | null = null;
 
+    // User context for multi-tenant
+    private userId: string | null = null;
+
     // OAuth2 credentials
     private appId: string | null = null;
     private appSecret: string | null = null;
@@ -109,8 +112,46 @@ export class InstagramService {
     private lastHourReset = Date.now();
     private readonly MAX_MESSAGES_PER_HOUR = 200; // Meta rate limit 2024
 
-    constructor() {
+    constructor(userId?: string) {
+        this.userId = userId || null;
         this.loadCredentials();
+    }
+
+    /**
+     * Factory method to create user-specific Instagram service
+     * MULTI-TENANT: Each user gets their own credentials
+     */
+    static async createForUser(userId: string): Promise<InstagramService> {
+        const { getUserSettingsService } = require('../user/UserSettingsService'); // eslint-disable-line
+        const settingsService = getUserSettingsService();
+        const credentials = await settingsService.getInstagramCredentials(userId);
+
+        const service = new InstagramService(userId);
+
+        // Override with user-specific credentials if available
+        if (credentials.isConfigured) {
+            service.accessToken = credentials.accessToken;
+            service.pageAccessToken = credentials.pageAccessToken;
+            service.pageId = credentials.pageId;
+            service.igUserId = credentials.igUserId;
+            logger.debug(`📱 Instagram loaded for user ${userId} (@${credentials.username})`);
+        }
+
+        return service;
+    }
+
+    /**
+     * Get current user ID (for multi-tenant context)
+     */
+    getUserId(): string | null {
+        return this.userId;
+    }
+
+    /**
+     * Get Instagram User ID (IG account ID)
+     */
+    getIgUserId(): string | null {
+        return this.igUserId;
     }
 
     /**

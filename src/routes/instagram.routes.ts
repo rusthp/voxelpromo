@@ -83,8 +83,9 @@ router.get('/status', authenticate, async (req: AuthRequest, res: Response) => {
  *       200:
  *         description: Authorization URL
  */
-router.get('/auth/url', (req: Request, res: Response) => {
+router.get('/auth/url', authenticate, async (req: AuthRequest, res: Response) => {
     try {
+        const userId = req.user!.id;
         const service = getInstagramService();
 
         if (!service.isConfigured()) {
@@ -100,19 +101,16 @@ router.get('/auth/url', (req: Request, res: Response) => {
         const baseUrl = `${protocol}://${host}`;
         const redirectUri = `${baseUrl}/api/instagram/auth/callback`;
 
-        // Generate state for CSRF protection
-        const state = Math.random().toString(36).substring(2, 15);
+        // Generate state with userId encoded for CSRF protection + user identification
+        const stateData = {
+            csrf: Math.random().toString(36).substring(2, 15),
+            userId: userId,
+        };
+        const state = Buffer.from(JSON.stringify(stateData)).toString('base64');
 
-        // Store state in session or temp storage (simplified for now)
-        const configPath = join(process.cwd(), 'config.json');
-        let config: any = {};
-        if (existsSync(configPath)) {
-            config = JSON.parse(readFileSync(configPath, 'utf-8'));
-        }
-        config.instagram = config.instagram || {};
-        config.instagram._oauthState = state;
-        config.instagram._oauthRedirectUri = redirectUri;
-        writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+        // Store state in UserSettings (MULTI-TENANT)
+        const settingsService = getUserSettingsService();
+        await settingsService.storeInstagramOAuthState(userId, state, redirectUri);
 
         const authUrl = service.getAuthorizationUrl(redirectUri, state);
 
@@ -146,47 +144,59 @@ router.get('/auth/callback', async (req: Request, res: Response) => {
 
         if (error) {
             logger.error(`Instagram OAuth error: ${error} - ${error_reason}`);
-            return res.redirect(`/settings?tab=messaging&instagram_error=${encodeURIComponent(String(error_reason || error))}`);
+            return res.redirect(`/instagram?error=${encodeURIComponent(String(error_reason || error))}`);
         }
 
-        if (!code) {
-            return res.redirect('/settings?tab=messaging&instagram_error=no_code');
+        if (!code || !state) {
+            return res.redirect('/instagram?error=missing_code_or_state');
         }
 
-        // Verify state
-        const configPath = join(process.cwd(), 'config.json');
-        let config: any = {};
-        if (existsSync(configPath)) {
-            config = JSON.parse(readFileSync(configPath, 'utf-8'));
+        // Decode state to get userId (MULTI-TENANT)
+        let stateData: { csrf: string; userId: string };
+        try {
+            stateData = JSON.parse(Buffer.from(String(state), 'base64').toString());
+        } catch {
+            logger.error('Invalid OAuth state format');
+            return res.redirect('/instagram?error=invalid_state');
         }
 
-        const savedState = config.instagram?._oauthState;
-        const redirectUri = config.instagram?._oauthRedirectUri;
-
-        if (state && savedState && state !== savedState) {
-            logger.warn('Instagram OAuth state mismatch');
-            return res.redirect('/settings?tab=messaging&instagram_error=state_mismatch');
+        const userId = stateData.userId;
+        if (!userId) {
+            logger.error('No userId in OAuth state');
+            return res.redirect('/instagram?error=no_user_id');
         }
 
-        // Exchange code for token
+        // Verify state against UserSettings
+        const settingsService = getUserSettingsService();
+        const verification = await settingsService.verifyInstagramOAuthState(userId, String(state));
+
+        if (!verification.valid) {
+            logger.warn(`Instagram OAuth state mismatch for user ${userId}`);
+            return res.redirect('/instagram?error=state_mismatch');
+        }
+
+        const redirectUri = verification.redirectUri;
+
+        // Exchange code for token using global service (has appId/appSecret)
         const service = getInstagramService();
-        await service.exchangeCodeForToken(String(code), redirectUri);
+        const tokenResult = await service.exchangeCodeForToken(String(code), redirectUri!);
 
-        // Clean up temp state
-        if (config.instagram) {
-            delete config.instagram._oauthState;
-            delete config.instagram._oauthRedirectUri;
-            writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-        }
+        // Get account info
+        const accountInfo = await service.getAccountInfo();
 
-        // Reload service credentials
-        service.reloadCredentials();
+        // Save tokens to UserSettings (MULTI-TENANT)
+        await settingsService.updateInstagramTokens(userId, {
+            accessToken: tokenResult.access_token,
+            igUserId: service.getIgUserId() || accountInfo?.id || '',
+            username: accountInfo?.username,
+            accountType: accountInfo?.name || 'BUSINESS',
+        });
 
-        logger.info('✅ Instagram OAuth completed successfully');
-        return res.redirect('/settings?tab=messaging&instagram_success=true');
+        logger.info(`✅ Instagram OAuth completed for user ${userId} (@${accountInfo?.username})`);
+        return res.redirect('/instagram?success=true');
     } catch (error: any) {
         logger.error('Instagram OAuth callback error:', error);
-        return res.redirect(`/settings?tab=messaging&instagram_error=${encodeURIComponent(error.message)}`);
+        return res.redirect(`/instagram?error=${encodeURIComponent(error.message)}`);
     }
 });
 
@@ -325,9 +335,12 @@ router.post('/webhook', async (req: Request, res: Response) => {
  *     security:
  *       - bearerAuth: []
  */
-router.post('/test', async (_req: Request, res: Response) => {
+router.post('/test', authenticate, async (req: AuthRequest, res: Response) => {
     try {
-        const service = getInstagramService();
+        const userId = req.user!.id;
+
+        // Use user-specific Instagram service (MULTI-TENANT)
+        const service = await InstagramService.createForUser(userId);
 
         if (!service.isAuthenticated()) {
             return res.status(400).json({
@@ -548,8 +561,9 @@ router.post('/settings', async (req: Request, res: Response) => {
  *                 enum: [IMAGE, VIDEO]
  *                 default: IMAGE
  */
-router.post('/story', async (req: Request, res: Response) => {
+router.post('/story', authenticate, async (req: AuthRequest, res: Response) => {
     try {
+        const userId = req.user!.id;
         const { mediaUrl, mediaType = 'IMAGE' } = req.body;
 
         if (!mediaUrl) {
@@ -559,7 +573,8 @@ router.post('/story', async (req: Request, res: Response) => {
             });
         }
 
-        const service = getInstagramService();
+        // Use user-specific Instagram service (MULTI-TENANT)
+        const service = await InstagramService.createForUser(userId);
 
         if (!service.isAuthenticated()) {
             return res.status(401).json({
@@ -618,8 +633,9 @@ router.post('/story', async (req: Request, res: Response) => {
  *                 type: boolean
  *                 default: true
  */
-router.post('/reel', async (req: Request, res: Response) => {
+router.post('/reel', authenticate, async (req: AuthRequest, res: Response) => {
     try {
+        const userId = req.user!.id;
         const { videoUrl, caption, shareToFeed = true } = req.body;
 
         if (!videoUrl) {
@@ -629,7 +645,8 @@ router.post('/reel', async (req: Request, res: Response) => {
             });
         }
 
-        const service = getInstagramService();
+        // Use user-specific Instagram service (MULTI-TENANT)
+        const service = await InstagramService.createForUser(userId);
 
         if (!service.isAuthenticated()) {
             return res.status(401).json({
@@ -676,10 +693,13 @@ router.post('/reel', async (req: Request, res: Response) => {
  *         schema:
  *           type: string
  */
-router.get('/insights/:mediaId', async (req: Request, res: Response) => {
+router.get('/insights/:mediaId', authenticate, async (req: AuthRequest, res: Response) => {
     try {
+        const userId = req.user!.id;
         const { mediaId } = req.params;
-        const service = getInstagramService();
+
+        // Use user-specific Instagram service (MULTI-TENANT)
+        const service = await InstagramService.createForUser(userId);
 
         if (!service.isAuthenticated()) {
             return res.status(401).json({
@@ -725,10 +745,13 @@ router.get('/insights/:mediaId', async (req: Request, res: Response) => {
  *           type: integer
  *           default: 10
  */
-router.get('/media', async (req: Request, res: Response) => {
+router.get('/media', authenticate, async (req: AuthRequest, res: Response) => {
     try {
+        const userId = req.user!.id;
         const limit = parseInt(req.query.limit as string) || 10;
-        const service = getInstagramService();
+
+        // Use user-specific Instagram service (MULTI-TENANT)
+        const service = await InstagramService.createForUser(userId);
 
         if (!service.isAuthenticated()) {
             return res.status(401).json({

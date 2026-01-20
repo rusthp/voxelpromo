@@ -72,6 +72,10 @@ export default function InstagramPage() {
     const [storyUrl, setStoryUrl] = useState('');
     const [reelUrl, setReelUrl] = useState('');
     const [reelCaption, setReelCaption] = useState('');
+    // Admin config state
+    const [appId, setAppId] = useState('');
+    const [appSecret, setAppSecret] = useState('');
+    const [savingConfig, setSavingConfig] = useState(false);
 
     useEffect(() => {
         fetchStatus();
@@ -125,6 +129,25 @@ export default function InstagramPage() {
             toast.error(error.response?.data?.error || 'Erro ao conectar');
         } finally {
             setConnecting(false);
+        }
+    };
+
+    const handleSaveConfig = async () => {
+        if (!appId.trim() || !appSecret.trim()) {
+            toast.error('Preencha App ID e App Secret');
+            return;
+        }
+        setSavingConfig(true);
+        try {
+            await api.post('/instagram/config', { appId, appSecret });
+            toast.success('Configuração salva! Atualizando status...');
+            setAppId('');
+            setAppSecret('');
+            await fetchStatus();
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Erro ao salvar configuração');
+        } finally {
+            setSavingConfig(false);
         }
     };
 
@@ -270,6 +293,61 @@ export default function InstagramPage() {
                                         onClick={handleDisconnect}
                                     >
                                         Desconectar
+                                    </Button>
+                                </div>
+                            ) : !status?.configured ? (
+                                <div className="space-y-4">
+                                    <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+                                        <div className="flex items-start gap-3">
+                                            <Settings2 className="h-5 w-5 text-yellow-500 mt-0.5" />
+                                            <div className="space-y-1">
+                                                <p className="font-medium text-yellow-500">Configuração Meta</p>
+                                                <p className="text-sm text-muted-foreground">
+                                                    Obtenha as credenciais no{' '}
+                                                    <a
+                                                        href="https://developers.facebook.com/apps"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-primary hover:underline"
+                                                    >
+                                                        Meta for Developers
+                                                    </a>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="app-id">App ID</Label>
+                                            <Input
+                                                id="app-id"
+                                                placeholder="707099469134657"
+                                                value={appId}
+                                                onChange={(e) => setAppId(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="app-secret">App Secret</Label>
+                                            <Input
+                                                id="app-secret"
+                                                type="password"
+                                                placeholder="650d9b4d3dedfd47fe585..."
+                                                value={appSecret}
+                                                onChange={(e) => setAppSecret(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+                                    <Button
+                                        className="w-full"
+                                        onClick={handleSaveConfig}
+                                        disabled={savingConfig || !appId.trim() || !appSecret.trim()}
+                                    >
+                                        {savingConfig ? (
+                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        ) : (
+                                            <CheckCircle2 className="h-4 w-4 mr-2" />
+                                        )}
+                                        Salvar Configuração
                                     </Button>
                                 </div>
                             ) : (

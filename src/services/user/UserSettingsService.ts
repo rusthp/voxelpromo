@@ -304,6 +304,97 @@ export class UserSettingsService {
             ai: settings.ai?.isConfigured || false,
         };
     }
+
+    // ========================================
+    // Instagram Multi-Tenant Methods
+    // ========================================
+
+    /**
+     * Update Instagram OAuth tokens for a user
+     * Called after successful OAuth callback
+     */
+    async updateInstagramTokens(userId: string, tokens: {
+        accessToken: string;
+        pageAccessToken?: string;
+        pageId?: string;
+        igUserId: string;
+        username?: string;
+        accountType?: string;
+    }): Promise<IUserSettings> {
+        const settings = await this.getSettings(userId);
+
+        settings.instagram.accessToken = tokens.accessToken;
+        settings.instagram.pageAccessToken = tokens.pageAccessToken || '';
+        settings.instagram.pageId = tokens.pageId || '';
+        settings.instagram.igUserId = tokens.igUserId;
+        settings.instagram.username = tokens.username || '';
+        settings.instagram.accountType = tokens.accountType || 'BUSINESS';
+        settings.instagram.isConfigured = true;
+
+        await settings.save();
+        logger.info(`✅ Instagram tokens saved for user: ${userId} (@${tokens.username})`);
+        return settings;
+    }
+
+    /**
+     * Get Instagram credentials for a user
+     * Used by InstagramService to load user-specific credentials
+     */
+    async getInstagramCredentials(userId: string): Promise<{
+        accessToken: string | null;
+        pageAccessToken: string | null;
+        pageId: string | null;
+        igUserId: string | null;
+        username: string | null;
+        isConfigured: boolean;
+    }> {
+        const settings = await this.getSettings(userId);
+
+        return {
+            accessToken: settings.instagram?.accessToken || null,
+            pageAccessToken: settings.instagram?.pageAccessToken || null,
+            pageId: settings.instagram?.pageId || null,
+            igUserId: settings.instagram?.igUserId || null,
+            username: settings.instagram?.username || null,
+            isConfigured: settings.instagram?.isConfigured || false,
+        };
+    }
+
+    /**
+     * Store OAuth state for CSRF protection
+     * Used during Instagram OAuth flow
+     */
+    async storeInstagramOAuthState(userId: string, state: string, redirectUri: string): Promise<void> {
+        const settings = await this.getSettings(userId);
+
+        // Store temporarily in instagram settings (will be cleared after OAuth)
+        (settings.instagram as any)._oauthState = state;
+        (settings.instagram as any)._oauthRedirectUri = redirectUri;
+
+        await settings.save();
+        logger.debug(`Instagram OAuth state stored for user: ${userId}`);
+    }
+
+    /**
+     * Verify and retrieve OAuth state
+     */
+    async verifyInstagramOAuthState(userId: string, state: string): Promise<{ valid: boolean; redirectUri: string | null }> {
+        const settings = await this.getSettings(userId);
+
+        const savedState = (settings.instagram as any)?._oauthState;
+        const redirectUri = (settings.instagram as any)?._oauthRedirectUri;
+
+        if (savedState && savedState === state) {
+            // Clear state after verification
+            delete (settings.instagram as any)._oauthState;
+            delete (settings.instagram as any)._oauthRedirectUri;
+            await settings.save();
+
+            return { valid: true, redirectUri };
+        }
+
+        return { valid: false, redirectUri: null };
+    }
 }
 
 // Singleton instance

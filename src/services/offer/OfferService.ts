@@ -11,6 +11,8 @@ import { XService } from '../messaging/XService';
 import { InstagramService } from '../messaging/InstagramService';
 import { VectorizerService } from '../vectorizer/VectorizerService';
 import { sanitizeOffer } from '../../middleware/sanitization';
+import { getErrorMessage } from '../../types/domain.types';
+import { OfferQuery, OfferDocument } from '../../types/offer.types';
 
 export class OfferService {
   private aiService: AIService | null = null;
@@ -190,7 +192,7 @@ export class OfferService {
       }
 
       // Check if offer already exists matches user scope
-      const query: any = { productUrl: validatedOffer.productUrl };
+      const query: Record<string, unknown> = { productUrl: validatedOffer.productUrl };
       if (userId) {
         query.userId = userId;
       }
@@ -267,7 +269,7 @@ export class OfferService {
       .filter(Boolean);
 
     // Build query base
-    const baseQuery: any = {
+    const baseQuery: Record<string, unknown> = {
       $or: [
         { productUrl: { $in: productUrls } },
         ...(productIds.length > 0
@@ -370,8 +372,8 @@ export class OfferService {
         if (productId) {
           activeIds.add(productId);
         }
-      } catch (error: any) {
-        logger.error(`Error saving offer "${offer.title?.substring(0, 50)}...":`, error.message);
+      } catch (error: unknown) {
+        logger.error(`Error saving offer "${offer.title?.substring(0, 50)}...":`, getErrorMessage(error));
       }
     }
 
@@ -387,7 +389,7 @@ export class OfferService {
    */
   async filterOffers(options: FilterOptions, userId?: string): Promise<Offer[]> {
     try {
-      const query: any = { isActive: true };
+      const query: Record<string, unknown> = { isActive: true };
 
       // Multi-tenant: filter by userId if provided
       if (userId) {
@@ -431,7 +433,7 @@ export class OfferService {
       const skip = (options as any).skip || 0; // Add skip support for pagination
       const sortBy = (options as any).sortBy || 'newest';
 
-      let sort: any = { createdAt: -1 };
+      let sort: Record<string, number> = { createdAt: -1 };
       switch (sortBy) {
         case 'discount':
           sort = { discountPercentage: -1 };
@@ -466,7 +468,7 @@ export class OfferService {
    */
   async getAllOffers(limit?: number, skip: number = 0, sortBy: string = 'newest', userId?: string): Promise<Offer[]> {
     try {
-      let sort: any = { createdAt: -1 };
+      let sort: Record<string, number> = { createdAt: -1 };
 
       switch (sortBy) {
         case 'discount':
@@ -485,7 +487,7 @@ export class OfferService {
       }
 
       // Multi-tenant: filter by userId if provided
-      const queryFilter: any = { isActive: true };
+      const queryFilter: Record<string, unknown> = { isActive: true };
       if (userId) {
         queryFilter.userId = userId;
       }
@@ -511,7 +513,7 @@ export class OfferService {
    */
   async getOfferById(id: string, userId?: string): Promise<Offer | null> {
     try {
-      const query: any = { _id: id };
+      const query: Record<string, unknown> = { _id: id };
 
       // Multi-tenant: verify ownership if userId provided
       if (userId) {
@@ -581,7 +583,7 @@ export class OfferService {
           if (updatedOffer) {
             Object.assign(offer, updatedOffer);
           }
-        } catch (aiError: any) {
+        } catch (aiError: unknown) {
           // Log but don't fail - AI post is optional
           logger.warn(`⚠️ Could not generate AI post (non-blocking): ${aiError.message}`);
         }
@@ -660,7 +662,7 @@ export class OfferService {
           } else {
             logger.debug(`ℹ️ Skipping Telegram for offer ${offerId}: User not configured`);
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           logger.error('Error posting to Telegram:', error);
           await PostHistoryModel.create({
             offerId,
@@ -698,7 +700,7 @@ export class OfferService {
               error: 'Failed to send to WhatsApp',
             });
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           logger.error('Error posting to WhatsApp:', error);
           await PostHistoryModel.create({
             offerId,
@@ -740,9 +742,9 @@ export class OfferService {
               error: 'Failed to post to X',
             });
           }
-        } catch (xError: any) {
+        } catch (xError: unknown) {
           logger.error(
-            `❌ Error posting offer ${offerId} to X (Twitter): ${xError.message}`,
+            `❌ Error posting offer ${offerId} to X (Twitter): ${getErrorMessage(xError)}`,
             xError
           );
           // Save failed attempt
@@ -751,7 +753,7 @@ export class OfferService {
             platform: 'x',
             postContent,
             status: 'failed',
-            error: xError.message,
+            error: getErrorMessage(xError),
           });
         }
       }
@@ -784,9 +786,9 @@ export class OfferService {
               error: 'Failed to post to Instagram',
             });
           }
-        } catch (instagramError: any) {
+        } catch (instagramError: unknown) {
           logger.error(
-            `❌ Error posting offer ${offerId} to Instagram: ${instagramError.message}`,
+            `❌ Error posting offer ${offerId} to Instagram: ${getErrorMessage(instagramError)}`,
             instagramError
           );
           // Save failed attempt
@@ -795,7 +797,7 @@ export class OfferService {
             platform: 'instagram',
             postContent,
             status: 'failed',
-            error: instagramError.message,
+            error: getErrorMessage(instagramError),
           });
         }
       }
@@ -845,7 +847,7 @@ export class OfferService {
   async deleteOffer(id: string, permanent: boolean = false, userId?: string): Promise<boolean> {
     try {
       // Multi-tenant: verify ownership if userId provided
-      const query: any = { _id: id };
+      const query: Record<string, unknown> = { _id: id };
       if (userId) {
         query.userId = userId;
       }
@@ -874,7 +876,7 @@ export class OfferService {
       let deletedCount = 0;
 
       // Multi-tenant: filter by userId if provided
-      const query: any = { _id: { $in: ids } };
+      const query: Record<string, unknown> = { _id: { $in: ids } };
       if (userId) {
         query.userId = userId;
       }
@@ -904,7 +906,7 @@ export class OfferService {
       let deletedCount = 0;
 
       // Multi-tenant: filter by userId if provided
-      const query: any = userId ? { userId } : {};
+      const query: Record<string, unknown> = userId ? { userId } : {};
 
       if (permanent) {
         const result = await OfferModel.deleteMany(query);
@@ -929,7 +931,7 @@ export class OfferService {
   async scheduleOffer(id: string, date: Date, userId?: string): Promise<boolean> {
     try {
       // Multi-tenant: verify ownership
-      const query: any = { _id: id };
+      const query: Record<string, unknown> = { _id: id };
       if (userId) {
         query.userId = userId;
       }
@@ -990,8 +992,8 @@ export class OfferService {
             processedCount++;
             await this.delay(2000); // Rate limit
           }
-        } catch (error: any) {
-          logger.error(`Error processing scheduled offer ${offer._id}:`, error.message);
+        } catch (error: unknown) {
+          logger.error(`Error processing scheduled offer ${offer._id}:`, getErrorMessage(error));
         }
       }
 

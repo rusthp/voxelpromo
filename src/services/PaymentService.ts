@@ -2,6 +2,12 @@ import { MercadoPagoConfig, Preference, Payment, PreApproval } from 'mercadopago
 import { logger } from '../utils/logger';
 import { getPlan } from '../config/plans.config';
 import crypto from 'crypto';
+import {
+    WebhookNotification,
+    WebhookProcessResult,
+    PaymentStatus,
+    getErrorMessage
+} from '../types/domain.types';
 
 /**
  * Mercado Pago Payment Service
@@ -105,16 +111,16 @@ export class PaymentService {
                 payerId: response.payer_id,
             };
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error('Error creating subscription:', error);
 
-            // Map common MP error codes to user-friendly messages
+            const errorMsg = getErrorMessage(error);
             let userMessage = 'Erro ao processar pagamento. Tente novamente.';
-            if (error.message?.includes('invalid_token')) {
+            if (errorMsg.includes('invalid_token')) {
                 userMessage = 'Token de cartão inválido. Verifique os dados e tente novamente.';
-            } else if (error.message?.includes('rejected')) {
+            } else if (errorMsg.includes('rejected')) {
                 userMessage = 'Pagamento recusado pela operadora. Tente outro cartão.';
-            } else if (error.message?.includes('insufficient_funds')) {
+            } else if (errorMsg.includes('insufficient_funds')) {
                 userMessage = 'Saldo insuficiente. Verifique seu limite e tente novamente.';
             }
 
@@ -140,7 +146,7 @@ export class PaymentService {
                 success: response.status === 'cancelled',
                 status: response.status || 'unknown'
             };
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error(`Error cancelling subscription ${subscriptionId}:`, error);
             throw new Error('Erro ao cancelar assinatura. Tente novamente.');
         }
@@ -164,7 +170,7 @@ export class PaymentService {
                 success: response.status === 'paused',
                 status: response.status || 'unknown'
             };
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error(`Error pausing subscription ${subscriptionId}:`, error);
             throw new Error('Erro ao pausar assinatura. Tente novamente.');
         }
@@ -188,7 +194,7 @@ export class PaymentService {
                 success: response.status === 'authorized',
                 status: response.status || 'unknown'
             };
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error(`Error reactivating subscription ${subscriptionId}:`, error);
             throw new Error('Erro ao reativar assinatura. Tente novamente.');
         }
@@ -197,12 +203,12 @@ export class PaymentService {
     /**
      * Get subscription details from Mercado Pago
      */
-    async getSubscriptionDetails(subscriptionId: string): Promise<any> {
+    async getSubscriptionDetails(subscriptionId: string): Promise<unknown> {
         try {
             logger.info(`Fetching subscription details: ${subscriptionId}`);
             const response = await this.preApproval.get({ id: subscriptionId });
             return response;
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error(`Error fetching subscription ${subscriptionId}:`, error);
             throw new Error('Erro ao buscar detalhes da assinatura.');
         }
@@ -297,9 +303,9 @@ export class PaymentService {
                 price: plan.price
             };
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error('Error creating checkout:', error);
-            throw new Error(`Failed to create checkout: ${error.message}`);
+            throw new Error(`Failed to create checkout: ${getErrorMessage(error)}`);
         }
     }
 
@@ -371,26 +377,11 @@ export class PaymentService {
                 expirationDate: response.date_of_expiration,
             };
 
-        } catch (error: any) {
-            logger.error('Error creating Pix payment:', {
-                message: error.message,
-                cause: error.cause,
-                status: error.status,
-                response: error.response?.data || error.response,
-            });
+        } catch (error: unknown) {
+            logger.error('Error creating Pix payment:', error);
 
-            // Extract more detailed error message
-            let userMessage = 'Erro ao gerar código Pix.';
-            if (error.message) {
-                userMessage = error.message;
-            }
-            if (error.cause?.message) {
-                userMessage = error.cause.message;
-            }
-            // MP specific errors
-            if (error.response?.data?.message) {
-                userMessage = error.response.data.message;
-            }
+            // Use generic error message for unknown errors
+            const userMessage = getErrorMessage(error) || 'Erro ao gerar código Pix.';
 
             throw new Error(userMessage);
         }
@@ -461,28 +452,14 @@ export class PaymentService {
                 paymentId: response.id?.toString(),
                 status: response.status,
                 boletoUrl: boletoData?.external_resource_url || response.point_of_interaction?.transaction_data?.ticket_url,
-                barcode: (response as any).barcode?.content,
+                barcode: ((response as unknown) as { barcode?: { content?: string } }).barcode?.content,
                 expirationDate: response.date_of_expiration,
             };
 
-        } catch (error: any) {
-            logger.error('Error creating Boleto payment:', {
-                message: error.message,
-                cause: error.cause,
-                status: error.status,
-                response: error.response?.data || error.response,
-            });
+        } catch (error: unknown) {
+            logger.error('Error creating Boleto payment:', error);
 
-            let userMessage = 'Erro ao gerar boleto.';
-            if (error.message) {
-                userMessage = error.message;
-            }
-            if (error.cause?.message) {
-                userMessage = error.cause.message;
-            }
-            if (error.response?.data?.message) {
-                userMessage = error.response.data.message;
-            }
+            const userMessage = getErrorMessage(error) || 'Erro ao gerar boleto.';
 
             throw new Error(userMessage);
         }
@@ -504,16 +481,16 @@ export class PaymentService {
                 message: 'Payment status check via webhook only'
             };
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error('Error checking payment status:', error);
-            throw new Error(`Failed to check payment status: ${error.message}`);
+            throw new Error(`Failed to check payment status: ${getErrorMessage(error)}`);
         }
     }
 
     /**
      * Process webhook notification from Mercado Pago
      */
-    async processWebhookNotification(notificationData: any) {
+    async processWebhookNotification(notificationData: WebhookNotification): Promise<WebhookProcessResult> {
         try {
             const { type, data } = notificationData;
 
@@ -539,7 +516,7 @@ export class PaymentService {
             return {
                 processed: true,
                 paymentId: paymentInfo.id,
-                status: paymentInfo.status,
+                status: paymentInfo.status as PaymentStatus | undefined,
                 statusDetail: paymentInfo.status_detail,
                 userId,
                 planId,
@@ -548,9 +525,9 @@ export class PaymentService {
                 externalReference: paymentInfo.external_reference
             };
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error('Error processing webhook:', error);
-            throw new Error(`Failed to process webhook: ${error.message}`);
+            throw new Error(`Failed to process webhook: ${getErrorMessage(error)}`);
         }
     }
 
@@ -560,7 +537,7 @@ export class PaymentService {
      * 
      * Reference: https://www.mercadopago.com.br/developers/pt/docs/your-integrations/notifications/webhooks#editor_6
      */
-    verifyWebhookSignature(signature: string | undefined, requestId: string | undefined, body: any): boolean {
+    verifyWebhookSignature(signature: string | undefined, requestId: string | undefined, body: Record<string, unknown>): boolean {
         const webhookSecret = process.env.MP_WEBHOOK_SECRET;
 
         // CRITICAL: In production, webhook secret is MANDATORY
@@ -600,7 +577,7 @@ export class PaymentService {
 
             // Build the manifest string for verification
             // Format: data.id (from body) + request-id + timestamp
-            const dataId = body?.data?.id || body?.id || '';
+            const dataId = (body as { data?: { id?: string }; id?: string })?.data?.id || (body as { id?: string })?.id || '';
             const manifest = `${dataId};${requestId};${ts}`;
 
             // Calculate HMAC-SHA256
@@ -625,7 +602,7 @@ export class PaymentService {
 
             return isValid;
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error('Error verifying webhook signature:', error);
             return false;
         }
