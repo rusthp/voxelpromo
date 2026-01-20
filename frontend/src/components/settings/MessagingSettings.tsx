@@ -8,7 +8,7 @@ import { FaTelegram, FaWhatsapp } from "react-icons/fa6";
 import { FaXTwitter } from "react-icons/fa6";
 import { ConfigState } from "@/types/settings";
 import { WHATSAPP_LIBRARIES } from "@/constants/channels";
-import { InstagramSettings } from "./InstagramSettings";
+
 
 
 interface MessagingSettingsProps {
@@ -1196,8 +1196,6 @@ export function MessagingSettings({ config, setConfig, testing, onTest }: Messag
                 </CardContent>
             </Card>
 
-            {/* Instagram */}
-            <InstagramSettings config={config} setConfig={setConfig} testing={testing} onTest={onTest} />
         </div>
     );
 }
