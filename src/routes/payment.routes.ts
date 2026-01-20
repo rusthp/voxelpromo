@@ -300,7 +300,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
 
             try {
                 // Fetch subscription details from MP
-                const subscriptionDetails = await paymentService.getSubscriptionDetails(data.id);
+                const subscriptionDetails = await paymentService.getSubscriptionDetails(data.id) as any;
                 const externalRef = subscriptionDetails.external_reference || '';
                 const [userId, planId] = externalRef.split('-');
 

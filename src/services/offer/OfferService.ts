@@ -12,7 +12,6 @@ import { InstagramService } from '../messaging/InstagramService';
 import { VectorizerService } from '../vectorizer/VectorizerService';
 import { sanitizeOffer } from '../../middleware/sanitization';
 import { getErrorMessage } from '../../types/domain.types';
-import { OfferQuery, OfferDocument } from '../../types/offer.types';
 
 export class OfferService {
   private aiService: AIService | null = null;
@@ -401,11 +400,17 @@ export class OfferService {
       }
 
       if (options.maxPrice) {
-        query.currentPrice = { ...query.currentPrice, $lte: options.maxPrice };
+        query.currentPrice = {
+          ...(query.currentPrice as Record<string, unknown> || {}),
+          $lte: options.maxPrice
+        };
       }
 
       if (options.minPrice) {
-        query.currentPrice = { ...query.currentPrice, $gte: options.minPrice };
+        query.currentPrice = {
+          ...(query.currentPrice as Record<string, unknown> || {}),
+          $gte: options.minPrice
+        };
       }
 
       if (options.minRating) {
@@ -450,8 +455,9 @@ export class OfferService {
           break;
       }
 
+
       const offers = await OfferModel.find(query)
-        .sort(sort)
+        .sort(sort as any) // Safe cast for Mongoose sort
         .skip(skip) // Add skip to query chain
         .limit(limit)
         .lean();
@@ -492,7 +498,7 @@ export class OfferService {
         queryFilter.userId = userId;
       }
 
-      let query = OfferModel.find(queryFilter).sort(sort).skip(skip);
+      let query = OfferModel.find(queryFilter).sort(sort as any).skip(skip);
 
       // Only apply limit if provided
       if (limit !== undefined && limit > 0) {
@@ -585,7 +591,7 @@ export class OfferService {
           }
         } catch (aiError: unknown) {
           // Log but don't fail - AI post is optional
-          logger.warn(`⚠️ Could not generate AI post (non-blocking): ${aiError.message}`);
+          logger.warn(`⚠️ Could not generate AI post (non-blocking): ${getErrorMessage(aiError)}`);
         }
       }
 
@@ -669,7 +675,7 @@ export class OfferService {
             platform: 'telegram',
             postContent,
             status: 'failed',
-            error: error.message,
+            error: getErrorMessage(error),
             userId: offer.userId
           });
         }
@@ -707,7 +713,7 @@ export class OfferService {
             platform: 'whatsapp',
             postContent,
             status: 'failed',
-            error: error.message,
+            error: getErrorMessage(error),
           });
         }
       }

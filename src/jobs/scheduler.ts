@@ -185,7 +185,7 @@ export function setupCronJobs(): void {
       for (const user of usersWithSubscriptions) {
         try {
           if (!user.subscription?.mpSubscriptionId) continue;
-          const mpDetails = await paymentService.getSubscriptionDetails(user.subscription.mpSubscriptionId);
+          const mpDetails = await paymentService.getSubscriptionDetails(user.subscription.mpSubscriptionId) as any;
 
           let newStatus: any = user.subscription.status;
           if (mpDetails.status === 'authorized') newStatus = 'authorized';
