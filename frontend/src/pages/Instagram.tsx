@@ -76,6 +76,7 @@ export default function InstagramPage() {
     const [appId, setAppId] = useState('');
     const [appSecret, setAppSecret] = useState('');
     const [savingConfig, setSavingConfig] = useState(false);
+    const [isEditingConfig, setIsEditingConfig] = useState(false);
 
     useEffect(() => {
         fetchStatus();
@@ -148,6 +149,7 @@ export default function InstagramPage() {
             toast.error(error.response?.data?.error || 'Erro ao salvar configuração');
         } finally {
             setSavingConfig(false);
+            setIsEditingConfig(false);
         }
     };
 
@@ -297,7 +299,7 @@ export default function InstagramPage() {
                                             Desconectar
                                         </Button>
                                     </div>
-                                ) : !status?.configured ? (
+                                ) : !status?.configured || isEditingConfig ? (
                                     <div className="space-y-4">
                                         <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
                                             <div className="flex items-start gap-3">
@@ -339,18 +341,30 @@ export default function InstagramPage() {
                                                 />
                                             </div>
                                         </div>
-                                        <Button
-                                            className="w-full"
-                                            onClick={handleSaveConfig}
-                                            disabled={savingConfig || !appId.trim() || !appSecret.trim()}
-                                        >
-                                            {savingConfig ? (
-                                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                            ) : (
-                                                <CheckCircle2 className="h-4 w-4 mr-2" />
+                                        <div className="flex gap-2">
+                                            {status?.configured && (
+                                                <Button
+                                                    variant="outline"
+                                                    className="w-full"
+                                                    onClick={() => setIsEditingConfig(false)}
+                                                    disabled={savingConfig}
+                                                >
+                                                    Cancelar
+                                                </Button>
                                             )}
-                                            Salvar Configuração
-                                        </Button>
+                                            <Button
+                                                className="w-full"
+                                                onClick={handleSaveConfig}
+                                                disabled={savingConfig || !appId.trim() || !appSecret.trim()}
+                                            >
+                                                {savingConfig ? (
+                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                ) : (
+                                                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                                                )}
+                                                Salvar Configuração
+                                            </Button>
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="space-y-4 text-center">
@@ -374,6 +388,15 @@ export default function InstagramPage() {
                                                 <Instagram className="h-4 w-4 mr-2" />
                                             )}
                                             Conectar Instagram
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="w-full text-muted-foreground hover:text-foreground"
+                                            onClick={() => setIsEditingConfig(true)}
+                                        >
+                                            <Settings2 className="h-3 w-3 mr-2" />
+                                            Alterar App ID / Secret
                                         </Button>
                                     </div>
                                 )}
