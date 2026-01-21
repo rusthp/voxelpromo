@@ -39,7 +39,7 @@ router.get('/status', authenticate, async (req: AuthRequest, res: Response) => {
         const settingsService = getUserSettingsService();
         const userSettings = await settingsService.getSettings(userId);
 
-        // Return user-specific Instagram status
+        // Check if user completed OAuth (has access token)
         if (userSettings.instagram.isConfigured) {
             return res.json({
                 success: true,
@@ -54,7 +54,18 @@ router.get('/status', authenticate, async (req: AuthRequest, res: Response) => {
             });
         }
 
-        // Not configured for this user
+        // Check if user saved config but hasn't completed OAuth yet
+        if (userSettings.instagram.pendingOAuth) {
+            return res.json({
+                success: true,
+                configured: true,  // Config is saved
+                authenticated: false, // But OAuth not completed -> shows Connect button
+                account: null,
+                rateLimit: null,
+            });
+        }
+
+        // Not configured at all - show config form
         return res.json({
             success: true,
             configured: false,
@@ -382,10 +393,12 @@ router.post('/test', authenticate, async (req: AuthRequest, res: Response) => {
  *     security:
  *       - bearerAuth: []
  */
-router.post('/config', async (req: Request, res: Response) => {
+router.post('/config', authenticate, async (req: AuthRequest, res: Response) => {
     try {
+        const userId = req.user!.id;
         const { appId, appSecret, webhookVerifyToken, accessToken, igUserId } = req.body;
 
+        // Save to global config.json for InstagramService (OAuth requires app-level credentials)
         const configPath = join(process.cwd(), 'config.json');
         let config: any = {};
 
@@ -430,9 +443,20 @@ router.post('/config', async (req: Request, res: Response) => {
         const service = getInstagramService();
         service.reloadCredentials();
 
+        // CRITICAL: Mark user as "pendingOAuth" in UserSettings so /status knows config is saved
+        // This allows the Connect button to appear
+        const settingsService = getUserSettingsService();
+        await settingsService.updateInstagramSettings(userId, {
+            isConfigured: false, // Will become true after OAuth completes
+            pendingOAuth: true,  // New flag to indicate config saved, waiting for OAuth
+        });
+
+        logger.info(`✅ Instagram config saved for user ${userId}, pending OAuth`);
+
         return res.json({
             success: true,
             message: 'Configuração atualizada com sucesso',
+            pendingOAuth: true,
         });
     } catch (error: any) {
         logger.error('Error updating Instagram config:', error);

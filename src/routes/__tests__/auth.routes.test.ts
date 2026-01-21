@@ -11,12 +11,13 @@
  * Run: npx jest src/routes/__tests__/auth.routes.test.ts
  */
 
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck - Disable TypeScript checking for complex jest mocks
 import { describe, it, expect, beforeEach, beforeAll, jest } from '@jest/globals';
 import express, { Express } from 'express';
 import request from 'supertest';
 import crypto from 'crypto';
-import jwt from 'jsonwebtoken';
+
 
 // Mock dependencies before imports
 jest.mock('../../utils/logger', () => ({
@@ -408,7 +409,7 @@ describe('Auth Routes', () => {
     describe('GET /api/auth/validate-reset-token/:token', () => {
         it('should return valid: true for valid token', async () => {
             const resetToken = crypto.randomBytes(32).toString('hex');
-            const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+
 
             mockUserFindOne.mockReturnValue({
                 select: jest.fn().mockResolvedValue({ _id: 'user-123' })

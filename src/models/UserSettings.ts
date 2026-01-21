@@ -73,6 +73,7 @@ export interface InstagramSettings {
     username?: string;
     accountType?: string;
     webhookVerifyToken?: string;
+    pendingOAuth?: boolean;
     isConfigured: boolean;
 }
 
@@ -219,6 +220,7 @@ const InstagramSettingsSchema = new Schema({
     username: String,
     accountType: String,
     webhookVerifyToken: String,
+    pendingOAuth: { type: Boolean, default: false },
     isConfigured: { type: Boolean, default: false },
 }, { _id: false });
 

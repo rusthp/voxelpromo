@@ -323,7 +323,7 @@ export default function InstagramPage() {
                                                 <Label htmlFor="app-id">App ID</Label>
                                                 <Input
                                                     id="app-id"
-                                                    placeholder="707099469134657"
+                                                    placeholder="Ex: 123456789012345"
                                                     value={appId}
                                                     onChange={(e) => setAppId(e.target.value)}
                                                 />
@@ -333,7 +333,7 @@ export default function InstagramPage() {
                                                 <Input
                                                     id="app-secret"
                                                     type="password"
-                                                    placeholder="650d9b4d3dedfd47fe585..."
+                                                    placeholder="Ex: a1b2c3d4e5f6..."
                                                     value={appSecret}
                                                     onChange={(e) => setAppSecret(e.target.value)}
                                                 />

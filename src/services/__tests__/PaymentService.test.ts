@@ -240,6 +240,7 @@ describe('PaymentService', () => {
 
         beforeEach(() => {
             // Get mock from mercadopago
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
             const { PreApproval } = require('mercadopago');
             mockPreApprovalCreate = jest.fn();
             PreApproval.mockImplementation(() => ({
@@ -334,6 +335,7 @@ describe('PaymentService', () => {
         let mockPreApprovalUpdate: jest.MockedFunction<any>;
 
         beforeEach(() => {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
             const { PreApproval } = require('mercadopago');
             mockPreApprovalUpdate = jest.fn();
             PreApproval.mockImplementation(() => ({

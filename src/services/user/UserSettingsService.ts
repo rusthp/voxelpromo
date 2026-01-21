@@ -310,6 +310,40 @@ export class UserSettingsService {
     // ========================================
 
     /**
+     * Update Instagram settings partially (for config, OAuth state, etc.)
+     * Used by /config route to mark user as pending OAuth
+     */
+    async updateInstagramSettings(userId: string, updates: Partial<{
+        isConfigured: boolean;
+        pendingOAuth: boolean;
+        appId: string;
+        appSecret: string;
+        webhookVerifyToken: string;
+    }>): Promise<IUserSettings> {
+        const settings = await this.getSettings(userId);
+
+        if (updates.isConfigured !== undefined) {
+            settings.instagram.isConfigured = updates.isConfigured;
+        }
+        if (updates.pendingOAuth !== undefined) {
+            settings.instagram.pendingOAuth = updates.pendingOAuth;
+        }
+        if (updates.appId !== undefined) {
+            settings.instagram.appId = updates.appId;
+        }
+        if (updates.appSecret !== undefined) {
+            settings.instagram.appSecret = updates.appSecret;
+        }
+        if (updates.webhookVerifyToken !== undefined) {
+            settings.instagram.webhookVerifyToken = updates.webhookVerifyToken;
+        }
+
+        await settings.save();
+        logger.info(`Instagram settings updated for user: ${userId}`);
+        return settings;
+    }
+
+    /**
      * Update Instagram OAuth tokens for a user
      * Called after successful OAuth callback
      */
@@ -330,6 +364,7 @@ export class UserSettingsService {
         settings.instagram.username = tokens.username || '';
         settings.instagram.accountType = tokens.accountType || 'BUSINESS';
         settings.instagram.isConfigured = true;
+        settings.instagram.pendingOAuth = false; // Clear pending flag after OAuth completes
 
         await settings.save();
         logger.info(`✅ Instagram tokens saved for user: ${userId} (@${tokens.username})`);
