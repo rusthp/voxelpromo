@@ -8,563 +8,587 @@ import { PrioritizationService } from './PrioritizationService';
 import { TemplateService } from './TemplateService';
 
 export class AutomationService {
-    private prioritizationService: PrioritizationService;
-    private templateService: TemplateService;
-    private static readonly CACHE_KEY_CONFIG = 'automation:config';
-    private static readonly CACHE_KEY_STATUS = 'automation:status';
+  private prioritizationService: PrioritizationService;
+  private templateService: TemplateService;
+  private static readonly CACHE_KEY_CONFIG = 'automation:config';
+  private static readonly CACHE_KEY_STATUS = 'automation:status';
 
-    constructor() {
-        this.prioritizationService = new PrioritizationService();
-        this.templateService = new TemplateService();
+  constructor() {
+    this.prioritizationService = new PrioritizationService();
+    this.templateService = new TemplateService();
+  }
+
+  /**
+   * Get active automation configuration (🚀 TURBO: with cache)
+   */
+  async getActiveConfig(): Promise<any | null> {
+    try {
+      // 🚀 TURBO: Check cache first
+      const cached = configCache.get(AutomationService.CACHE_KEY_CONFIG);
+      if (cached) {
+        logger.debug('🚀 Turbo: Config loaded from cache');
+        return cached;
+      }
+
+      // Cache miss - fetch from database
+      // Note: We fetch the config regardless of active status, as we follow a singleton pattern
+      // The caller is responsible for checking config.isActive if needed
+      const config = await AutomationConfigModel.findOne({})
+        .sort({ updatedAt: -1 }) // Get the most recently updated one just in case
+        .populate('messageTemplateId')
+        .lean();
+
+      // 🚀 TURBO: Cache the result for 5 minutes
+      if (config) {
+        configCache.set(AutomationService.CACHE_KEY_CONFIG, config);
+      }
+
+      return config;
+    } catch (error) {
+      logger.error('Error getting active config:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Save or update automation configuration
+   */
+  async saveConfig(configData: any): Promise<any> {
+    try {
+      // If setting this config as active, deactivate all others
+      if (configData.isActive) {
+        await AutomationConfigModel.updateMany({}, { isActive: false });
+      }
+
+      // Check if we have an existing config
+      const existing = await AutomationConfigModel.findOne({});
+
+      if (existing) {
+        // Update existing config
+        Object.assign(existing, configData);
+        existing.updatedAt = new Date();
+        await existing.save();
+        logger.info('✅ Automation config updated');
+
+        // 🚀 TURBO: Invalidate cache
+        configCache.invalidate(AutomationService.CACHE_KEY_CONFIG);
+        configCache.invalidate(AutomationService.CACHE_KEY_STATUS);
+
+        return existing.toObject();
+      } else {
+        // Create new config
+        const newConfig = new AutomationConfigModel(configData);
+        await newConfig.save();
+        logger.info('✅ Automation config created');
+
+        // 🚀 TURBO: Invalidate cache
+        configCache.invalidate(AutomationService.CACHE_KEY_CONFIG);
+        configCache.invalidate(AutomationService.CACHE_KEY_STATUS);
+
+        return newConfig.toObject();
+      }
+    } catch (error) {
+      logger.error('Error saving config:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if we should post now based on schedule
+   */
+  shouldPostNow(config: any): boolean {
+    const now = new Date();
+    const currentHour = now.getHours();
+
+    // Check if within allowed hours
+    // Handle overnight posting (e.g., 8h to 1h means 8:00-23:59 and 0:00-1:00)
+    if (config.startHour <= config.endHour) {
+      // Normal range (e.g., 8h to 18h)
+      if (currentHour < config.startHour || currentHour >= config.endHour) {
+        return false;
+      }
+    } else {
+      // Overnight range (e.g., 8h to 1h)
+      if (currentHour < config.startHour && currentHour >= config.endHour) {
+        return false;
+      }
     }
 
-    /**
-     * Get active automation configuration (🚀 TURBO: with cache)
-     */
-    async getActiveConfig(): Promise<any | null> {
-        try {
-            // 🚀 TURBO: Check cache first
-            const cached = configCache.get(AutomationService.CACHE_KEY_CONFIG);
-            if (cached) {
-                logger.debug('🚀 Turbo: Config loaded from cache');
-                return cached;
-            }
+    return true;
+  }
 
-            // Cache miss - fetch from database
-            // Note: We fetch the config regardless of active status, as we follow a singleton pattern
-            // The caller is responsible for checking config.isActive if needed
-            const config = await AutomationConfigModel.findOne({})
-                .sort({ updatedAt: -1 }) // Get the most recently updated one just in case
-                .populate('messageTemplateId')
-                .lean();
+  /**
+   * Get next offers to post based on configuration and prioritization
+   * 🚀 TURBO: Optimized with batch processing and lean queries
+   */
+  async getNextScheduledOffers(config: any, limit: number = 5): Promise<Offer[]> {
+    try {
+      // Build query based on filters
+      const query: any = {
+        isActive: true,
+        isPosted: false,
+      };
 
-            // 🚀 TURBO: Cache the result for 5 minutes
-            if (config) {
-                configCache.set(AutomationService.CACHE_KEY_CONFIG, config);
-            }
+      // Filter by sources
+      if (config.enabledSources && config.enabledSources.length > 0) {
+        query.source = { $in: config.enabledSources };
+      }
 
-            return config;
-        } catch (error) {
-            logger.error('Error getting active config:', error);
-            return null;
+      // Filter by categories
+      if (config.enabledCategories && config.enabledCategories.length > 0) {
+        query.category = { $in: config.enabledCategories };
+      }
+
+      // Filter by minimum discount
+      if (config.minDiscount && config.minDiscount > 0) {
+        query.discountPercentage = { $gte: config.minDiscount };
+      }
+
+      // Filter by maximum price
+      if (config.maxPrice && config.maxPrice > 0) {
+        query.currentPrice = { $lte: config.maxPrice };
+      }
+
+      // 🚀 TURBO: Use lean() for faster queries, limit fields
+      const offers = await OfferModel.find(query)
+        .select(
+          'title productUrl currentPrice originalPrice discountPercentage source category _id'
+        )
+        .lean()
+        .limit(limit * 3); // Get 3x to have options after prioritization
+
+      if (offers.length === 0) {
+        return [];
+      }
+
+      // Get current hour for prioritization
+      const currentHour = new Date().getHours();
+
+      // 🚀 TURBO: Batch load all product stats in ONE query
+      const productUrls = offers.map((o: any) => o.productUrl);
+      const statsMap = new Map();
+
+      const allStats = await ProductStatsModel.find({
+        productUrl: { $in: productUrls },
+      })
+        .select('productUrl salesScore popularityScore peakHourScore')
+        .lean();
+
+      allStats.forEach((stat: any) => {
+        statsMap.set(stat.productUrl, stat);
+      });
+
+      // Calculate priority for each offer (synchronous - no DB calls)
+      const offersWithPriority = offers.map((offer: any) => {
+        const stats = statsMap.get(offer.productUrl);
+        const priority = this.calculatePrioritySync(offer, stats, currentHour, config);
+        return {
+          ...offer,
+          _priority: priority,
+        };
+      });
+
+      // Sort by priority (descending)
+      offersWithPriority.sort((a, b) => b._priority - a._priority);
+
+      // Return top N offers
+      return offersWithPriority.slice(0, limit).map(({ _priority, ...offer }) => offer as Offer);
+    } catch (error) {
+      logger.error('Error getting next scheduled offers:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 🚀 TURBO: Synchronous priority calculation (no async DB calls)
+   * Used for batch processing - stats are pre-loaded
+   */
+  private calculatePrioritySync(
+    offer: any,
+    stats: any | null,
+    currentHour: number,
+    config: any
+  ): number {
+    // Calculate component scores
+    const peakScore = this.prioritizationService.getPeakHourScore(currentHour, config.peakHours);
+    const salesScore = stats ? stats.salesScore : 0;
+    const discountScore = this.prioritizationService.getDiscountScore(
+      offer.discountPercentage,
+      config.minDiscount || 20
+    );
+
+    // NEW: Calculate seasonal score
+    const seasonalScore = this.prioritizationService.getSeasonalScore(offer);
+
+    // NEW: Calculate revenue score (High Ticket Strategy)
+    const revenueScore = this.prioritizationService.getRevenueScore(
+      offer.discountPercentage,
+      offer.currentPrice || 0
+    );
+
+    // Calculate price score (0-100) for "Cheap Item Boost" strategy
+    // Favor cheap items (< 50 = 100 score, > 200 = 0 score) for off-peak times
+    let priceScore = 0;
+    if (offer.currentPrice && offer.currentPrice > 0) {
+      if (offer.currentPrice < 50) priceScore = 100;
+      else if (offer.currentPrice > 200) priceScore = 0;
+      else {
+        // Linear interpolation between 50 and 200: (200 - price) / 1.5
+        // 50 -> 150/1.5 = 100
+        // 125 -> 75/1.5 = 50
+        // 200 -> 0
+        priceScore = (200 - offer.currentPrice) / 1.5;
+      }
+    }
+
+    // Calculate final score
+    const finalScore = this.prioritizationService.calculateFinalScore(
+      {
+        peakScore,
+        salesScore,
+        discountScore,
+        priceScore,
+        seasonalScore,
+        revenueScore,
+      },
+      {
+        isPeakHour: peakScore > 50,
+        prioritizeBestSellersInPeak: config.prioritizeBestSellersInPeak,
+        prioritizeBigDiscountsInPeak: config.prioritizeBigDiscountsInPeak,
+        discountWeightVsSales: config.discountWeightVsSales,
+        prioritizeHighTicket: config.prioritizeHighTicket,
+        highTicketThreshold: config.highTicketThreshold,
+        minPriceForHighTicket: config.minPriceForHighTicket,
+        minDiscountForHighTicket: config.minDiscountForHighTicket,
+        currentPrice: offer.currentPrice || 0,
+        discountPercent: offer.discountPercentage || 0,
+      }
+    );
+
+    return finalScore;
+  }
+
+  /**
+   * Calculate priority score for an offer (legacy method - kept for compatibility)
+   * Note: getNextScheduledOffers() now uses batch processing instead
+   */
+  async calculatePriority(offer: any, currentHour: number, config: any): Promise<number> {
+    try {
+      // Get product stats if available
+      const stats = await ProductStatsModel.findOne({ productUrl: offer.productUrl }).lean();
+
+      return this.calculatePrioritySync(offer, stats, currentHour, config);
+    } catch (error) {
+      logger.error('Error calculating priority:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Process scheduled posts - called by cron job
+   */
+  async processScheduledPosts(): Promise<number> {
+    try {
+      const config = await this.getActiveConfig();
+
+      if (!config || !config.isActive) {
+        return 0;
+      }
+
+      // If Smart Planner is enabled, skip this legacy interval check
+      if (config.postsPerHour && config.postsPerHour > 0) {
+        logger.debug('⚙️ Smart Planner active: Skipping legacy interval check.');
+        return 0;
+      }
+
+      // Check if we should post now
+      if (!this.shouldPostNow(config)) {
+        logger.debug('⏰ Outside posting hours, skipping automation');
+        return 0;
+      }
+
+      // Get next offers to post
+      const offers = await this.getNextScheduledOffers(config, 1); // Get 1 offer per cycle
+
+      if (offers.length === 0) {
+        logger.debug('📭 No offers available for posting');
+        return 0;
+      }
+
+      const offer = offers[0];
+
+      // Render message using template
+      let message = '';
+      if (config.messageTemplateId) {
+        const template = await this.templateService.getTemplate(
+          config.messageTemplateId.toString()
+        );
+        if (template) {
+          message = this.templateService.renderTemplate(template, offer);
         }
-    }
+      }
 
-    /**
-     * Save or update automation configuration
-     */
-    async saveConfig(configData: any): Promise<any> {
-        try {
-            // If setting this config as active, deactivate all others
-            if (configData.isActive) {
-                await AutomationConfigModel.updateMany({}, { isActive: false });
-            }
+      // If no template or rendering failed, use default
+      if (!message) {
+        message = this.templateService.renderDefaultTemplate(offer);
+      }
 
-            // Check if we have an existing config
-            const existing = await AutomationConfigModel.findOne({});
+      logger.info(`📤 Automation posting offer: ${offer.title.substring(0, 50)}...`);
+      logger.info(`📝 Using message: ${message.substring(0, 100)}...`);
 
-            if (existing) {
-                // Update existing config
-                Object.assign(existing, configData);
-                existing.updatedAt = new Date();
-                await existing.save();
-                logger.info('✅ Automation config updated');
+      // Check if offer has specific channels override, otherwise use config
+      const channels =
+        config.enabledChannels && config.enabledChannels.length > 0
+          ? config.enabledChannels
+          : ['telegram'];
 
-                // 🚀 TURBO: Invalidate cache
-                configCache.invalidate(AutomationService.CACHE_KEY_CONFIG);
-                configCache.invalidate(AutomationService.CACHE_KEY_STATUS);
+      // Initialize OfferService dynamically to avoid circular dependencies
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { OfferService } = require('../offer/OfferService');
+      const offerService = new OfferService();
 
-                return existing.toObject();
-            } else {
-                // Create new config
-                const newConfig = new AutomationConfigModel(configData);
-                await newConfig.save();
-                logger.info('✅ Automation config created');
+      // Actually post using OfferService
+      // Note: OfferService handles history logging and status updates itself
+      const success = await offerService.postOffer(offer._id!.toString(), channels);
 
-                // 🚀 TURBO: Invalidate cache
-                configCache.invalidate(AutomationService.CACHE_KEY_CONFIG);
-                configCache.invalidate(AutomationService.CACHE_KEY_STATUS);
-
-                return newConfig.toObject();
-            }
-        } catch (error) {
-            logger.error('Error saving config:', error);
-            throw error;
+      if (success) {
+        // Determine if we generated an AI post for this
+        // If message is different from default format, save it
+        if (message && !message.includes(offer.productUrl)) {
+          // This is a naive check, but serves to detect if we used a template
+          await OfferModel.findByIdAndUpdate(offer._id, {
+            aiGeneratedPost: message,
+          });
         }
-    }
 
-    /**
-     * Check if we should post now based on schedule
-     */
-    shouldPostNow(config: any): boolean {
+        // Update product stats
+        await this.updateProductStats(offer.productUrl, offer.source);
+
+        logger.info('✅ Automation post successful');
+        return 1;
+      } else {
+        logger.warn('⚠️ Automation post failed in OfferService');
+        return 0;
+      }
+    } catch (error) {
+      logger.error('❌ Error processing scheduled posts:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Update product stats after posting
+   */
+  private async updateProductStats(productUrl: string, source: string): Promise<void> {
+    try {
+      let stats = await ProductStatsModel.findOne({ productUrl });
+
+      if (!stats) {
+        stats = new ProductStatsModel({
+          productUrl,
+          source,
+        });
+      }
+
+      stats.incrementPost();
+      stats.calculateScores();
+      await stats.save();
+    } catch (error) {
+      logger.error('Error updating product stats:', error);
+    }
+  }
+
+  /**
+   * Get automation status (for frontend)
+   */
+  async getStatus(): Promise<any> {
+    try {
+      const config = await this.getActiveConfig();
+
+      if (!config) {
+        return {
+          isActive: false,
+          message: 'No automation configured',
+        };
+      }
+
+      const shouldPost = this.shouldPostNow(config);
+      const nextOffers = await this.getNextScheduledOffers(config, 5);
+
+      // Get last posted offer
+      const lastPostedOffer = await OfferModel.findOne({ isPosted: true })
+        .sort({ updatedAt: -1 })
+        .select('title updatedAt')
+        .lean();
+
+      // Get today's post count
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const postsToday = await OfferModel.countDocuments({
+        isPosted: true,
+        updatedAt: { $gte: today },
+      });
+
+      // Get total posted
+      const totalPosted = await OfferModel.countDocuments({ isPosted: true });
+
+      // Get pending offers count
+      const pendingCount = await OfferModel.countDocuments({
+        isActive: true,
+        isPosted: false,
+        discountPercentage: { $gte: config.minDiscountPercentage || 0 },
+      });
+
+      return {
+        isActive: config.isActive,
+        shouldPost,
+        currentHour: new Date().getHours(),
+        lastPostedAt: lastPostedOffer?.updatedAt || null,
+        lastPostedTitle: lastPostedOffer?.title || null,
+        postsToday,
+        totalPosted,
+        pendingCount,
+        nextOffers: nextOffers.map((o) => ({
+          id: o._id,
+          title: o.title,
+          discount: o.discountPercentage,
+          source: o.source,
+        })),
+        config: {
+          startHour: config.startHour,
+          endHour: config.endHour,
+          intervalMinutes: config.intervalMinutes,
+          postsPerHour: config.postsPerHour,
+          enabledChannels: config.enabledChannels,
+        },
+      };
+    } catch (error) {
+      logger.error('Error getting automation status:', error);
+      return {
+        isActive: false,
+        error: 'Error getting status',
+      };
+    }
+  }
+
+  /**
+   * Smart Hourly Planner: Distribute quantity of posts randomly within the current hour
+   * Uses unique random minutes to avoid collisions - more human-like behavior
+   * Example: postsPerHour=5 -> posts at 09:05, 09:12, 09:27, 09:38, 09:51
+   */
+  async distributeHourlyPosts(): Promise<number> {
+    try {
+      const config = await this.getActiveConfig();
+      if (!config || !config.isActive) {
+        logger.debug('📅 Smart Planner: Config not active, skipping.');
+        return 0;
+      }
+
+      // Only run if Smart Planner is enabled (postsPerHour > 0)
+      if (!config.postsPerHour || config.postsPerHour <= 0) {
+        logger.debug('📅 Smart Planner: Disabled (postsPerHour <= 0).');
+        return 0;
+      }
+
+      // Check if we are inside working hours
+      if (!this.shouldPostNow(config)) {
         const now = new Date();
-        const currentHour = now.getHours();
-
-        // Check if within allowed hours
-        // Handle overnight posting (e.g., 8h to 1h means 8:00-23:59 and 0:00-1:00)
-        if (config.startHour <= config.endHour) {
-            // Normal range (e.g., 8h to 18h)
-            if (currentHour < config.startHour || currentHour >= config.endHour) {
-                return false;
-            }
-        } else {
-            // Overnight range (e.g., 8h to 1h)
-            if (currentHour < config.startHour && currentHour >= config.endHour) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * Get next offers to post based on configuration and prioritization
-     * 🚀 TURBO: Optimized with batch processing and lean queries
-     */
-    async getNextScheduledOffers(config: any, limit: number = 5): Promise<Offer[]> {
-        try {
-            // Build query based on filters
-            const query: any = {
-                isActive: true,
-                isPosted: false,
-            };
-
-            // Filter by sources
-            if (config.enabledSources && config.enabledSources.length > 0) {
-                query.source = { $in: config.enabledSources };
-            }
-
-            // Filter by categories
-            if (config.enabledCategories && config.enabledCategories.length > 0) {
-                query.category = { $in: config.enabledCategories };
-            }
-
-            // Filter by minimum discount
-            if (config.minDiscount && config.minDiscount > 0) {
-                query.discountPercentage = { $gte: config.minDiscount };
-            }
-
-            // Filter by maximum price
-            if (config.maxPrice && config.maxPrice > 0) {
-                query.currentPrice = { $lte: config.maxPrice };
-            }
-
-            // 🚀 TURBO: Use lean() for faster queries, limit fields
-            const offers = await OfferModel.find(query)
-                .select('title productUrl currentPrice originalPrice discountPercentage source category _id')
-                .lean()
-                .limit(limit * 3); // Get 3x to have options after prioritization
-
-            if (offers.length === 0) {
-                return [];
-            }
-
-            // Get current hour for prioritization
-            const currentHour = new Date().getHours();
-
-            // 🚀 TURBO: Batch load all product stats in ONE query
-            const productUrls = offers.map((o: any) => o.productUrl);
-            const statsMap = new Map();
-
-            const allStats = await ProductStatsModel.find({
-                productUrl: { $in: productUrls }
-            })
-                .select('productUrl salesScore popularityScore peakHourScore')
-                .lean();
-
-            allStats.forEach((stat: any) => {
-                statsMap.set(stat.productUrl, stat);
-            });
-
-            // Calculate priority for each offer (synchronous - no DB calls)
-            const offersWithPriority = offers.map((offer: any) => {
-                const stats = statsMap.get(offer.productUrl);
-                const priority = this.calculatePrioritySync(offer, stats, currentHour, config);
-                return {
-                    ...offer,
-                    _priority: priority,
-                };
-            });
-
-            // Sort by priority (descending)
-            offersWithPriority.sort((a, b) => b._priority - a._priority);
-
-            // Return top N offers
-            return offersWithPriority.slice(0, limit).map(({ _priority, ...offer }) => offer as Offer);
-        } catch (error) {
-            logger.error('Error getting next scheduled offers:', error);
-            return [];
-        }
-    }
-
-    /**
-     * 🚀 TURBO: Synchronous priority calculation (no async DB calls)
-     * Used for batch processing - stats are pre-loaded
-     */
-    private calculatePrioritySync(offer: any, stats: any | null, currentHour: number, config: any): number {
-        // Calculate component scores
-        const peakScore = this.prioritizationService.getPeakHourScore(currentHour, config.peakHours);
-        const salesScore = stats ? stats.salesScore : 0;
-        const discountScore = this.prioritizationService.getDiscountScore(
-            offer.discountPercentage,
-            config.minDiscount || 20
+        logger.info(
+          `⏰ Smart Planner: Outside working hours (${config.startHour}h-${config.endHour}h), current: ${now.getHours()}h. Skipping.`
         );
+        return 0;
+      }
 
-        // NEW: Calculate seasonal score
-        const seasonalScore = this.prioritizationService.getSeasonalScore(offer);
+      const quantity = config.postsPerHour;
+      const now = new Date();
+      const currentMinute = now.getMinutes();
+      const remainingMinutes = 59 - currentMinute;
 
-        // NEW: Calculate revenue score (High Ticket Strategy)
-        const revenueScore = this.prioritizationService.getRevenueScore(
-            offer.discountPercentage,
-            offer.currentPrice || 0
+      logger.info(
+        `📅 Smart Planner: Distributing up to ${quantity} posts for hour ${now.getHours()}:00...`
+      );
+      logger.info(
+        `   Current time: ${now.getHours()}:${String(currentMinute).padStart(2, '0')}, ${remainingMinutes} minutes remaining.`
+      );
+
+      // Check if we have enough time
+      if (remainingMinutes < 1) {
+        logger.warn('⚠️ Smart Planner: Not enough time left in this hour.');
+        return 0;
+      }
+
+      // Get candidate offers (get 2x quantity to have backup)
+      const offers = await this.getNextScheduledOffers(config, quantity * 2);
+
+      // Filter offers that are NOT already scheduled
+      const availableOffers = offers.filter((o: any) => !o.scheduledAt);
+
+      if (availableOffers.length === 0) {
+        logger.warn('⚠️ Smart Planner: No offers available to distribute.');
+        return 0;
+      }
+
+      // Take the exact quantity needed (limited by available offers and remaining time)
+      const maxPosts = Math.min(quantity, availableOffers.length, remainingMinutes);
+      const selectedOffers = availableOffers.slice(0, maxPosts);
+
+      if (maxPosts < quantity) {
+        logger.info(
+          `   Adjusted to ${maxPosts} posts (offers: ${availableOffers.length}, time: ${remainingMinutes}min).`
         );
+      }
 
-        // Calculate price score (0-100) for "Cheap Item Boost" strategy
-        // Favor cheap items (< 50 = 100 score, > 200 = 0 score) for off-peak times
-        let priceScore = 0;
-        if (offer.currentPrice && offer.currentPrice > 0) {
-            if (offer.currentPrice < 50) priceScore = 100;
-            else if (offer.currentPrice > 200) priceScore = 0;
-            else {
-                // Linear interpolation between 50 and 200: (200 - price) / 1.5
-                // 50 -> 150/1.5 = 100
-                // 125 -> 75/1.5 = 50
-                // 200 -> 0
-                priceScore = (200 - offer.currentPrice) / 1.5;
-            }
-        }
+      // Generate unique random minutes using Fisher-Yates shuffle
+      // Create array of available minutes (1 to remainingMinutes)
+      const availableMinuteSlots: number[] = [];
+      for (let i = 1; i <= remainingMinutes; i++) {
+        availableMinuteSlots.push(i);
+      }
 
-        // Calculate final score
-        const finalScore = this.prioritizationService.calculateFinalScore(
-            {
-                peakScore,
-                salesScore,
-                discountScore,
-                priceScore,
-                seasonalScore,
-                revenueScore,
-            },
-            {
-                isPeakHour: peakScore > 50,
-                prioritizeBestSellersInPeak: config.prioritizeBestSellersInPeak,
-                prioritizeBigDiscountsInPeak: config.prioritizeBigDiscountsInPeak,
-                discountWeightVsSales: config.discountWeightVsSales,
-                prioritizeHighTicket: config.prioritizeHighTicket,
-                highTicketThreshold: config.highTicketThreshold,
-                minPriceForHighTicket: config.minPriceForHighTicket,
-                minDiscountForHighTicket: config.minDiscountForHighTicket,
-                currentPrice: offer.currentPrice || 0,
-                discountPercent: offer.discountPercentage || 0,
-            }
-        );
+      // Fisher-Yates shuffle for true randomness
+      for (let i = availableMinuteSlots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [availableMinuteSlots[i], availableMinuteSlots[j]] = [
+          availableMinuteSlots[j],
+          availableMinuteSlots[i],
+        ];
+      }
 
-        return finalScore;
+      // Take first N minutes and sort for readable logs
+      const selectedMinutes = availableMinuteSlots
+        .slice(0, selectedOffers.length)
+        .sort((a, b) => a - b);
+
+      // Initialize OfferService
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { OfferService } = require('../offer/OfferService');
+      const offerService = new OfferService();
+
+      let scheduledCount = 0;
+
+      for (let i = 0; i < selectedOffers.length && i < selectedMinutes.length; i++) {
+        const offer = selectedOffers[i];
+        const minuteOffset = selectedMinutes[i];
+        const scheduleTime = new Date(now.getTime() + minuteOffset * 60000);
+
+        // Schedule it
+        await offerService.scheduleOffer(offer._id!.toString(), scheduleTime);
+
+        const timeStr = `${String(scheduleTime.getHours()).padStart(2, '0')}:${String(scheduleTime.getMinutes()).padStart(2, '0')}`;
+        const titlePreview =
+          offer.title.length > 35 ? offer.title.substring(0, 35) + '...' : offer.title;
+        logger.info(`   📍 Scheduled: "${titlePreview}" → ${timeStr}`);
+
+        scheduledCount++;
+      }
+
+      logger.info(
+        `✅ Smart Planner: Successfully scheduled ${scheduledCount} posts for this hour.`
+      );
+      return scheduledCount;
+    } catch (error) {
+      logger.error('❌ Error in Smart Planner:', error);
+      return 0;
     }
-
-    /**
-     * Calculate priority score for an offer (legacy method - kept for compatibility)
-     * Note: getNextScheduledOffers() now uses batch processing instead
-     */
-    async calculatePriority(offer: any, currentHour: number, config: any): Promise<number> {
-        try {
-            // Get product stats if available
-            const stats = await ProductStatsModel.findOne({ productUrl: offer.productUrl }).lean();
-
-            return this.calculatePrioritySync(offer, stats, currentHour, config);
-        } catch (error) {
-            logger.error('Error calculating priority:', error);
-            return 0;
-        }
-    }
-
-    /**
-     * Process scheduled posts - called by cron job
-     */
-    async processScheduledPosts(): Promise<number> {
-        try {
-            const config = await this.getActiveConfig();
-
-            if (!config || !config.isActive) {
-                return 0;
-            }
-
-            // If Smart Planner is enabled, skip this legacy interval check
-            if (config.postsPerHour && config.postsPerHour > 0) {
-                logger.debug('⚙️ Smart Planner active: Skipping legacy interval check.');
-                return 0;
-            }
-
-            // Check if we should post now
-            if (!this.shouldPostNow(config)) {
-                logger.debug('⏰ Outside posting hours, skipping automation');
-                return 0;
-            }
-
-            // Get next offers to post
-            const offers = await this.getNextScheduledOffers(config, 1); // Get 1 offer per cycle
-
-            if (offers.length === 0) {
-                logger.debug('📭 No offers available for posting');
-                return 0;
-            }
-
-            const offer = offers[0];
-
-            // Render message using template
-            let message = '';
-            if (config.messageTemplateId) {
-                const template = await this.templateService.getTemplate(config.messageTemplateId.toString());
-                if (template) {
-                    message = this.templateService.renderTemplate(template, offer);
-                }
-            }
-
-            // If no template or rendering failed, use default
-            if (!message) {
-                message = this.templateService.renderDefaultTemplate(offer);
-            }
-
-            logger.info(`📤 Automation posting offer: ${offer.title.substring(0, 50)}...`);
-            logger.info(`📝 Using message: ${message.substring(0, 100)}...`);
-
-            // Check if offer has specific channels override, otherwise use config
-            const channels = config.enabledChannels && config.enabledChannels.length > 0
-                ? config.enabledChannels
-                : ['telegram'];
-
-            // Initialize OfferService dynamically to avoid circular dependencies
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const { OfferService } = require('../offer/OfferService');
-            const offerService = new OfferService();
-
-            // Actually post using OfferService
-            // Note: OfferService handles history logging and status updates itself
-            const success = await offerService.postOffer(offer._id!.toString(), channels);
-
-            if (success) {
-                // Determine if we generated an AI post for this
-                // If message is different from default format, save it
-                if (message && !message.includes(offer.productUrl)) {
-                    // This is a naive check, but serves to detect if we used a template
-                    await OfferModel.findByIdAndUpdate(offer._id, {
-                        aiGeneratedPost: message
-                    });
-                }
-
-                // Update product stats
-                await this.updateProductStats(offer.productUrl, offer.source);
-
-                logger.info('✅ Automation post successful');
-                return 1;
-            } else {
-                logger.warn('⚠️ Automation post failed in OfferService');
-                return 0;
-            }
-        } catch (error) {
-            logger.error('❌ Error processing scheduled posts:', error);
-            return 0;
-        }
-    }
-
-    /**
-     * Update product stats after posting
-     */
-    private async updateProductStats(productUrl: string, source: string): Promise<void> {
-        try {
-            let stats = await ProductStatsModel.findOne({ productUrl });
-
-            if (!stats) {
-                stats = new ProductStatsModel({
-                    productUrl,
-                    source,
-                });
-            }
-
-            stats.incrementPost();
-            stats.calculateScores();
-            await stats.save();
-        } catch (error) {
-            logger.error('Error updating product stats:', error);
-        }
-    }
-
-    /**
-     * Get automation status (for frontend)
-     */
-    async getStatus(): Promise<any> {
-        try {
-            const config = await this.getActiveConfig();
-
-            if (!config) {
-                return {
-                    isActive: false,
-                    message: 'No automation configured',
-                };
-            }
-
-            const shouldPost = this.shouldPostNow(config);
-            const nextOffers = await this.getNextScheduledOffers(config, 5);
-
-            // Get last posted offer
-            const lastPostedOffer = await OfferModel.findOne({ isPosted: true })
-                .sort({ updatedAt: -1 })
-                .select('title updatedAt')
-                .lean();
-
-            // Get today's post count
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const postsToday = await OfferModel.countDocuments({
-                isPosted: true,
-                updatedAt: { $gte: today },
-            });
-
-            // Get total posted
-            const totalPosted = await OfferModel.countDocuments({ isPosted: true });
-
-            // Get pending offers count
-            const pendingCount = await OfferModel.countDocuments({
-                isActive: true,
-                isPosted: false,
-                discountPercentage: { $gte: config.minDiscountPercentage || 0 },
-            });
-
-            return {
-                isActive: config.isActive,
-                shouldPost,
-                currentHour: new Date().getHours(),
-                lastPostedAt: lastPostedOffer?.updatedAt || null,
-                lastPostedTitle: lastPostedOffer?.title || null,
-                postsToday,
-                totalPosted,
-                pendingCount,
-                nextOffers: nextOffers.map((o) => ({
-                    id: o._id,
-                    title: o.title,
-                    discount: o.discountPercentage,
-                    source: o.source,
-                })),
-                config: {
-                    startHour: config.startHour,
-                    endHour: config.endHour,
-                    intervalMinutes: config.intervalMinutes,
-                    postsPerHour: config.postsPerHour,
-                    enabledChannels: config.enabledChannels,
-                },
-            };
-        } catch (error) {
-            logger.error('Error getting automation status:', error);
-            return {
-                isActive: false,
-                error: 'Error getting status',
-            };
-        }
-    }
-
-    /**
-     * Smart Hourly Planner: Distribute quantity of posts randomly within the current hour
-     * Uses unique random minutes to avoid collisions - more human-like behavior
-     * Example: postsPerHour=5 -> posts at 09:05, 09:12, 09:27, 09:38, 09:51
-     */
-    async distributeHourlyPosts(): Promise<number> {
-        try {
-            const config = await this.getActiveConfig();
-            if (!config || !config.isActive) {
-                logger.debug('📅 Smart Planner: Config not active, skipping.');
-                return 0;
-            }
-
-            // Only run if Smart Planner is enabled (postsPerHour > 0)
-            if (!config.postsPerHour || config.postsPerHour <= 0) {
-                logger.debug('📅 Smart Planner: Disabled (postsPerHour <= 0).');
-                return 0;
-            }
-
-            // Check if we are inside working hours
-            if (!this.shouldPostNow(config)) {
-                const now = new Date();
-                logger.info(`⏰ Smart Planner: Outside working hours (${config.startHour}h-${config.endHour}h), current: ${now.getHours()}h. Skipping.`);
-                return 0;
-            }
-
-            const quantity = config.postsPerHour;
-            const now = new Date();
-            const currentMinute = now.getMinutes();
-            const remainingMinutes = 59 - currentMinute;
-
-            logger.info(`📅 Smart Planner: Distributing up to ${quantity} posts for hour ${now.getHours()}:00...`);
-            logger.info(`   Current time: ${now.getHours()}:${String(currentMinute).padStart(2, '0')}, ${remainingMinutes} minutes remaining.`);
-
-            // Check if we have enough time
-            if (remainingMinutes < 1) {
-                logger.warn('⚠️ Smart Planner: Not enough time left in this hour.');
-                return 0;
-            }
-
-            // Get candidate offers (get 2x quantity to have backup)
-            const offers = await this.getNextScheduledOffers(config, quantity * 2);
-
-            // Filter offers that are NOT already scheduled
-            const availableOffers = offers.filter((o: any) => !o.scheduledAt);
-
-            if (availableOffers.length === 0) {
-                logger.warn('⚠️ Smart Planner: No offers available to distribute.');
-                return 0;
-            }
-
-            // Take the exact quantity needed (limited by available offers and remaining time)
-            const maxPosts = Math.min(quantity, availableOffers.length, remainingMinutes);
-            const selectedOffers = availableOffers.slice(0, maxPosts);
-
-            if (maxPosts < quantity) {
-                logger.info(`   Adjusted to ${maxPosts} posts (offers: ${availableOffers.length}, time: ${remainingMinutes}min).`);
-            }
-
-            // Generate unique random minutes using Fisher-Yates shuffle
-            // Create array of available minutes (1 to remainingMinutes)
-            const availableMinuteSlots: number[] = [];
-            for (let i = 1; i <= remainingMinutes; i++) {
-                availableMinuteSlots.push(i);
-            }
-
-            // Fisher-Yates shuffle for true randomness
-            for (let i = availableMinuteSlots.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [availableMinuteSlots[i], availableMinuteSlots[j]] = [availableMinuteSlots[j], availableMinuteSlots[i]];
-            }
-
-            // Take first N minutes and sort for readable logs
-            const selectedMinutes = availableMinuteSlots
-                .slice(0, selectedOffers.length)
-                .sort((a, b) => a - b);
-
-            // Initialize OfferService
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const { OfferService } = require('../offer/OfferService');
-            const offerService = new OfferService();
-
-            let scheduledCount = 0;
-
-            for (let i = 0; i < selectedOffers.length && i < selectedMinutes.length; i++) {
-                const offer = selectedOffers[i];
-                const minuteOffset = selectedMinutes[i];
-                const scheduleTime = new Date(now.getTime() + minuteOffset * 60000);
-
-                // Schedule it
-                await offerService.scheduleOffer(offer._id!.toString(), scheduleTime);
-
-                const timeStr = `${String(scheduleTime.getHours()).padStart(2, '0')}:${String(scheduleTime.getMinutes()).padStart(2, '0')}`;
-                const titlePreview = offer.title.length > 35 ? offer.title.substring(0, 35) + '...' : offer.title;
-                logger.info(`   📍 Scheduled: "${titlePreview}" → ${timeStr}`);
-
-                scheduledCount++;
-            }
-
-            logger.info(`✅ Smart Planner: Successfully scheduled ${scheduledCount} posts for this hour.`);
-            return scheduledCount;
-        } catch (error) {
-            logger.error('❌ Error in Smart Planner:', error);
-            return 0;
-        }
-    }
+  }
 }

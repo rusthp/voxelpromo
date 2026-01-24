@@ -27,10 +27,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         {
           $group: {
             _id: null,
-            avgDiscount: { $avg: '$discountPercentage' }
-          }
-        }
-      ])
+            avgDiscount: { $avg: '$discountPercentage' },
+          },
+        },
+      ]),
     ]);
 
     const avgDiscount = avgDiscountResult.length > 0 ? avgDiscountResult[0].avgDiscount : 0;
@@ -39,7 +39,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       total,
       posted,
       notPosted,
-      avgDiscount: Math.round(avgDiscount * 100) / 100
+      avgDiscount: Math.round(avgDiscount * 100) / 100,
     });
   } catch (error: any) {
     logger.error('Error getting stats:', error);
@@ -61,14 +61,14 @@ router.get('/clicks', async (req: AuthRequest, res: Response) => {
       // Clicks today
       ClickModel.countDocuments({
         userId: new mongoose.Types.ObjectId(userId),
-        clickedAt: { $gte: startOfToday }
+        clickedAt: { $gte: startOfToday },
       }),
 
       // Clicks by channel
       ClickModel.aggregate([
         { $match: { userId: new mongoose.Types.ObjectId(userId) } },
         { $group: { _id: '$channel', count: { $sum: 1 } } },
-        { $sort: { count: -1 } }
+        { $sort: { count: -1 } },
       ]),
 
       // Top 5 offers by clicks
@@ -82,17 +82,17 @@ router.get('/clicks', async (req: AuthRequest, res: Response) => {
             from: 'offers',
             localField: '_id',
             foreignField: '_id',
-            as: 'offer'
-          }
-        }
-      ])
+            as: 'offer',
+          },
+        },
+      ]),
     ]);
 
     res.json({
       success: true,
       clicksToday,
       clicksByChannel,
-      topOffers
+      topOffers,
     });
   } catch (error: any) {
     logger.error('Error fetching click stats:', error);
@@ -171,7 +171,9 @@ router.get('/analytics', async (req: AuthRequest, res: Response) => {
     })
       .sort({ discountPercentage: -1 })
       .limit(10)
-      .select('title currentPrice originalPrice discountPercentage source createdAt productUrl imageUrl');
+      .select(
+        'title currentPrice originalPrice discountPercentage source createdAt productUrl imageUrl'
+      );
 
     // Get posting statistics
     const postingStats = await OfferModel.aggregate([

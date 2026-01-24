@@ -1,4 +1,3 @@
-
 import Groq from 'groq-sdk';
 import OpenAI from 'openai';
 import { AIPostRequest, AIPostResponse, Offer } from '../../types';
@@ -36,7 +35,10 @@ export class AIService {
    * Test connection to the AI provider
    * Returns success message or throws error
    */
-  async testConnection(provider?: string, apiKey?: string): Promise<{ success: boolean; message: string; provider: string }> {
+  async testConnection(
+    provider?: string,
+    apiKey?: string
+  ): Promise<{ success: boolean; message: string; provider: string }> {
     const targetProvider = provider || this.provider;
 
     try {
@@ -89,7 +91,11 @@ export class AIService {
       logger.error(`❌ AI connection test failed for ${targetProvider}:`, errorMsg);
 
       // Parse common error types for user-friendly messages
-      if (errorMsg.includes('401') || errorMsg.includes('Unauthorized') || errorMsg.includes('invalid_api_key')) {
+      if (
+        errorMsg.includes('401') ||
+        errorMsg.includes('Unauthorized') ||
+        errorMsg.includes('invalid_api_key')
+      ) {
         throw new Error(`API Key inválida para ${targetProvider}`);
       } else if (errorMsg.includes('429') || errorMsg.includes('rate_limit')) {
         throw new Error(`Limite de requisições atingido para ${targetProvider}`);
@@ -133,8 +139,10 @@ export class AIService {
     const { offer, tone, maxLength, includeEmojis, includeHashtags } = request;
 
     const toneInstructions: Record<string, string> = {
-      casual: 'Use linguagem casual, divertida e com humor leve. Faça piadas sutis se apropriado, como um amigo recomendando algo.',
-      professional: 'Use linguagem profissional, direta e informativa, focando nos benefícios técnicos.',
+      casual:
+        'Use linguagem casual, divertida e com humor leve. Faça piadas sutis se apropriado, como um amigo recomendando algo.',
+      professional:
+        'Use linguagem profissional, direta e informativa, focando nos benefícios técnicos.',
       viral:
         'Crie um post que seja irresistível e viralizável, use gatilhos mentais como urgência e escassez.',
       urgent: 'Crie senso de urgência, mostre que a oferta é limitada e imperdível.',
@@ -143,7 +151,9 @@ export class AIService {
     const toneText = toneInstructions[tone || 'viral'] || toneInstructions.viral;
 
     // Category-based storytelling examples
-    const categoryStorytellingExamples = this.getCategoryStorytellingExamples(offer.category || 'geral');
+    const categoryStorytellingExamples = this.getCategoryStorytellingExamples(
+      offer.category || 'geral'
+    );
 
     return `Você é um especialista em criar posts CRIATIVOS e VIRAIS para canais de ofertas e promoções no Telegram.
 
@@ -223,53 +233,53 @@ Retorne APENAS um JSON válido com esta estrutura:
     const normalizedCategory = category.toLowerCase();
 
     const examples: Record<string, string> = {
-      'calçados': `EXEMPLOS PARA CALÇADOS/TÊNIS:
+      calçados: `EXEMPLOS PARA CALÇADOS/TÊNIS:
 • "JÁ COMPRA O SABÃO, VAI PRECISAR" (implica que vai correr muito e suar)
 • "SEU PÉ VAI PEDIR BIS"
 • "CORRE QUE É LITERALMENTE DE CORRIDA"
 • "PREPARADO PRA DEIXAR GERAL PRA TRÁS?"`,
 
-      'cozinha': `EXEMPLOS PARA COZINHA/CASA:
+      cozinha: `EXEMPLOS PARA COZINHA/CASA:
 • "SEU FOGÃO VAI PEDIR DEMISSÃO"
 • "A COZINHA VAI VIRAR RESTAURANTE"
 • "PREPARA O AVENTAL QUE O CHEF CHEGOU"
 • "VIZINHO VAI SENTIR O CHEIRO"`,
 
-      'eletrônicos': `EXEMPLOS PARA ELETRÔNICOS:
+      eletrônicos: `EXEMPLOS PARA ELETRÔNICOS:
 • "SUA TOMADA VAI PEDIR FÉRIAS"
 • "WIFI VAI PEDIR AUMENTO"
 • "PREPARA O CARREGADOR"
 • "TECNOLOGIA POR ESSE PREÇO É CRIME"`,
 
-      'moda': `EXEMPLOS PARA MODA/ROUPAS:
+      moda: `EXEMPLOS PARA MODA/ROUPAS:
 • "ESPELHO VAI PEDIR AUTÓGRAFO"
 • "PODE JOGAR O RESTO DO GUARDA-ROUPA FORA"
 • "LOOK QUE FAZ PARAR O TRÂNSITO"
 • "VAI FALTAR LIKE PRO TANTO ELOGIO"`,
 
-      'beleza': `EXEMPLOS PARA BELEZA/COSMÉTICOS:
+      beleza: `EXEMPLOS PARA BELEZA/COSMÉTICOS:
 • "PELE VAI AGRADECER EM LÁGRIMAS DE ALEGRIA"
 • "DERMATOLOGISTA VAI PERDER O EMPREGO"
 • "AUTOESTIMA VAI LÁ EM CIMA"
 • "PREPARADA PRA ARRASAR?"`,
 
-      'games': `EXEMPLOS PARA GAMES/JOGOS:
+      games: `EXEMPLOS PARA GAMES/JOGOS:
 • "DORME MAIS NÃO"
 • "CHEFE VAI ESPERAR, FASE NOVA"
 • "VIDA REAL? NUNCA NEM VI"
 • "PING BAIXO, EMOÇÃO ALTA"`,
 
-      'esportes': `EXEMPLOS PARA ESPORTES/FITNESS:
+      esportes: `EXEMPLOS PARA ESPORTES/FITNESS:
 • "SHAPE VEM AÍ"
 • "PREGUIÇA FOI DEMITIDA"
 • "SEU EU DE AMANHÃ VAI AGRADECER"
 • "VERÃO CHEGOU MAIS CEDO"`,
 
-      'default': `EXEMPLOS GERAIS (adapte ao produto):
+      default: `EXEMPLOS GERAIS (adapte ao produto):
 • Crie conexão com o cotidiano do cliente
 • Use humor sutil mas inteligente
 • Faça o cliente se imaginar usando o produto
-• Evite clichês como "MELHOR PREÇO" ou "IMPERDÍVEL"`
+• Evite clichês como "MELHOR PREÇO" ou "IMPERDÍVEL"`,
     };
 
     // Try to find matching category
@@ -280,13 +290,26 @@ Retorne APENAS um JSON válido com esta estrutura:
     }
 
     // Check for keywords in category
-    if (normalizedCategory.includes('tênis') || normalizedCategory.includes('sapato') || normalizedCategory.includes('bota')) {
+    if (
+      normalizedCategory.includes('tênis') ||
+      normalizedCategory.includes('sapato') ||
+      normalizedCategory.includes('bota')
+    ) {
       return examples['calçados'];
     }
-    if (normalizedCategory.includes('celular') || normalizedCategory.includes('notebook') || normalizedCategory.includes('tablet') || normalizedCategory.includes('fone')) {
+    if (
+      normalizedCategory.includes('celular') ||
+      normalizedCategory.includes('notebook') ||
+      normalizedCategory.includes('tablet') ||
+      normalizedCategory.includes('fone')
+    ) {
       return examples['eletrônicos'];
     }
-    if (normalizedCategory.includes('roupa') || normalizedCategory.includes('camisa') || normalizedCategory.includes('vestido')) {
+    if (
+      normalizedCategory.includes('roupa') ||
+      normalizedCategory.includes('camisa') ||
+      normalizedCategory.includes('vestido')
+    ) {
       return examples['moda'];
     }
 
@@ -699,7 +722,7 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
       amazon: 'Amazon',
       aliexpress: 'AliExpress',
       shopee: 'Shopee',
-      mercadolivre: 'Mercado Livre'
+      mercadolivre: 'Mercado Livre',
     };
     const source = sourceMap[offer.source] || offer.source;
 

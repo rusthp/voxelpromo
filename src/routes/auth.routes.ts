@@ -7,7 +7,12 @@ import { logger } from '../utils/logger';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { loginSchema, registerSchema, changePasswordSchema } from '../validation/auth.validation';
-import { authLimiter, registerLimiter, refreshLimiter, passwordResetLimiter } from '../middleware/rate-limit';
+import {
+  authLimiter,
+  registerLimiter,
+  refreshLimiter,
+  passwordResetLimiter,
+} from '../middleware/rate-limit';
 import { getErrorMessage } from '../types/domain.types';
 import { isMongoDBDuplicateError, isMongooseValidationError } from '../types/auth.types';
 
@@ -112,121 +117,126 @@ async function generateTokens(userId: string, username: string, role: string, re
  *       500:
  *         description: Server error
  */
-router.post('/register', registerLimiter, validate(registerSchema), async (req: Request, res: Response) => {
-  try {
-    const { username, email, password, role, accountType, name, document } = req.body;
-
-    // Check if user already exists
-    const existingUser = await UserModel.findOne({
-      $or: [{ email }, { username }],
-    });
-
-    if (existingUser) {
-      return res.status(400).json({ error: 'Usuário ou email já existe' });
-    }
-
-    // Validate Document (CPF/CNPJ) if provided
-    if (document) {
-      const { DocumentValidatorService } = await import('../services/DocumentValidatorService');
-      const cleanDoc = document.replace(/\D/g, '');
-
-      if (accountType === 'company') {
-        if (!DocumentValidatorService.validateCNPJ(cleanDoc)) {
-          return res.status(400).json({ error: 'CNPJ inválido' });
-        }
-      } else {
-        // Individual - expect CPF
-        if (!DocumentValidatorService.validateCPF(cleanDoc)) {
-          return res.status(400).json({ error: 'CPF inválido' });
-        }
-      }
-    }
-
-    // ✅ Check if email already used trial (READ-ONLY - don't mark here)
-    const existingTrialUser = await UserModel.findOne({
-      email,
-      hasUsedTrial: true
-    });
-
-    if (existingTrialUser) {
-      return res.status(400).json({
-        error: 'Este email já utilizou o período de teste gratuito.'
-      });
-    }
-
-    // Create user (only admin can create admin users)
-    const userRole = role === 'admin' ? 'user' : role || 'user';
-
-    const user = new UserModel({
-      username,
-      email,
-      password,
-      role: userRole,
-      billing: {
-        type: accountType || 'individual',
-        name: name || '',
-        document: document || '',
-      },
-      plan: {
-        tier: 'free',
-        status: 'active',
-      }
-      // ❌ NOT marking hasUsedTrial here - will be marked in PaymentService when trial is activated
-    });
-
-    // Generate email verification token
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    const hashedToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
-
-    user.emailVerificationToken = hashedToken;
-    user.emailVerificationExpire = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-    user.emailVerified = false;
-
-    await user.save();
-    logger.info(`New user registered: ${username} (${email}) - awaiting email verification`);
-
-    // Send verification email
+router.post(
+  '/register',
+  registerLimiter,
+  validate(registerSchema),
+  async (req: Request, res: Response) => {
     try {
-      const { getEmailService } = await import('../services/EmailService');
-      const emailService = getEmailService();
-      if (emailService.isConfigured()) {
-        const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/verify-email?token=${verificationToken}`;
-        emailService.sendVerificationEmail(email, username, verificationUrl).catch(err => {
-          logger.warn(`Failed to send verification email to ${email}:`, err.message);
+      const { username, email, password, role, accountType, name, document } = req.body;
+
+      // Check if user already exists
+      const existingUser = await UserModel.findOne({
+        $or: [{ email }, { username }],
+      });
+
+      if (existingUser) {
+        return res.status(400).json({ error: 'Usuário ou email já existe' });
+      }
+
+      // Validate Document (CPF/CNPJ) if provided
+      if (document) {
+        const { DocumentValidatorService } = await import('../services/DocumentValidatorService');
+        const cleanDoc = document.replace(/\D/g, '');
+
+        if (accountType === 'company') {
+          if (!DocumentValidatorService.validateCNPJ(cleanDoc)) {
+            return res.status(400).json({ error: 'CNPJ inválido' });
+          }
+        } else {
+          // Individual - expect CPF
+          if (!DocumentValidatorService.validateCPF(cleanDoc)) {
+            return res.status(400).json({ error: 'CPF inválido' });
+          }
+        }
+      }
+
+      // ✅ Check if email already used trial (READ-ONLY - don't mark here)
+      const existingTrialUser = await UserModel.findOne({
+        email,
+        hasUsedTrial: true,
+      });
+
+      if (existingTrialUser) {
+        return res.status(400).json({
+          error: 'Este email já utilizou o período de teste gratuito.',
         });
       }
-    } catch (emailError) {
-      logger.warn('Could not send verification email:', emailError);
+
+      // Create user (only admin can create admin users)
+      const userRole = role === 'admin' ? 'user' : role || 'user';
+
+      const user = new UserModel({
+        username,
+        email,
+        password,
+        role: userRole,
+        billing: {
+          type: accountType || 'individual',
+          name: name || '',
+          document: document || '',
+        },
+        plan: {
+          tier: 'free',
+          status: 'active',
+        },
+        // ❌ NOT marking hasUsedTrial here - will be marked in PaymentService when trial is activated
+      });
+
+      // Generate email verification token
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+      const hashedToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
+
+      user.emailVerificationToken = hashedToken;
+      user.emailVerificationExpire = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      user.emailVerified = false;
+
+      await user.save();
+      logger.info(`New user registered: ${username} (${email}) - awaiting email verification`);
+
+      // Send verification email
+      try {
+        const { getEmailService } = await import('../services/EmailService');
+        const emailService = getEmailService();
+        if (emailService.isConfigured()) {
+          const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/verify-email?token=${verificationToken}`;
+          emailService.sendVerificationEmail(email, username, verificationUrl).catch((err) => {
+            logger.warn(`Failed to send verification email to ${email}:`, err.message);
+          });
+        }
+      } catch (emailError) {
+        logger.warn('Could not send verification email:', emailError);
+      }
+
+      return res.status(201).json({
+        success: true,
+        message: 'Conta criada! Verifique seu email para ativar sua conta.',
+        requiresVerification: true,
+        user: {
+          id: user._id,
+          username: user.username,
+          email: user.email,
+        },
+      });
+    } catch (error: unknown) {
+      logger.error('Registration error:', error);
+
+      if (isMongoDBDuplicateError(error)) {
+        const field = Object.keys(error.keyPattern)[0];
+        const message =
+          field === 'email' ? 'Este email já está em uso' : 'Este username já está em uso';
+        return res.status(400).json({ error: message });
+      }
+
+      if (isMongooseValidationError(error)) {
+        const messages = Object.values(error.errors).map((e) => e.message);
+        return res.status(400).json({ error: messages.join(', ') });
+      }
+
+      return res.status(500).json({ error: getErrorMessage(error) || 'Erro ao criar usuário' });
     }
-
-    return res.status(201).json({
-      success: true,
-      message: 'Conta criada! Verifique seu email para ativar sua conta.',
-      requiresVerification: true,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-      },
-    });
-  } catch (error: unknown) {
-    logger.error('Registration error:', error);
-
-    if (isMongoDBDuplicateError(error)) {
-      const field = Object.keys(error.keyPattern)[0];
-      const message =
-        field === 'email' ? 'Este email já está em uso' : 'Este username já está em uso';
-      return res.status(400).json({ error: message });
-    }
-
-    if (isMongooseValidationError(error)) {
-      const messages = Object.values(error.errors).map((e) => e.message);
-      return res.status(400).json({ error: messages.join(', ') });
-    }
-
-    return res.status(500).json({ error: getErrorMessage(error) || 'Erro ao criar usuário' });
   }
-});
+);
 
 /**
  * @swagger
@@ -293,7 +303,7 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
       logger.warn(`🔒 Account locked for ${email}, ${minutesRemaining} min remaining`);
       return res.status(423).json({
         error: `Conta temporariamente bloqueada. Tente novamente em ${minutesRemaining} minutos.`,
-        lockedUntil: user.lockUntil
+        lockedUntil: user.lockUntil,
       });
     }
 
@@ -305,7 +315,7 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
     if (!user.emailVerified) {
       return res.status(401).json({
         error: 'Email não verificado. Verifique sua caixa de entrada.',
-        requiresVerification: true
+        requiresVerification: true,
       });
     }
 
@@ -319,7 +329,9 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
       // Lock account after 5 failed attempts (15 minutes)
       if (user.failedLoginAttempts >= 5) {
         user.lockUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-        logger.warn(`🔒 Account LOCKED for ${email} after ${user.failedLoginAttempts} failed attempts`);
+        logger.warn(
+          `🔒 Account LOCKED for ${email} after ${user.failedLoginAttempts} failed attempts`
+        );
       }
 
       await user.save({ validateBeforeSave: false });
@@ -327,7 +339,7 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
       const attemptsRemaining = Math.max(0, 5 - user.failedLoginAttempts);
       if (attemptsRemaining > 0) {
         return res.status(401).json({
-          error: `Credenciais inválidas. ${attemptsRemaining} tentativas restantes.`
+          error: `Credenciais inválidas. ${attemptsRemaining} tentativas restantes.`,
         });
       }
       return res.status(401).json({ error: 'Credenciais inválidas' });
@@ -436,10 +448,7 @@ router.post('/logout', authenticate, async (req: AuthRequest, res: Response) => 
 
     if (refreshToken) {
       // Revoke refresh token
-      await RefreshTokenModel.updateOne(
-        { token: refreshToken },
-        { isRevoked: true }
-      );
+      await RefreshTokenModel.updateOne({ token: refreshToken }, { isRevoked: true });
     }
 
     logger.info(`User logged out: ${req.user!.username}`);
@@ -550,7 +559,7 @@ router.put(
 /**
  * POST /api/auth/forgot-password
  * Request password reset email
- * 
+ *
  * SECURITY:
  * - Rate limited (5 req / 15 min per IP)
  * - Generic response (prevents user enumeration)
@@ -566,7 +575,11 @@ router.post('/forgot-password', passwordResetLimiter, async (req: Request, res: 
     }
 
     // Log request (without exposing full email)
-    const emailHash = crypto.createHash('sha256').update(email.toLowerCase()).digest('hex').substring(0, 8);
+    const emailHash = crypto
+      .createHash('sha256')
+      .update(email.toLowerCase())
+      .digest('hex')
+      .substring(0, 8);
     logger.info(`Password reset requested for email hash: ${emailHash}`);
 
     // Find user (don't reveal if exists or not)
@@ -604,15 +617,16 @@ router.post('/forgot-password', passwordResetLimiter, async (req: Request, res: 
     // ALWAYS return same response (prevents user enumeration)
     return res.json({
       success: true,
-      message: 'Se existe uma conta com este email, você receberá um link para redefinir sua senha.',
+      message:
+        'Se existe uma conta com este email, você receberá um link para redefinir sua senha.',
     });
-
   } catch (error: unknown) {
     logger.error('Forgot password error:', error);
     // Still return success to prevent enumeration
     return res.json({
       success: true,
-      message: 'Se existe uma conta com este email, você receberá um link para redefinir sua senha.',
+      message:
+        'Se existe uma conta com este email, você receberá um link para redefinir sua senha.',
     });
   }
 });
@@ -620,7 +634,7 @@ router.post('/forgot-password', passwordResetLimiter, async (req: Request, res: 
 /**
  * POST /api/auth/reset-password/:token
  * Reset password using token from email
- * 
+ *
  * SECURITY:
  * - Token is hashed and compared
  * - Token expires after 15 minutes
@@ -667,10 +681,7 @@ router.post('/reset-password/:token', passwordResetLimiter, async (req: Request,
     await user.save();
 
     // Revoke all refresh tokens (force re-login everywhere)
-    await RefreshTokenModel.updateMany(
-      { userId: user._id, isRevoked: false },
-      { isRevoked: true }
-    );
+    await RefreshTokenModel.updateMany({ userId: user._id, isRevoked: false }, { isRevoked: true });
 
     logger.info(`Password reset successful for user: ${user.username}`);
 
@@ -678,7 +689,6 @@ router.post('/reset-password/:token', passwordResetLimiter, async (req: Request,
       success: true,
       message: 'Senha redefinida com sucesso! Faça login com sua nova senha.',
     });
-
   } catch (error: unknown) {
     logger.error('Reset password error:', error);
     return res.status(500).json({ error: 'Erro ao redefinir senha. Tente novamente.' });
@@ -705,7 +715,6 @@ router.get('/validate-reset-token/:token', async (req: Request, res: Response) =
     }).select('_id');
 
     return res.json({ valid: !!user });
-
   } catch (error: unknown) {
     logger.error('Validate reset token error:', error);
     return res.json({ valid: false });
@@ -752,7 +761,6 @@ router.post('/verify-email', async (req: Request, res: Response) => {
       success: true,
       message: 'Email verificado com sucesso! Você já pode fazer login.',
     });
-
   } catch (error: unknown) {
     logger.error('Email verification error:', error);
     return res.status(500).json({ error: 'Erro ao verificar email' });
@@ -778,7 +786,10 @@ router.post('/resend-verification', async (req: Request, res: Response) => {
 
     if (!user) {
       // Don't reveal if user exists
-      return res.json({ success: true, message: 'Se o email existir, enviaremos um novo link de verificação.' });
+      return res.json({
+        success: true,
+        message: 'Se o email existir, enviaremos um novo link de verificação.',
+      });
     }
 
     if (user.emailVerified) {
@@ -805,8 +816,10 @@ router.post('/resend-verification', async (req: Request, res: Response) => {
       logger.warn('Could not resend verification email:', emailError);
     }
 
-    return res.json({ success: true, message: 'Se o email existir, enviaremos um novo link de verificação.' });
-
+    return res.json({
+      success: true,
+      message: 'Se o email existir, enviaremos um novo link de verificação.',
+    });
   } catch (error: unknown) {
     logger.error('Resend verification error:', error);
     return res.status(500).json({ error: 'Erro ao reenviar email de verificação' });

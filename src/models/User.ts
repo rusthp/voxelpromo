@@ -184,12 +184,12 @@ const UserSchema = new Schema<IUser>(
       status: {
         type: String,
         enum: ['active', 'authorized', 'pending', 'paused', 'cancelled'],
-        default: 'pending'
+        default: 'pending',
       },
       accessType: {
         type: String,
         enum: ['recurring', 'fixed'],
-        default: 'recurring'
+        default: 'recurring',
       },
       startDate: Date,
       nextBillingDate: Date,
@@ -198,47 +198,47 @@ const UserSchema = new Schema<IUser>(
       mpPaymentId: String,
       paymentMethod: {
         type: String,
-        enum: ['card', 'pix', 'boleto']
+        enum: ['card', 'pix', 'boleto'],
       },
       lastPaymentDate: Date,
-      failedAttempts: { type: Number, default: 0 }
+      failedAttempts: { type: Number, default: 0 },
     },
     // Email Verification
     emailVerified: {
       type: Boolean,
-      default: false
+      default: false,
     },
     emailVerificationToken: {
       type: String,
-      select: false
+      select: false,
     },
     emailVerificationExpire: {
       type: Date,
-      select: false
+      select: false,
     },
     // Password Reset (token stored as SHA256 hash)
     resetPasswordToken: {
       type: String,
-      select: false // Never return by default
+      select: false, // Never return by default
     },
     resetPasswordExpire: {
       type: Date,
-      select: false
+      select: false,
     },
     // Trial Tracking
     hasUsedTrial: {
       type: Boolean,
-      default: false
+      default: false,
     },
     // Brute Force Protection
     failedLoginAttempts: {
       type: Number,
-      default: 0
+      default: 0,
     },
     lockUntil: {
       type: Date,
-      select: false
-    }
+      select: false,
+    },
   },
   {
     timestamps: true,

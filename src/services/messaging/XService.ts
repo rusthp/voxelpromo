@@ -343,7 +343,9 @@ export class XService {
     try {
       const rateLimit = await this.checkRateLimit();
       if (!rateLimit.allowed) {
-        logger.warn(`⚠️ Skipping X (Twitter) post due to internal rate limiting: ${rateLimit.reason}`);
+        logger.warn(
+          `⚠️ Skipping X (Twitter) post due to internal rate limiting: ${rateLimit.reason}`
+        );
         return false;
       }
     } catch (err: any) {
@@ -434,8 +436,14 @@ export class XService {
         return true;
       }
     } catch (error: any) {
-      if (error.code === 429 || error.message?.includes('429') || error.message?.includes('Too Many Requests')) {
-        logger.error(`❌ X (Twitter) Rate Limit exceeded (429). You have hit the daily/monthly limit.`);
+      if (
+        error.code === 429 ||
+        error.message?.includes('429') ||
+        error.message?.includes('Too Many Requests')
+      ) {
+        logger.error(
+          `❌ X (Twitter) Rate Limit exceeded (429). You have hit the daily/monthly limit.`
+        );
         logger.warn(`   Note: Free tier allows ~50 tweets/24h. Check Developer Portal for usage.`);
       } else {
         logger.error(`❌ Error sending offer to X (Twitter): ${error.message}`, error);
@@ -640,20 +648,20 @@ export class XService {
       const dailyCount = await PostHistoryModel.countDocuments({
         platform: { $in: ['x', 'twitter'] },
         postedAt: { $gt: oneDayAgo },
-        status: 'success'
+        status: 'success',
       });
 
       if (dailyCount >= MAX_DAILY_POSTS) {
         return {
           allowed: false,
-          reason: `Daily limit reached (${dailyCount}/${MAX_DAILY_POSTS} posts in last 24h)`
+          reason: `Daily limit reached (${dailyCount}/${MAX_DAILY_POSTS} posts in last 24h)`,
         };
       }
 
       // Check interval
       const lastPost = await PostHistoryModel.findOne({
         platform: { $in: ['x', 'twitter'] },
-        status: 'success'
+        status: 'success',
       }).sort({ postedAt: -1 });
 
       if (lastPost) {
@@ -663,7 +671,7 @@ export class XService {
         if (minutesSinceLastPost < MIN_INTERVAL_MINUTES) {
           return {
             allowed: false,
-            reason: `Minimum interval not reached (${minutesSinceLastPost.toFixed(1)}/${MIN_INTERVAL_MINUTES} mins)`
+            reason: `Minimum interval not reached (${minutesSinceLastPost.toFixed(1)}/${MIN_INTERVAL_MINUTES} mins)`,
           };
         }
       }

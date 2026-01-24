@@ -16,9 +16,9 @@ interface MercadoLivreConfig {
   affiliateCode?: string;
   codeVerifier?: string;
   // Internal API for affiliate links (Phase 1 - Personal Use)
-  sessionCookies?: string;  // Full cookie string from logged-in session
-  csrfToken?: string;       // x-csrf-token from affiliate page
-  affiliateTag?: string;    // Your affiliate tag (e.g., "voxelpromo")
+  sessionCookies?: string; // Full cookie string from logged-in session
+  csrfToken?: string; // x-csrf-token from affiliate page
+  affiliateTag?: string; // Your affiliate tag (e.g., "voxelpromo")
 }
 
 export interface MercadoLivreProduct {
@@ -104,10 +104,7 @@ export class MercadoLivreService {
 
   // Helper for PKCE
   private base64URLEncode(str: Buffer): string {
-    return str.toString('base64')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=/g, '');
+    return str.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
   }
 
   private sha256(buffer: Buffer): Buffer {
@@ -135,7 +132,8 @@ export class MercadoLivreService {
             accessToken: config.mercadolivre.accessToken,
             refreshToken: config.mercadolivre.refreshToken,
             tokenExpiresAt: config.mercadolivre.tokenExpiresAt,
-            affiliateCode: process.env.MERCADOLIVRE_AFFILIATE_CODE || config.mercadolivre.affiliateCode,
+            affiliateCode:
+              process.env.MERCADOLIVRE_AFFILIATE_CODE || config.mercadolivre.affiliateCode,
             codeVerifier: config.mercadolivre.codeVerifier,
             // Internal API config
             sessionCookies: config.mercadolivre.sessionCookies,
@@ -184,7 +182,7 @@ export class MercadoLivreService {
 
     return {
       url: `${this.authUrl}/authorization?${params.toString()}`,
-      codeVerifier
+      codeVerifier,
     };
   }
 
@@ -215,16 +213,12 @@ export class MercadoLivreService {
     }
 
     try {
-      const response = await axios.post(
-        `${this.baseUrl}/oauth/token`,
-        params,
-        {
-          headers: {
-            accept: 'application/json',
-            'content-type': 'application/x-www-form-urlencoded',
-          },
-        }
-      );
+      const response = await axios.post(`${this.baseUrl}/oauth/token`, params, {
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+      });
 
       logger.info('✅ Successfully exchanged code for access token');
 
@@ -444,14 +438,14 @@ export class MercadoLivreService {
     try {
       logger.info('🔥 Fetching trending products from Mercado Livre...');
 
-      // Use authenticated endpoint 
+      // Use authenticated endpoint
       const accessToken = await this.ensureValidToken();
 
       const response = await this.retryRequest(async () => {
         return await axios.get(`${this.baseUrl}/trends/MLB`, {
           headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Accept': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/json',
           },
           timeout: 10000,
         });
@@ -471,7 +465,8 @@ export class MercadoLivreService {
       // Search for products using trending keywords
       const allProducts: MercadoLivreProduct[] = [];
 
-      for (const keyword of trendKeywords.slice(0, 5)) { // Limit to 5 keywords to avoid rate limiting
+      for (const keyword of trendKeywords.slice(0, 5)) {
+        // Limit to 5 keywords to avoid rate limiting
         try {
           // Use the main search method which now includes Fallback to HTML Scraping
           const validProducts = await this.searchProducts(keyword, 4);
@@ -489,7 +484,6 @@ export class MercadoLivreService {
 
       logger.info(`✅ Retrieved ${allProducts.length} trending products with prices`);
       return allProducts.slice(0, limit);
-
     } catch (error: any) {
       logger.error('❌ Error fetching trending products:', error.message);
       if (error.response) {
@@ -509,7 +503,11 @@ export class MercadoLivreService {
   /**
    * Search products using PUBLIC Search API (no authentication needed, returns prices directly)
    */
-  async searchProducts(keyword: string, limit: number = 50, options?: any): Promise<MercadoLivreProduct[]> {
+  async searchProducts(
+    keyword: string,
+    limit: number = 50,
+    options?: any
+  ): Promise<MercadoLivreProduct[]> {
     try {
       const cacheKey = this.getCacheKey(keyword, limit, options);
       const cached = this.getCachedResults(cacheKey);
@@ -532,7 +530,8 @@ export class MercadoLivreService {
             condition: options?.condition || 'new',
           },
           headers: {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            Accept:
+              'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
             'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
             'Cache-Control': 'max-age=0',
             'Sec-Ch-Ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
@@ -543,7 +542,8 @@ export class MercadoLivreService {
             'Sec-Fetch-Site': 'none',
             'Sec-Fetch-User': '?1',
             'Upgrade-Insecure-Requests': '1',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
           },
           timeout: 10000,
         });
@@ -558,7 +558,6 @@ export class MercadoLivreService {
 
       this.cacheResults(cacheKey, validProducts);
       return validProducts;
-
     } catch (error: any) {
       logger.error('Error searching Mercado Livre products via API:', error.message);
       if (error.response) {
@@ -589,7 +588,8 @@ export class MercadoLivreService {
           return await axios.get(`${this.baseUrl}/items/${itemId}`, {
             headers: {
               Accept: 'application/json',
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             },
             timeout: 10000,
           });
@@ -602,7 +602,8 @@ export class MercadoLivreService {
         const fallbackResponse = await axios.get(`${this.baseUrl}/pdp/item/${itemId}`, {
           headers: {
             Accept: 'application/json',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           },
           timeout: 10000,
         });
@@ -619,7 +620,7 @@ export class MercadoLivreService {
           available_quantity: pdpData.available_quantity || 1,
           condition: pdpData.condition || 'new',
           permalink: pdpData.permalink || `https://www.mercadolivre.com.br/p/${itemId}`,
-          thumbnail: pdpData.thumbnail || (pdpData.pictures?.[0]?.url) || '',
+          thumbnail: pdpData.thumbnail || pdpData.pictures?.[0]?.url || '',
           pictures: pdpData.pictures || [],
         };
       }
@@ -637,7 +638,8 @@ export class MercadoLivreService {
           params: { q: title, limit: 1 },
           headers: {
             // No Authorization header
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           },
           timeout: 5000,
         });
@@ -653,11 +655,10 @@ export class MercadoLivreService {
     }
   }
 
-
   /**
    * Generate affiliate link using Mercado Livre's internal API (createLink)
    * This requires valid session cookies and CSRF token from a logged-in session
-   * 
+   *
    * @param productUrl - The original product URL to convert
    * @returns The short affiliate URL (e.g., https://mercadolivre.com/sec/...)
    */
@@ -677,7 +678,9 @@ export class MercadoLivreService {
     const tag = config.affiliateTag || 'voxelpromo';
 
     try {
-      logger.info(`🔗 Generating affiliate link via internal API for: ${productUrl.substring(0, 60)}...`);
+      logger.info(
+        `🔗 Generating affiliate link via internal API for: ${productUrl.substring(0, 60)}...`
+      );
 
       // Sanitize cookies: remove line breaks and other invalid header characters
       let sanitizedCookies = config.sessionCookies || '';
@@ -697,12 +700,13 @@ export class MercadoLivreService {
           headers: {
             'Content-Type': 'application/json',
             'x-csrf-token': config.csrfToken,
-            'Cookie': sanitizedCookies,
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            'Accept': 'application/json',
+            Cookie: sanitizedCookies,
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            Accept: 'application/json',
             'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Origin': 'https://www.mercadolivre.com.br',
-            'Referer': 'https://www.mercadolivre.com.br/affiliate-program/link-builder',
+            Origin: 'https://www.mercadolivre.com.br',
+            Referer: 'https://www.mercadolivre.com.br/affiliate-program/link-builder',
           },
           timeout: 15000,
         }
@@ -717,7 +721,9 @@ export class MercadoLivreService {
       logger.warn('⚠️ Internal API response missing short_url:', response.data);
       throw new Error('Missing short_url in response');
     } catch (error: any) {
-      logger.warn(`⚠️ Internal API failed (${error.response?.status || error.message}). Trying Scraper fallback...`);
+      logger.warn(
+        `⚠️ Internal API failed (${error.response?.status || error.message}). Trying Scraper fallback...`
+      );
 
       // Fallback to Scraper method (uses Puppeteer session)
       try {
@@ -763,7 +769,9 @@ export class MercadoLivreService {
           const trackingId = crypto.randomUUID();
           productUrlObj.searchParams.set('tracking_id', trackingId);
 
-          logger.debug(`🔗 ML Affiliate Link built with matt_tool=${mattTool}, matt_word=${mattWord}`);
+          logger.debug(
+            `🔗 ML Affiliate Link built with matt_tool=${mattTool}, matt_word=${mattWord}`
+          );
           return productUrlObj.toString();
         }
 
@@ -784,7 +792,10 @@ export class MercadoLivreService {
       const url = new URL(productUrl);
 
       // Critical check for placeholder
-      if (affiliateCode === 'your-affiliate-code-or-url' || affiliateCode.includes('your-affiliate')) {
+      if (
+        affiliateCode === 'your-affiliate-code-or-url' ||
+        affiliateCode.includes('your-affiliate')
+      ) {
         logger.warn(`⚠️ Affiliate code is placeholder '${affiliateCode}'. Returning original URL.`);
         return productUrl;
       }
@@ -807,11 +818,14 @@ export class MercadoLivreService {
     }
   }
 
-
-  async convertToOffer(product: MercadoLivreProduct, category: string = 'electronics'): Promise<Offer | null> {
+  async convertToOffer(
+    product: MercadoLivreProduct,
+    category: string = 'electronics'
+  ): Promise<Offer | null> {
     try {
       const currentPrice = product.sale_price || product.price || 0;
-      const originalPrice = product.original_price || product.base_price || product.price || currentPrice;
+      const originalPrice =
+        product.original_price || product.base_price || product.price || currentPrice;
 
       // Prioritize scraped discount percentage from badge, fallback to calculated
       let discountPercentage = product.discount_percentage || 0;
@@ -840,7 +854,9 @@ export class MercadoLivreService {
             }
             affiliateLink = await this.scraper.generateAffiliateLink(product.permalink);
           } catch (e) {
-            logger.warn(`⚠️ Failed to generate affiliate link via scraper, falling back to standard: ${e}`);
+            logger.warn(
+              `⚠️ Failed to generate affiliate link via scraper, falling back to standard: ${e}`
+            );
             affiliateLink = this.buildAffiliateLink(product.permalink, product.id);
           }
         } else {
@@ -857,7 +873,7 @@ export class MercadoLivreService {
           // But we can update it later or just track the source.
           const shortLinkDoc = await shortener.createShortLink(affiliateLink, {
             source: 'mercadolivre_fallback',
-            offerId: product.id // Use product ID as reference for now
+            offerId: product.id, // Use product ID as reference for now
           });
 
           if (shortLinkDoc && shortLinkDoc.shortUrl) {
@@ -878,7 +894,10 @@ export class MercadoLivreService {
         discount: originalPrice > currentPrice ? originalPrice - currentPrice : 0,
         discountPercentage: discountPercentage > 0 ? discountPercentage : 0,
         currency: product.currency_id || 'BRL',
-        imageUrl: product.pictures && product.pictures.length > 0 ? product.pictures[0].url : product.thumbnail,
+        imageUrl:
+          product.pictures && product.pictures.length > 0
+            ? product.pictures[0].url
+            : product.thumbnail,
         productUrl: product.permalink,
         affiliateUrl: affiliateLink,
         source: 'mercadolivre',
@@ -894,14 +913,15 @@ export class MercadoLivreService {
       logger.error(`Error converting product ${product.id} to offer:`, error);
       return null;
     }
-
   }
-
 
   /**
    * Scrape search results using Hybrid Strategy (Puppeteer Stealth + Axios)
    */
-  private async scrapeSearchProducts(keyword: string, limit: number = 50): Promise<MercadoLivreProduct[]> {
+  private async scrapeSearchProducts(
+    keyword: string,
+    limit: number = 50
+  ): Promise<MercadoLivreProduct[]> {
     try {
       logger.info(`🕷️ Hybrid Scraping Mercado Livre for "${keyword}"...`);
 
@@ -938,7 +958,9 @@ export class MercadoLivreService {
         const itemHtml = match[1];
         try {
           // Extract Title
-          const titleMatch = itemHtml.match(/<h2[^>]*>(.*?)<\/h2>/) || itemHtml.match(/class="ui-search-item__title"[^>]*>(.*?)<\/a>/);
+          const titleMatch =
+            itemHtml.match(/<h2[^>]*>(.*?)<\/h2>/) ||
+            itemHtml.match(/class="ui-search-item__title"[^>]*>(.*?)<\/a>/);
           const title = titleMatch ? titleMatch[1].trim() : '';
 
           // Extract URL
@@ -953,7 +975,9 @@ export class MercadoLivreService {
           }
 
           // Extract Price
-          const priceMatch = itemHtml.match(/<span class="andes-money-amount__fraction">([\d.]+)<\/span>/);
+          const priceMatch = itemHtml.match(
+            /<span class="andes-money-amount__fraction">([\d.]+)<\/span>/
+          );
           const price = priceMatch ? parseFloat(priceMatch[1].replace(/\./g, '')) : 0;
 
           // Extract Thumbnail
@@ -970,7 +994,7 @@ export class MercadoLivreService {
               condition: 'new',
               permalink,
               thumbnail,
-              pictures: [{ url: thumbnail }]
+              pictures: [{ url: thumbnail }],
             });
           }
         } catch (err) {
@@ -980,7 +1004,6 @@ export class MercadoLivreService {
 
       logger.info(`✅ Hybrid Scraper found ${products.length} products`);
       return products;
-
     } catch (error: any) {
       logger.error(`❌ Hybrid Scraping failed: ${error.message}`);
       return [];

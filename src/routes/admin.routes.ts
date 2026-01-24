@@ -25,7 +25,7 @@ router.get('/users', async (req: Request, res: Response) => {
     if (search) {
       query.$or = [
         { username: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
+        { email: { $regex: search, $options: 'i' } },
       ];
     }
     if (role) {
@@ -41,7 +41,7 @@ router.get('/users', async (req: Request, res: Response) => {
         .skip(skip)
         .limit(limit)
         .lean(),
-      UserModel.countDocuments(query)
+      UserModel.countDocuments(query),
     ]);
 
     res.json({
@@ -51,8 +51,8 @@ router.get('/users', async (req: Request, res: Response) => {
         page,
         limit,
         total,
-        pages: Math.ceil(total / limit)
-      }
+        pages: Math.ceil(total / limit),
+      },
     });
   } catch (error: any) {
     logger.error('Error fetching users:', error);
@@ -74,11 +74,7 @@ router.patch('/users/:id/role', async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const user = await UserModel.findByIdAndUpdate(
-      id,
-      { role },
-      { new: true }
-    ).select('-password');
+    const user = await UserModel.findByIdAndUpdate(id, { role }, { new: true }).select('-password');
 
     if (!user) {
       res.status(404).json({ success: false, error: 'User not found' });
@@ -92,7 +88,7 @@ router.patch('/users/:id/role', async (req: AuthRequest, res: Response) => {
       category: 'USER',
       resource: { type: 'User', id: user._id.toString(), name: user.username },
       details: { role },
-      actor: req.user as any
+      actor: req.user as any,
     });
 
     res.json({ success: true, user });
@@ -117,12 +113,12 @@ router.get('/audit-logs', async (req: Request, res: Response) => {
     const result = await LogService.getLogs(page, limit, {
       category,
       userId,
-      action
+      action,
     });
 
     res.json({
       success: true,
-      ...result
+      ...result,
     });
   } catch (error: any) {
     logger.error('Error fetching audit logs:', error);
@@ -148,7 +144,7 @@ router.delete('/clear-all-offers', async (req: AuthRequest, res: Response) => {
       action: 'OFFERS_CLEAR_ALL',
       category: 'SYSTEM',
       details: { deletedCount },
-      actor: req.user as any
+      actor: req.user as any,
     });
 
     res.json({
@@ -181,7 +177,7 @@ router.post('/reset-database', async (req: AuthRequest, res: Response) => {
       action: 'DATABASE_RESET',
       category: 'SYSTEM',
       details: { offersDeleted: offersResult.deletedCount },
-      actor: req.user as any
+      actor: req.user as any,
     });
 
     logger.info(`🗑️ Database reset complete:`, {
@@ -223,7 +219,7 @@ router.get('/stats', async (_req: Request, res: Response) => {
         activeOffers,
         inactiveOffers,
         postedOffers,
-        totalUsers
+        totalUsers,
       },
     });
   } catch (error: any) {
@@ -271,7 +267,7 @@ router.post('/impersonate/:userId', async (req: AuthRequest, res: Response) => {
       {
         id: targetUser._id.toString(),
         username: targetUser.username,
-        role: targetUser.role
+        role: targetUser.role,
       },
       getJwtSecret(),
       { expiresIn: '1h' }
@@ -285,13 +281,13 @@ router.post('/impersonate/:userId', async (req: AuthRequest, res: Response) => {
       resource: {
         type: 'User',
         id: targetUser._id.toString(),
-        name: targetUser.username
+        name: targetUser.username,
       },
       details: {
         adminId: req.user?.id,
-        reason: 'Support/Troubleshooting'
+        reason: 'Support/Troubleshooting',
       },
-      actor: req.user as any
+      actor: req.user as any,
     });
 
     logger.warn(`👮 Admin ${req.user?.username} is impersonating user ${targetUser.username}`);
@@ -305,9 +301,8 @@ router.post('/impersonate/:userId', async (req: AuthRequest, res: Response) => {
         email: targetUser.email,
         role: targetUser.role,
       },
-      message: `Impersonating ${targetUser.username}`
+      message: `Impersonating ${targetUser.username}`,
     });
-
   } catch (error: any) {
     logger.error('Error impersonating user:', error);
     res.status(500).json({ success: false, error: 'Failed to impersonate user' });
@@ -324,13 +319,12 @@ router.get('/health-stats', async (_req: Request, res: Response) => {
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     // 1. Audit Log Metrics (Errors in last 24h)
-    const rawErrorCount = await import('../models/AuditLog').then(m =>
+    const rawErrorCount = await import('../models/AuditLog').then((m) =>
       m.AuditLogModel.countDocuments({
         status: 'FAILURE',
-        createdAt: { $gte: oneDayAgo }
+        createdAt: { $gte: oneDayAgo },
       })
     );
-
 
     // 2. Offer Metrics
     const totalOffers = await OfferModel.countDocuments();
@@ -338,13 +332,13 @@ router.get('/health-stats', async (_req: Request, res: Response) => {
 
     // Offers created in last 24h
     const newOffers24h = await OfferModel.countDocuments({
-      createdAt: { $gte: oneDayAgo }
+      createdAt: { $gte: oneDayAgo },
     });
 
     // 3. User Metrics
     const totalUsers = await UserModel.countDocuments();
     const newUsers24h = await UserModel.countDocuments({
-      createdAt: { $gte: oneDayAgo }
+      createdAt: { $gte: oneDayAgo },
     });
 
     // 4. System Info
@@ -355,24 +349,23 @@ router.get('/health-stats', async (_req: Request, res: Response) => {
       data: {
         health: {
           status: rawErrorCount > 50 ? 'CRITICAL' : rawErrorCount > 10 ? 'WARNING' : 'HEALTHY',
-          errorRate24h: rawErrorCount
+          errorRate24h: rawErrorCount,
         },
         offers: {
           total: totalOffers,
           active: activeOffers,
-          new24h: newOffers24h
+          new24h: newOffers24h,
         },
         users: {
           total: totalUsers,
-          new24h: newUsers24h
+          new24h: newUsers24h,
         },
         system: {
           uptime: process.uptime(),
-          memoryUsedMB: Math.round(memory.heapUsed / 1024 / 1024)
-        }
-      }
+          memoryUsedMB: Math.round(memory.heapUsed / 1024 / 1024),
+        },
+      },
     });
-
   } catch (error: any) {
     logger.error('Error fetching health stats:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch health stats' });
@@ -399,9 +392,9 @@ router.get('/users/:id/details', async (req: Request, res: Response) => {
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
     // 2. Get recent activity logs (last 10 actions)
-    const recentActivity = await import('../models/AuditLog').then(m =>
+    const recentActivity = await import('../models/AuditLog').then((m) =>
       m.AuditLogModel.find({
-        'actor.userId': id
+        'actor.userId': id,
       })
         .sort({ createdAt: -1 })
         .limit(10)
@@ -410,20 +403,20 @@ router.get('/users/:id/details', async (req: Request, res: Response) => {
 
     // 3. Get error count (24h and 7d)
     const [errors24h, errors7d] = await Promise.all([
-      import('../models/AuditLog').then(m =>
+      import('../models/AuditLog').then((m) =>
         m.AuditLogModel.countDocuments({
           'actor.userId': id,
           status: 'FAILURE',
-          createdAt: { $gte: oneDayAgo }
+          createdAt: { $gte: oneDayAgo },
         })
       ),
-      import('../models/AuditLog').then(m =>
+      import('../models/AuditLog').then((m) =>
         m.AuditLogModel.countDocuments({
           'actor.userId': id,
           status: 'FAILURE',
-          createdAt: { $gte: oneWeekAgo }
+          createdAt: { $gte: oneWeekAgo },
         })
-      )
+      ),
     ]);
 
     // 4. Calculate "posts used today" (based on Post History)
@@ -434,7 +427,7 @@ router.get('/users/:id/details', async (req: Request, res: Response) => {
     const postsToday = await PostHistoryModel.countDocuments({
       userId: id,
       postedAt: { $gte: startOfToday },
-      status: 'success'
+      status: 'success',
     });
 
     res.json({
@@ -445,16 +438,15 @@ router.get('/users/:id/details', async (req: Request, res: Response) => {
           recent: recentActivity,
           errors24h,
           errors7d,
-          lastActive: recentActivity[0]?.createdAt || user.lastLogin
+          lastActive: recentActivity[0]?.createdAt || user.lastLogin,
         },
         usage: {
           postsToday,
           postsLimit: user.plan?.limits?.postsPerDay || 10,
-          planTier: user.plan?.tier || 'free'
-        }
-      }
+          planTier: user.plan?.tier || 'free',
+        },
+      },
     });
-
   } catch (error: any) {
     logger.error('Error fetching user details:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch user details' });
@@ -470,11 +462,9 @@ router.patch('/users/:id/status', async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const { isActive } = req.body;
 
-    const user = await UserModel.findByIdAndUpdate(
-      id,
-      { isActive },
-      { new: true }
-    ).select('-password');
+    const user = await UserModel.findByIdAndUpdate(id, { isActive }, { new: true }).select(
+      '-password'
+    );
 
     if (!user) {
       res.status(404).json({ success: false, error: 'User not found' });
@@ -487,7 +477,7 @@ router.patch('/users/:id/status', async (req: AuthRequest, res: Response) => {
       category: 'USER',
       resource: { type: 'User', id: user._id.toString(), name: user.username },
       details: { reason: req.body.reason || 'Admin action' },
-      actor: req.user as any
+      actor: req.user as any,
     });
 
     res.json({ success: true, user });
@@ -515,18 +505,18 @@ router.get('/finance/stats', async (_req: Request, res: Response) => {
     // Sum of prices of all active recurring subscriptions
     const activeSubs = await UserModel.find({
       'subscription.status': 'authorized',
-      'subscription.accessType': 'recurring'
+      'subscription.accessType': 'recurring',
     }).select('subscription');
 
     const planPrices: Record<string, number> = {
       'basic-monthly': 2990,
-      'pro': 5990,
-      'agency': 14990,
-      'premium-annual': 49990 / 12 // Monthly equivalent
+      pro: 5990,
+      agency: 14990,
+      'premium-annual': 49990 / 12, // Monthly equivalent
     };
 
     let mrr = 0;
-    activeSubs.forEach(user => {
+    activeSubs.forEach((user) => {
       const planId = user.subscription?.planId;
       if (planId && planPrices[planId]) {
         mrr += planPrices[planId];
@@ -539,15 +529,15 @@ router.get('/finance/stats', async (_req: Request, res: Response) => {
         $match: {
           status: 'approved',
           type: { $in: ['payment_approved', 'subscription_created'] },
-          createdAt: { $gte: startOfMonth }
-        }
+          createdAt: { $gte: startOfMonth },
+        },
       },
       {
         $group: {
           _id: null,
-          total: { $sum: '$amount' }
-        }
-      }
+          total: { $sum: '$amount' },
+        },
+      },
     ]);
 
     // 3. Revenue Last Month (from Transaction model)
@@ -556,15 +546,15 @@ router.get('/finance/stats', async (_req: Request, res: Response) => {
         $match: {
           status: 'approved',
           type: { $in: ['payment_approved', 'subscription_created'] },
-          createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth }
-        }
+          createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth },
+        },
       },
       {
         $group: {
           _id: null,
-          total: { $sum: '$amount' }
-        }
-      }
+          total: { $sum: '$amount' },
+        },
+      },
     ]);
 
     const currentMonthTotal = currentMonthRevenue[0]?.total || 0;
@@ -592,17 +582,16 @@ router.get('/finance/stats', async (_req: Request, res: Response) => {
         revenue: {
           currentMonth: currentMonthTotal,
           lastMonth: lastMonthTotal,
-          growth
+          growth,
         },
-        recentTransactions
-      }
+        recentTransactions,
+      },
     });
   } catch (error: any) {
     logger.error('Error fetching finance stats:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch finance stats' });
   }
 });
-
 
 /**
  * GET /api/admin/dashboard
@@ -632,8 +621,8 @@ router.get('/vectorizer/health', async (_req: Request, res: Response) => {
       data: {
         status: isHealthy ? 'ONLINE' : 'OFFLINE',
         collections: collections.data || [],
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
   } catch (error: any) {
     logger.error('Error checking Vectorizer health:', error);
@@ -642,12 +631,11 @@ router.get('/vectorizer/health', async (_req: Request, res: Response) => {
       data: {
         status: 'ERROR',
         error: error.message,
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
   }
 });
-
 
 /**
  * POST /api/admin/vectorizer/search
@@ -668,12 +656,12 @@ router.post('/vectorizer/search', async (req: AuthRequest, res: Response) => {
 
     const results = await vectorizer.search(query, {
       collection: collection || 'voxelpromo-offers',
-      maxResults: parseInt(limit as string) || 5
+      maxResults: parseInt(limit as string) || 5,
     });
 
     res.json({
       success: true,
-      data: results.data
+      data: results.data,
     });
   } catch (error: any) {
     logger.error('Error searching vectors:', error);
@@ -682,5 +670,3 @@ router.post('/vectorizer/search', async (req: AuthRequest, res: Response) => {
 });
 
 export { router as adminRoutes };
-
-

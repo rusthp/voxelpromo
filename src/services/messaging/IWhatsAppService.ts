@@ -4,10 +4,10 @@ import { Offer } from '../../types';
  * Represents a WhatsApp group
  */
 export interface WhatsAppGroup {
-  id: string;              // Group ID (e.g., "120363123456789012@g.us")
-  name: string;            // Group name
+  id: string; // Group ID (e.g., "120363123456789012@g.us")
+  name: string; // Group name
   participantCount: number; // Number of participants
-  isActive: boolean;       // Whether this group is selected in config
+  isActive: boolean; // Whether this group is selected in config
 }
 
 /**

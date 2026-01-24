@@ -120,7 +120,7 @@ const Settings = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const [activeTab, setActiveTab] = useState(() => {
         const tabFromUrl = searchParams.get('tab');
-        const validTabs = ['automation', 'ai', 'messaging', 'affiliate', 'collection', 'templates', 'subscription'];
+        const validTabs = ['automation', 'ai', 'messaging', 'affiliate', 'templates', 'subscription'];
         return validTabs.includes(tabFromUrl || '') ? tabFromUrl! : 'automation';
     });
 
@@ -612,12 +612,11 @@ const Settings = () => {
                 </div>
 
                 <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-                    <TabsList className="grid w-full grid-cols-8">
+                    <TabsList className="flex flex-wrap w-full h-auto gap-2 bg-transparent justify-start p-0">
                         <TabsTrigger value="automation">Automação</TabsTrigger>
                         <TabsTrigger value="ai">IA</TabsTrigger>
                         <TabsTrigger value="messaging">Mensageria</TabsTrigger>
-                        <TabsTrigger value="affiliate">Afiliados</TabsTrigger>
-                        <TabsTrigger value="collection">Coleta</TabsTrigger>
+                        <TabsTrigger value="affiliate">Afiliados & Coleta</TabsTrigger>
                         <TabsTrigger value="templates">Templates</TabsTrigger>
                         <TabsTrigger value="filters">Filtros</TabsTrigger>
                         <TabsTrigger value="subscription">Assinatura</TabsTrigger>
@@ -650,6 +649,15 @@ const Settings = () => {
                     </TabsContent>
 
                     <TabsContent value="affiliate" className="space-y-6">
+                        <CollectionSettings
+                            config={config}
+                            setConfig={setConfig}
+                            newRssFeed={newRssFeed}
+                            setNewRssFeed={setNewRssFeed}
+                            onAddRssFeed={addRssFeed}
+                            onRemoveRssFeed={removeRssFeed}
+                        />
+
                         <AffiliateSettings
                             config={config}
                             setConfig={setConfig}
@@ -684,17 +692,6 @@ const Settings = () => {
                             setConfig={setConfig}
                             testing={testing}
                             onTest={handleTest}
-                        />
-                    </TabsContent>
-
-                    <TabsContent value="collection">
-                        <CollectionSettings
-                            config={config}
-                            setConfig={setConfig}
-                            newRssFeed={newRssFeed}
-                            setNewRssFeed={setNewRssFeed}
-                            onAddRssFeed={addRssFeed}
-                            onRemoveRssFeed={removeRssFeed}
                         />
                     </TabsContent>
 

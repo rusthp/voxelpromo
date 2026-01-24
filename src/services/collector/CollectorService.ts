@@ -47,7 +47,6 @@ export class CollectorService {
     this.userId = userId;
   }
 
-
   /**
    * Filter offers using blacklist
    */
@@ -58,7 +57,7 @@ export class CollectorService {
       return validOffers;
     }
 
-    const filtered = validOffers.filter(offer => {
+    const filtered = validOffers.filter((offer) => {
       const isBlacklisted = this.blacklistService.isOfferBlacklisted({
         title: offer.title,
         description: offer.description,
@@ -356,7 +355,10 @@ export class CollectorService {
                 logger.info(
                   `📰 Found ${aliExpressOffers.length} AliExpress offers from RSS feed: ${feedUrl}`
                 );
-                const savedCount = await this.offerService.saveOffers(aliExpressOffers, this.userId);
+                const savedCount = await this.offerService.saveOffers(
+                  aliExpressOffers,
+                  this.userId
+                );
                 return savedCount;
               }
             } catch (rssError: any) {
@@ -426,7 +428,9 @@ export class CollectorService {
       const existingBatch = await ScrapingBatchModel.findOne({ source, date: today });
 
       if (existingBatch && existingBatch.status === 'completed') {
-        logger.info(`📅 Daily deals for ${today.toISOString().split('T')[0]} already collected. Skipping.`);
+        logger.info(
+          `📅 Daily deals for ${today.toISOString().split('T')[0]} already collected. Skipping.`
+        );
         return existingBatch.itemsCount;
       }
 
@@ -449,7 +453,9 @@ export class CollectorService {
       }
 
       // Convert and save
-      const offersPromises = products.map(p => this.mercadoLivreService.convertToOffer(p, 'daily-deals'));
+      const offersPromises = products.map((p) =>
+        this.mercadoLivreService.convertToOffer(p, 'daily-deals')
+      );
       const offersResults = await Promise.all(offersPromises);
       const offers = offersResults.filter((o): o is Offer => o !== null);
       const savedCount = await this.offerService.saveOffers(offers, this.userId);
@@ -463,7 +469,6 @@ export class CollectorService {
 
       logger.info(`✅ Daily Deals collection completed: ${savedCount} offers saved.`);
       return savedCount;
-
     } catch (error: any) {
       logger.error(`❌ Daily Deals collection failed: ${error.message}`);
       await ScrapingBatchModel.findOneAndUpdate(
@@ -603,27 +608,26 @@ export class CollectorService {
 
       logger.info(`🔄 Converting ${allProductsProcessed.length} products to offers...`);
 
-      const offersPromises = allProductsProcessed
-        .map(async (product, index) => {
-          const offer = await this.mercadoLivreService.convertToOffer(product, category);
-          if (!offer && index < 3) {
-            // Log first 3 failed conversions for debugging
-            logger.debug(`Product ${index + 1} conversion failed:`, {
-              id: product.id,
-              title: product.title?.substring(0, 50),
-              price: product.price,
-              original_price: product.original_price,
-              discount:
-                product.original_price && product.price
-                  ? (
+      const offersPromises = allProductsProcessed.map(async (product, index) => {
+        const offer = await this.mercadoLivreService.convertToOffer(product, category);
+        if (!offer && index < 3) {
+          // Log first 3 failed conversions for debugging
+          logger.debug(`Product ${index + 1} conversion failed:`, {
+            id: product.id,
+            title: product.title?.substring(0, 50),
+            price: product.price,
+            original_price: product.original_price,
+            discount:
+              product.original_price && product.price
+                ? (
                     ((product.original_price - product.price) / product.original_price) *
                     100
                   ).toFixed(2) + '%'
-                  : 'N/A',
-            });
-          }
-          return offer;
-        });
+                : 'N/A',
+          });
+        }
+        return offer;
+      });
 
       const offersResults = await Promise.all(offersPromises);
       const offers = offersResults.filter((offer) => offer !== null);
@@ -717,11 +721,17 @@ export class CollectorService {
           return status.toLowerCase() === 'active';
         });
 
-        logger.info(`📋 Found ${joinedFeeds.length} joined advertisers (out of ${feedList.length} total)`);
+        logger.info(
+          `📋 Found ${joinedFeeds.length} joined advertisers (out of ${feedList.length} total)`
+        );
 
         if (joinedFeeds.length === 0) {
-          logger.warn('⚠️ No joined advertisers found. You need to join advertisers in Awin dashboard first.');
-          logger.warn('⚠️ Go to Awin > Advertisers > Join Programs to get access to their product feeds.');
+          logger.warn(
+            '⚠️ No joined advertisers found. You need to join advertisers in Awin dashboard first.'
+          );
+          logger.warn(
+            '⚠️ Go to Awin > Advertisers > Join Programs to get access to their product feeds.'
+          );
           return 0;
         }
 
@@ -738,7 +748,9 @@ export class CollectorService {
           return importDate >= sevenDaysAgo;
         });
 
-        logger.info(`📅 Found ${recentFeeds.length} feeds updated in the last 7 days (out of ${joinedFeeds.length} joined)`);
+        logger.info(
+          `📅 Found ${recentFeeds.length} feeds updated in the last 7 days (out of ${joinedFeeds.length} joined)`
+        );
 
         if (recentFeeds.length === 0) {
           logger.warn('⚠️ No recently updated feeds found. All feeds are older than 7 days.');
@@ -791,7 +803,9 @@ export class CollectorService {
       }
 
       // Use cached feeds
-      logger.info(`📦 Using ${stats.totalCached} cached feeds with ${stats.totalProducts} products`);
+      logger.info(
+        `📦 Using ${stats.totalCached} cached feeds with ${stats.totalProducts} products`
+      );
 
       let totalSaved = 0;
       const cachedFeeds = feedManager.getCachedFeeds();
@@ -824,7 +838,11 @@ export class CollectorService {
   /**
    * Get config from UserSettings (database) with fallback to config.json
    */
-  private async getCollectionConfig(): Promise<{ sources: string[]; enabled: boolean; rssFeeds: string[] }> {
+  private async getCollectionConfig(): Promise<{
+    sources: string[];
+    enabled: boolean;
+    rssFeeds: string[];
+  }> {
     // 1. Try to get from Database (if userId is present)
     if (this.userId) {
       try {
@@ -834,13 +852,22 @@ export class CollectorService {
 
         if (settings) {
           return {
-            sources: settings.collectionSettings?.sources || ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'rss'],
+            sources: settings.collectionSettings?.sources || [
+              'amazon',
+              'aliexpress',
+              'mercadolivre',
+              'shopee',
+              'rss',
+            ],
             enabled: settings.collectionSettings?.enabled ?? true,
-            rssFeeds: settings.rss || []
+            rssFeeds: settings.rss || [],
           };
         }
       } catch (error) {
-        logger.warn(`⚠️ Failed to load UserSettings for user ${this.userId}, falling back to defaults`, error);
+        logger.warn(
+          `⚠️ Failed to load UserSettings for user ${this.userId}, falling back to defaults`,
+          error
+        );
       }
     }
 
@@ -864,9 +891,16 @@ export class CollectorService {
     }
 
     return {
-      sources: legacyConfig.sources || ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'awin', 'rss'],
+      sources: legacyConfig.sources || [
+        'amazon',
+        'aliexpress',
+        'mercadolivre',
+        'shopee',
+        'awin',
+        'rss',
+      ],
       enabled: legacyConfig.enabled ?? true,
-      rssFeeds
+      rssFeeds,
     };
   }
 
@@ -891,8 +925,15 @@ export class CollectorService {
 
     // Fallback: read from environment or use all sources
     return {
-      sources: process.env.COLLECTION_SOURCES?.split(',') || ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'awin', 'rss'],
-      enabled: true
+      sources: process.env.COLLECTION_SOURCES?.split(',') || [
+        'amazon',
+        'aliexpress',
+        'mercadolivre',
+        'shopee',
+        'awin',
+        'rss',
+      ],
+      enabled: true,
     };
   }
 
@@ -938,69 +979,68 @@ export class CollectorService {
     const collectPromises = await Promise.all([
       enabledSources.includes('amazon')
         ? this.collectFromAmazon('electronics', 'electronics').catch((error) => {
-          logger.error('Amazon collection failed:', error);
-          return 0;
-        })
+            logger.error('Amazon collection failed:', error);
+            return 0;
+          })
         : Promise.resolve(0),
 
       enabledSources.includes('aliexpress')
         ? this.collectFromAliExpress('electronics').catch((error) => {
-          logger.error('AliExpress collection failed:', error);
-          return 0;
-        })
+            logger.error('AliExpress collection failed:', error);
+            return 0;
+          })
         : Promise.resolve(0),
 
       enabledSources.includes('mercadolivre')
         ? this.collectFromMercadoLivre('electronics').catch((error) => {
-          logger.error('Mercado Livre collection failed:', error);
-          return 0;
-        })
+            logger.error('Mercado Livre collection failed:', error);
+            return 0;
+          })
         : Promise.resolve(0),
 
       enabledSources.includes('shopee')
         ? this.collectFromShopee('electronics').catch((error) => {
-          logger.error('Shopee collection failed:', error);
-          return 0;
-        })
+            logger.error('Shopee collection failed:', error);
+            return 0;
+          })
         : Promise.resolve(0),
 
       enabledSources.includes('awin')
         ? this.collectFromAwin().catch((error) => {
-          logger.error('Awin collection failed:', error);
-          return 0;
-        })
+            logger.error('Awin collection failed:', error);
+            return 0;
+          })
         : Promise.resolve(0),
-
 
       enabledSources.includes('rss')
         ? (async () => {
-          // Collect from all configured RSS feeds
-          const rssFeeds = config.rssFeeds;
+            // Collect from all configured RSS feeds
+            const rssFeeds = config.rssFeeds;
 
-          if (rssFeeds.length === 0) {
-            logger.info('ℹ️  No RSS feeds configured, skipping RSS collection');
-            return 0;
-          }
+            if (rssFeeds.length === 0) {
+              logger.info('ℹ️  No RSS feeds configured, skipping RSS collection');
+              return 0;
+            }
 
-          let totalCollected = 0;
-          for (const feedUrl of rssFeeds) {
-            try {
-              const count = await this.collectFromRSS(feedUrl, 'rss');
-              totalCollected += count;
-            } catch (error: any) {
-              if (
-                error.code === 'ECONNREFUSED' ||
-                error.code === 'ETIMEDOUT' ||
-                error.code === 'ENOTFOUND'
-              ) {
-                logger.debug(`RSS feed temporarily unavailable: ${error.message}`);
-              } else {
-                logger.warn(`RSS collection failed for ${feedUrl}: ${error.message}`);
+            let totalCollected = 0;
+            for (const feedUrl of rssFeeds) {
+              try {
+                const count = await this.collectFromRSS(feedUrl, 'rss');
+                totalCollected += count;
+              } catch (error: any) {
+                if (
+                  error.code === 'ECONNREFUSED' ||
+                  error.code === 'ETIMEDOUT' ||
+                  error.code === 'ENOTFOUND'
+                ) {
+                  logger.debug(`RSS feed temporarily unavailable: ${error.message}`);
+                } else {
+                  logger.warn(`RSS collection failed for ${feedUrl}: ${error.message}`);
+                }
               }
             }
-          }
-          return totalCollected;
-        })()
+            return totalCollected;
+          })()
         : Promise.resolve(0),
     ]);
 

@@ -114,7 +114,7 @@ const isRetryableError = (error: any, retryableErrors: string[]): boolean => {
 
 /**
  * Retry a function with exponential backoff, jitter, and total timeout
- * 
+ *
  * Features (approved in Phase 2 design review):
  * - Exponential backoff (1s → 2s → 4s)
  * - Total timeout enforcement (8s max)
@@ -126,7 +126,7 @@ const isRetryableError = (error: any, retryableErrors: string[]): boolean => {
  * @param options - Retry configuration
  * @returns Result of the function
  * @throws Last error if all retries fail or timeout exceeded
- * 
+ *
  * @example
  * ```typescript
  * const data = await retryWithBackoff(
@@ -187,17 +187,14 @@ export async function retryWithBackoff<T>(
       const isLastAttempt = attempt === opts.maxRetries;
 
       if (isLastAttempt || !shouldRetryError) {
-        logger.error(
-          `❌ ${opts.context}: All retry attempts failed or non-retryable error`,
-          {
-            totalAttempts: attempt + 1,
-            totalDuration: Date.now() - startTime,
-            error: error.message,
-            errorCode: error.code,
-            statusCode: error.response?.status,
-            shouldRetry: shouldRetryError,
-          }
-        );
+        logger.error(`❌ ${opts.context}: All retry attempts failed or non-retryable error`, {
+          totalAttempts: attempt + 1,
+          totalDuration: Date.now() - startTime,
+          error: error.message,
+          errorCode: error.code,
+          statusCode: error.response?.status,
+          shouldRetry: shouldRetryError,
+        });
         throw error;
       }
 
@@ -213,10 +210,11 @@ export async function retryWithBackoff<T>(
       // Check if delay would exceed total duration
       const elapsed = Date.now() - startTime;
       if (elapsed + delay >= opts.maxTotalDuration) {
-        logger.warn(
-          `⚠️ ${opts.context}: Next retry would exceed total duration, aborting`,
-          { elapsed, delay, maxTotalDuration: opts.maxTotalDuration }
-        );
+        logger.warn(`⚠️ ${opts.context}: Next retry would exceed total duration, aborting`, {
+          elapsed,
+          delay,
+          maxTotalDuration: opts.maxTotalDuration,
+        });
         throw new Error(
           `Operation "${opts.context}" would exceed maximum duration of ${opts.maxTotalDuration}ms`
         );
@@ -244,7 +242,7 @@ export async function retryWithBackoff<T>(
 /**
  * Retry with different strategies (primary + fallback)
  * Useful for trying an advanced API method, then falling back to a simpler one
- * 
+ *
  * @example
  * ```typescript
  * const data = await retryWithFallback(
@@ -266,7 +264,9 @@ export async function retryWithFallback<T>(
     try {
       return await retryWithBackoff(fallbackFn, { ...options, maxRetries: 2 });
     } catch (fallbackError: any) {
-      logger.error(`Both primary and fallback methods failed for ${options.context || 'operation'}`);
+      logger.error(
+        `Both primary and fallback methods failed for ${options.context || 'operation'}`
+      );
       throw fallbackError;
     }
   }

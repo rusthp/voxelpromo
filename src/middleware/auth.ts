@@ -85,7 +85,7 @@ export const authenticate = async (
         logger.error(`   Tip: Token may have been created with a different JWT_SECRET`);
         res.status(401).json({
           error: 'Token inválido',
-          hint: 'Faça logout e login novamente'
+          hint: 'Faça logout e login novamente',
         });
         return;
       }

@@ -102,7 +102,10 @@ router.get('/status', async (_req: Request, res: Response) => {
         diagnosis: {
           403: status === 403 ? 'Token sem permissão (verificar scopes ou usuário inativo)' : null,
           401: status === 401 ? 'Token inválido ou expirado (renovar autenticação)' : null,
-          other: status && status !== 403 && status !== 401 ? `Erro ${status}: ${errorData?.message} ` : null,
+          other:
+            status && status !== 403 && status !== 401
+              ? `Erro ${status}: ${errorData?.message} `
+              : null,
         },
       });
     }
@@ -638,7 +641,6 @@ router.post('/generate-affiliate-link', async (req, res) => {
       success: false,
       error: 'Failed to generate affiliate link',
     });
-
   } catch (error: any) {
     logger.error('Error generating affiliate link:', error);
     return res.status(500).json({
@@ -649,4 +651,3 @@ router.post('/generate-affiliate-link', async (req, res) => {
 });
 
 export { router as mercadoLivreRoutes };
-

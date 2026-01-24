@@ -37,7 +37,6 @@ export function getWhatsAppService() {
   return serviceInstances.get(key);
 }
 
-
 /**
  * GET /api/whatsapp/qr
  * Get current QR code
@@ -373,13 +372,12 @@ router.get('/groups', async (_req, res) => {
       });
     }
 
-
     try {
       const groups = await service.listGroups();
       return res.json({
         success: true,
         groups: groups,
-        count: groups.length
+        count: groups.length,
       });
     } catch (error: any) {
       return res.json({

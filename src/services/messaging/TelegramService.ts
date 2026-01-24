@@ -426,5 +426,3 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
     }
   }
 }
-
-

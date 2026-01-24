@@ -1,9 +1,6 @@
 // Baileys is an ESM-only module, so we need to use dynamic import
 // We'll import the types for TypeScript, but use dynamic import at runtime
-import type {
-  WASocket,
-  ConnectionState,
-} from 'baileys';
+import type { WASocket, ConnectionState } from 'baileys';
 import { Boom } from '@hapi/boom';
 import { Offer } from '../../types';
 import { logger } from '../../utils/logger';
@@ -115,7 +112,7 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
       logger.debug('📦 Importing Baileys...');
       // Dynamically import Baileys (ESM module)
       // Use new Function to bypass ts-node transpilation of dynamic import to require()
-      const baileys: any = await (new Function('return import("baileys")')());
+      const baileys: any = await new Function('return import("baileys")')();
       const makeWASocket = baileys.default;
       const { useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = baileys;
 
@@ -422,7 +419,7 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
               this.detectedGroups.set(groupId, {
                 id: groupId,
                 name: `Grupo Detectado (${groupId.substring(0, 8)}...)`, // Placeholder name
-                timestamp: Date.now()
+                timestamp: Date.now(),
               });
             }
           }
@@ -639,7 +636,7 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
       }));
 
       // Merge with detected groups (if not already present)
-      const groupIds = new Set(mappedGroups.map(g => g.id));
+      const groupIds = new Set(mappedGroups.map((g) => g.id));
 
       this.detectedGroups.forEach((group) => {
         if (!groupIds.has(group.id)) {
@@ -656,11 +653,11 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
     } catch (error) {
       logger.error('Error listing WhatsApp groups:', error);
       // Fallback to detected groups if fetch fails
-      return Array.from(this.detectedGroups.values()).map(group => ({
+      return Array.from(this.detectedGroups.values()).map((group) => ({
         id: group.id,
         name: group.name,
         participantCount: 0,
-        isActive: this.targetGroups.includes(group.id)
+        isActive: this.targetGroups.includes(group.id),
       }));
     }
   }
@@ -759,7 +756,9 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
         }
       }
 
-      logger.info(`📊 WhatsApp send summary: ${successCount}/${this.targetGroups.length} successful`);
+      logger.info(
+        `📊 WhatsApp send summary: ${successCount}/${this.targetGroups.length} successful`
+      );
       return successCount > 0;
     } catch (error: any) {
       const errorMsg = error?.message || String(error);
@@ -790,25 +789,27 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
    * WhatsApp uses: *bold*, _italic_, ~strikethrough~, ```monospace```
    */
   private convertHtmlToWhatsApp(text: string): string {
-    return text
-      // Bold: <b>text</b> or <strong>text</strong> -> *text*
-      .replace(/<b>(.*?)<\/b>/gi, '*$1*')
-      .replace(/<strong>(.*?)<\/strong>/gi, '*$1*')
-      // Italic: <i>text</i> or <em>text</em> -> _text_
-      .replace(/<i>(.*?)<\/i>/gi, '_$1_')
-      .replace(/<em>(.*?)<\/em>/gi, '_$1_')
-      // Strikethrough: <s>text</s> or <strike>text</strike> -> ~text~
-      .replace(/<s>(.*?)<\/s>/gi, '~$1~')
-      .replace(/<strike>(.*?)<\/strike>/gi, '~$1~')
-      // Code: <code>text</code> -> ```text```
-      .replace(/<code>(.*?)<\/code>/gi, '```$1```')
-      // Remove other HTML tags
-      .replace(/<br\s*\/?>/gi, '\n')
-      .replace(/<[^>]+>/g, '')
-      // Clean up any double formatting that might occur
-      .replace(/\*\*+/g, '*')
-      .replace(/__+/g, '_')
-      .replace(/~~+/g, '~');
+    return (
+      text
+        // Bold: <b>text</b> or <strong>text</strong> -> *text*
+        .replace(/<b>(.*?)<\/b>/gi, '*$1*')
+        .replace(/<strong>(.*?)<\/strong>/gi, '*$1*')
+        // Italic: <i>text</i> or <em>text</em> -> _text_
+        .replace(/<i>(.*?)<\/i>/gi, '_$1_')
+        .replace(/<em>(.*?)<\/em>/gi, '_$1_')
+        // Strikethrough: <s>text</s> or <strike>text</strike> -> ~text~
+        .replace(/<s>(.*?)<\/s>/gi, '~$1~')
+        .replace(/<strike>(.*?)<\/strike>/gi, '~$1~')
+        // Code: <code>text</code> -> ```text```
+        .replace(/<code>(.*?)<\/code>/gi, '```$1```')
+        // Remove other HTML tags
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        // Clean up any double formatting that might occur
+        .replace(/\*\*+/g, '*')
+        .replace(/__+/g, '_')
+        .replace(/~~+/g, '~')
+    );
   }
 
   /**
@@ -930,7 +931,7 @@ ${offer.reviewsCount ? `📊 ${offer.reviewsCount} avaliações` : ''}`;
     }
 
     try {
-      const jidList = statusJidList || await this.getStatusJidList();
+      const jidList = statusJidList || (await this.getStatusJidList());
 
       await this.sock.sendMessage(
         'status@broadcast',
@@ -972,7 +973,7 @@ ${offer.reviewsCount ? `📊 ${offer.reviewsCount} avaliações` : ''}`;
     }
 
     try {
-      const jidList = statusJidList || await this.getStatusJidList();
+      const jidList = statusJidList || (await this.getStatusJidList());
 
       await this.sock.sendMessage(
         'status@broadcast',
@@ -1013,7 +1014,7 @@ ${offer.reviewsCount ? `📊 ${offer.reviewsCount} avaliações` : ''}`;
     }
 
     try {
-      const jidList = statusJidList || await this.getStatusJidList();
+      const jidList = statusJidList || (await this.getStatusJidList());
 
       await this.sock.sendMessage(
         'status@broadcast',
@@ -1094,7 +1095,9 @@ ${offer.reviewsCount ? `📊 ${offer.reviewsCount} avaliações` : ''}`;
       // Limit to 50 contacts to prevent timeout
       const limitedJids = jids.slice(0, 50);
 
-      logger.info(`📱 Status will be visible to ${limitedJids.length} contacts (limited from ${jids.length})`);
+      logger.info(
+        `📱 Status will be visible to ${limitedJids.length} contacts (limited from ${jids.length})`
+      );
       return limitedJids;
     } catch (error) {
       logger.warn('Error getting status JID list:', error);
@@ -1102,4 +1105,3 @@ ${offer.reviewsCount ? `📊 ${offer.reviewsCount} avaliações` : ''}`;
     }
   }
 }
-

@@ -1,0 +1,882 @@
+
+> voxelpromo@1.2.0 lint
+> eslint src --ext .ts
+
+
+B:\voxelpromo\src\config\database.ts
+  12:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\jobs\scheduler.ts
+   11:69   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   34:27   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   42:19   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  188:112  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  190:26   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\middleware\auth.ts
+   53:55  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   77:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  101:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\middleware\error.middleware.ts
+   73:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  124:70  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\middleware\logging.middleware.ts
+  46:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\middleware\sanitization.ts
+  27:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  27:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  39:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  78:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  78:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\middleware\validation.ts
+  51:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  51:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  51:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\models\AuditLog.ts
+  19:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\models\User.ts
+  258:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\__tests__\auth.routes.test.ts
+   43:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   43:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   43:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   44:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   44:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   44:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   45:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   45:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   45:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   46:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   46:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   46:56  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   61:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   62:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   63:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   79:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   80:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   81:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   82:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  108:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  123:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  124:70  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  125:59  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\admin.routes.ts
+   24:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   57:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   95:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   99:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  127:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  151:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  159:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  184:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  198:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  229:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  294:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  311:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  376:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  458:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  490:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  494:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  600:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  638:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  678:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\afilio.routes.ts
+   22:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   47:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   72:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  108:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\ai.routes.ts
+  23:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\amazon.routes.ts
+   34:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   66:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   99:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  144:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  205:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  243:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  268:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  305:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\automation.routes.ts
+   31:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   59:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   81:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  123:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  154:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  199:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\awin.routes.ts
+   28:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   86:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  105:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  132:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  166:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  202:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  235:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  309:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  329:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  361:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  440:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  460:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  529:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  562:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  605:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\collector.routes.ts
+   23:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   40:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   57:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   74:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   91:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  107:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\config.routes.ts
+    28:19   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   117:19   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   197:25   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   611:19   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   629:20   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   632:21   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   638:24   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   705:25   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   756:37   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   767:33   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   775:118  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   805:35   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   812:35   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   840:39   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   850:35   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   864:33   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   880:25   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   931:37   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   965:25   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1013:25   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1066:35   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1090:25   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1135:25   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1165:19   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1186:19   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\fix.routes.ts
+  49:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\health.routes.ts
+   49:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   98:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  125:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  151:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  224:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  265:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  353:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  385:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  424:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  475:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\instagram.routes.ts
+   76:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  133:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  208:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  261:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  288:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  333:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  378:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  403:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  461:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  488:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  514:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  537:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  550:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  624:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  696:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  748:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  794:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\links.routes.ts
+   32:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   60:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   77:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   92:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  112:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\lomadee.routes.ts
+   25:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   56:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   87:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  138:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  197:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\mercadolivre.routes.ts
+   89:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  109:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  129:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  147:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  176:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  206:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  287:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  311:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  330:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  358:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  386:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  400:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  450:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  459:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  461:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  477:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  491:63  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  523:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  532:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  534:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  551:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  642:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\offer.routes.ts
+   99:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  138:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  165:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  182:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  197:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  212:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  244:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  266:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  287:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  306:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  332:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  374:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  412:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\payment.routes.ts
+   57:21   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  147:21   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  201:21   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  255:21   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  303:101  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  369:29   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  456:29   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  586:21   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  618:21   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  661:21   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  720:21   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  756:21   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  797:21   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\posts.routes.ts
+   28:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   68:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  143:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  170:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\profile.routes.ts
+   85:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   99:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  163:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  214:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  251:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\rakuten.routes.ts
+   22:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   47:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   72:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  108:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\redirect.routes.ts
+  43:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\shorturl.routes.ts
+  53:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\stats.routes.ts
+   44:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   97:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  232:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  273:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\telegram.routes.ts
+   52:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  101:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  108:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\templates.routes.ts
+   32:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   54:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   76:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  111:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  156:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  191:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  226:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  281:76  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  292:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\users.routes.ts
+   64:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   65:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   66:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   69:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   70:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   73:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   74:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  100:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  142:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  143:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  144:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  162:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  182:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\whatsapp.routes.ts
+   11:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   60:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   61:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   67:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   68:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  103:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  104:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  110:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  111:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  133:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  157:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  158:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  159:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  195:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  217:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  219:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  236:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  237:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  251:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  288:58  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  302:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  351:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  384:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  392:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  431:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  438:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  451:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  484:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  491:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  504:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  537:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  544:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  557:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\routes\x.routes.ts
+   41:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   89:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  133:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  166:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  199:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  248:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  289:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\server.ts
+  227:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\DocumentValidatorService.ts
+  109:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\LogService.ts
+  17:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  31:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  72:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  77:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\NewsService.ts
+  45:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\SecurityAuditService.ts
+   42:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  166:79  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  183:68  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\__tests__\PaymentService.test.ts
+  45:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\affiliate\NetworkApiAbstract.ts
+   79:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   84:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   98:61  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  108:84  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\afilio\AfilioService.ts
+  113:81  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  135:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  146:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  180:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  189:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  232:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  260:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\ai\AIService.ts
+   87:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  359:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  519:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  524:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  533:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  539:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  558:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  558:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  570:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  637:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  638:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\aliexpress\AliExpressScraper.ts
+   88:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  128:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  257:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  445:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  589:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  598:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\aliexpress\AliExpressService.ts
+    46:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    54:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    80:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   233:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   289:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   317:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   319:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   332:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   410:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   599:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1086:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1136:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1178:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1228:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1272:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1314:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1335:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1411:15  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1423:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1476:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1501:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1570:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1606:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1612:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1635:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1675:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1720:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1766:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1796:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1817:55  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1837:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1855:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1858:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2215:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2225:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2229:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\aliexpress\__tests__\AliExpressService.test.ts
+   51:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   66:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   75:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   90:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  102:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  112:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  121:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  126:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  131:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  136:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  141:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  146:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  151:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  169:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  188:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  215:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\amazon\AmazonScraper.ts
+  247:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  451:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\amazon\AmazonService.ts
+  171:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  206:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  257:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  294:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  383:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\amazon\__tests__\AmazonService.test.ts
+  133:61  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  155:61  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\automation\AutomationService.ts
+   24:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   56:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   56:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   99:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  124:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  127:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  166:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  175:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  180:59  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  204:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  204:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  204:95  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  268:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  268:70  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  394:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  508:55  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\automation\PrioritizationService.ts
+  161:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  327:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\automation\TemplateService.ts
+    9:65  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   23:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   36:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   55:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   70:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   70:61  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  110:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\awin\AwinService.ts
+  134:81  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  149:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  162:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  179:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  191:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  200:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  222:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  233:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  266:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  275:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  301:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  306:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  316:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  389:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  405:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  467:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  495:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  504:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  579:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  590:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\collector\CollectorService.ts
+  110:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  125:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  144:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  166:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  179:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  188:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  286:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  312:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  327:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  362:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  366:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  392:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  467:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  491:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  495:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  506:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  533:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  543:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  549:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  573:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  639:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  671:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  784:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  811:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  818:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  990:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\collector\__tests__\CollectorService.test.ts
+  286:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  305:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\exchangerate\ExchangeRateService.ts
+  76:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\link\AffiliateHealthCheckService.ts
+  238:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  326:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\link\LinkValidator.ts
+  103:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\link\LinkVerifier.ts
+  54:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\lomadee\LomadeeService.ts
+  128:81  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  157:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  174:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  187:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  212:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  221:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  258:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  316:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  345:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\mercadolivre\MercadoLivreScraper.ts
+   19:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   39:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  208:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  237:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  257:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  316:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  339:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  375:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  428:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  594:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  603:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  627:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  689:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  706:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\mercadolivre\MercadoLivreService.ts
+    74:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   238:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   289:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   308:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   337:65  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   378:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   466:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   467:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   485:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   493:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   512:71  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   556:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   562:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   598:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   626:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   719:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   729:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   867:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   984:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1005:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\mercadolivre\__tests__\MercadoLivreService.test.ts
+  125:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  137:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  159:67  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  177:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  181:67  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  196:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  198:67  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\messaging\InstagramService.ts
+   218:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   344:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   386:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   425:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   443:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   471:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   563:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   614:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   633:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   677:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   707:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   785:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   861:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   975:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   991:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1026:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1065:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1100:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1116:27  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1142:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1158:27  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1176:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1212:29  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1239:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1289:33  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1301:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1310:55  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1328:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1393:42  error    Require statement not part of import statement  @typescript-eslint/no-var-requires
+  1394:36  error    Require statement not part of import statement  @typescript-eslint/no-var-requires
+  1416:50  error    Require statement not part of import statement  @typescript-eslint/no-var-requires
+  1453:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1463:42  error    Require statement not part of import statement  @typescript-eslint/no-var-requires
+  1464:36  error    Require statement not part of import statement  @typescript-eslint/no-var-requires
+  1481:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1486:61  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1499:64  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1510:42  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  1512:50  error    Require statement not part of import statement  @typescript-eslint/no-var-requires
+  1523:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\messaging\TelegramService.ts
+  111:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  183:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  345:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  423:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\messaging\WhatsAppService.ts
+  19:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  23:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  43:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\messaging\WhatsAppServiceBaileys.ts
+    92:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   118:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   153:55  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   242:58  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   434:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   548:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   634:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   720:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   736:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   756:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   764:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   944:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   949:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   985:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   990:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1026:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1031:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1050:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\messaging\XService.ts
+  223:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  254:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  310:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  349:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  413:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  436:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  531:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  672:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\messaging\__tests__\InstagramConversion.test.ts
+   26:25  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   27:31  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   28:30  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   33:26  error    Require statement not part of import statement  @typescript-eslint/no-var-requires
+   34:32  error    Require statement not part of import statement  @typescript-eslint/no-var-requires
+   35:31  error    Require statement not part of import statement  @typescript-eslint/no-var-requires
+   40:21  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   41:21  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   42:21  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   49:21  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   51:21  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   79:28  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  104:28  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  120:28  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  125:28  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  140:28  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  149:71  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\messaging\whatsapp\utils\RetryHelper.ts
+  36:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\offer\OfferService.ts
+  190:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  238:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  297:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  300:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  308:62  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  319:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  438:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  439:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  460:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  501:61  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\offer\__tests__\OfferService.test.ts
+   71:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  120:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  162:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  320:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\rakuten\RakutenService.ts
+  133:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  164:81  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  189:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  197:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  233:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  242:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  279:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  320:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\rss\RSSService.ts
+   42:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   50:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   68:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  110:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  127:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\rss\__tests__\RSSService.test.ts
+  24:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\scraper\ScraperService.ts
+  77:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\shopee\ShopeeService.ts
+  161:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  180:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  257:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  263:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  269:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  350:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  373:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  417:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  424:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  578:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\user\UserSettingsService.ts
+   26:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  125:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  129:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  129:60  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  406:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  407:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  419:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  420:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  424:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  425:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\services\vectorizer\VectorizerService.ts
+   20:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   31:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  190:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\utils\cache.ts
+   6:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   9:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  16:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\utils\errors\AppError.ts
+  15:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  24:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  49:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  50:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  74:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  81:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\utils\errors\index.ts
+    8:59  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   23:60  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   38:87  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   53:80  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   70:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   86:59  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  101:83  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  116:83  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  131:59  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\utils\loadConfig.ts
+    8:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  165:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\utils\retry.ts
+   20:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   48:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  102:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  144:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  179:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  264:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  268:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+B:\voxelpromo\src\utils\sentry.ts
+  88:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  96:73  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+Ô£û 699 problems (9 errors, 690 warnings)
+

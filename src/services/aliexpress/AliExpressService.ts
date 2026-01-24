@@ -142,7 +142,7 @@ export class AliExpressService {
   /**
    * Generate affiliate link for a product URL
    * This ensures commission tracking for AliExpress products
-   * 
+   *
    * @param productUrl - Original product URL
    * @returns Affiliate link with tracking, or original URL if generation fails
    */
@@ -155,7 +155,7 @@ export class AliExpressService {
         if (age < this.AFFILIATE_LINK_CACHE_TTL) {
           logger.debug('Using cached affiliate link', {
             productUrl: productUrl.substring(0, 50) + '...',
-            cacheAge: `${Math.round(age / 1000 / 60)}min`
+            cacheAge: `${Math.round(age / 1000 / 60)}min`,
           });
           return cached.link;
         } else {
@@ -175,7 +175,7 @@ export class AliExpressService {
       logger.info('🔗 Generating affiliate link via API', {
         method: 'aliexpress.affiliate.link.generate',
         trackingId: config.trackingId,
-        urlPreview: productUrl.substring(0, 60) + '...'
+        urlPreview: productUrl.substring(0, 60) + '...',
       });
 
       const params = {
@@ -214,15 +214,14 @@ export class AliExpressService {
         logger.info('✅ Successfully generated affiliate link', {
           original: productUrl.substring(0, 30) + '...',
 
-
           affiliate: affiliateLink.substring(0, 30) + '...',
-          hasTracking: affiliateLink.includes(config.trackingId)
+          hasTracking: affiliateLink.includes(config.trackingId),
         });
 
         // Cache the generated link
         this.affiliateLinkCache.set(productUrl, {
           link: affiliateLink,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
 
         return affiliateLink;
@@ -239,7 +238,7 @@ export class AliExpressService {
       } else if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
         logger.warn('⚠️ API timeout - using parametrized fallback', {
           timeout: '60s',
-          suggestion: 'API may be slow or unavailable'
+          suggestion: 'API may be slow or unavailable',
         });
       } else {
         logger.warn('⚠️ Error generating affiliate link via API:', error.message);
@@ -271,7 +270,7 @@ export class AliExpressService {
       logger.info('✅ Generated parametrized affiliate link (fallback)', {
         original: productUrl.substring(0, 40) + '...',
         parametrized: parametrizedUrl.substring(0, 50) + '...',
-        hasTracking: true
+        hasTracking: true,
       });
 
       return parametrizedUrl;
@@ -1249,11 +1248,11 @@ export class AliExpressService {
             .aeop_ae_product_display_dto
         )
           ? response.aliexpress_affiliate_hotproduct_query_response.aeop_ae_product_display_dto_list
-            .aeop_ae_product_display_dto
+              .aeop_ae_product_display_dto
           : [
-            response.aliexpress_affiliate_hotproduct_query_response
-              .aeop_ae_product_display_dto_list.aeop_ae_product_display_dto,
-          ];
+              response.aliexpress_affiliate_hotproduct_query_response
+                .aeop_ae_product_display_dto_list.aeop_ae_product_display_dto,
+            ];
       }
       // Structure 3: Direct products array
       else if (response.aliexpress_affiliate_hotproduct_query_response?.products) {
@@ -1518,9 +1517,9 @@ export class AliExpressService {
         const currentRecordCount = parseInt(
           String(
             result.current_record_count ||
-            result.currentRecordCount ||
-            String(productList.length) ||
-            '0'
+              result.currentRecordCount ||
+              String(productList.length) ||
+              '0'
           ),
           10
         );

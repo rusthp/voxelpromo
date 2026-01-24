@@ -12,7 +12,7 @@ const OfferSchema = new Schema<OfferDocument>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-      index: true
+      index: true,
     },
     title: { type: String, required: true, index: true },
     description: { type: String, required: true },

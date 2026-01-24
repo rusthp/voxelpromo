@@ -1,6 +1,6 @@
 /**
  * VectorizerService - SDK para integração com HiveLLM Vectorizer
- * 
+ *
  * Fornece busca semântica, indexação de ofertas e cache inteligente
  * para o VoxelPromo.
  */
@@ -49,7 +49,9 @@ export class VectorizerService {
     };
     // Log configuration on startup to debug connection issues
     if (this.config.apiUrl.includes('localhost') || this.config.apiUrl.includes('127.0.0.1')) {
-      console.log(`[Vectorizer] ⚠️ Using local API URL: ${this.config.apiUrl}. Ensure Vectorizer is running locally.`);
+      console.log(
+        `[Vectorizer] ⚠️ Using local API URL: ${this.config.apiUrl}. Ensure Vectorizer is running locally.`
+      );
     } else {
       console.log(`[Vectorizer] 🚀 Using remote API URL: ${this.config.apiUrl}`);
     }
@@ -58,7 +60,10 @@ export class VectorizerService {
   /**
    * Realiza busca semântica em uma collection
    */
-  async search(query: string, options?: SearchOptions): Promise<VectorizerResponse<SearchResult[]>> {
+  async search(
+    query: string,
+    options?: SearchOptions
+  ): Promise<VectorizerResponse<SearchResult[]>> {
     try {
       const collection = options?.collection || this.config.defaultCollection;
       const response = await fetch(`${this.config.apiUrl}/collections/${collection}/search/text`, {
@@ -107,7 +112,10 @@ export class VectorizerService {
       const allResults: SearchResult[] = [];
 
       for (const collection of collections) {
-        const result = await this.search(query, { collection, maxResults: Math.ceil(maxResults / 3) });
+        const result = await this.search(query, {
+          collection,
+          maxResults: Math.ceil(maxResults / 3),
+        });
         if (result.data) {
           allResults.push(...result.data);
         }
@@ -124,7 +132,10 @@ export class VectorizerService {
   /**
    * Insere texto em uma collection
    */
-  async insert(text: string, options?: InsertOptions): Promise<VectorizerResponse<{ vector_id: string }>> {
+  async insert(
+    text: string,
+    options?: InsertOptions
+  ): Promise<VectorizerResponse<{ vector_id: string }>> {
     try {
       const collection = options?.collection || this.config.defaultCollection;
       const response = await fetch(`${this.config.apiUrl}/collections/${collection}/texts`, {

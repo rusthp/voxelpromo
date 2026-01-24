@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,7 +35,38 @@ export function CollectionSettings({
     onAddRssFeed,
     onRemoveRssFeed
 }: CollectionSettingsProps) {
-    // Get current sources from config or use all by default
+    // Parse initial schedule to determine mode
+    const [scheduleMode, setScheduleMode] = useState<'simple' | 'advanced'>('advanced');
+    const [simpleHours, setSimpleHours] = useState<number>(6);
+
+    useEffect(() => {
+        const schedule = config.collection?.schedule || '0 */6 * * *';
+        const match = schedule.match(/^0 \*\/(\d+) \* \* \*$/);
+
+        if (match) {
+            setScheduleMode('simple');
+            setSimpleHours(parseInt(match[1]));
+        } else {
+            setScheduleMode('advanced');
+        }
+    }, []); // Run once on mount
+
+    const handleSimpleHoursChange = (hours: number) => {
+        // Clamp between 1 and 23
+        const h = Math.max(1, Math.min(23, hours));
+        setSimpleHours(h);
+        setConfig({
+            ...config,
+            collection: {
+                ...config.collection,
+                schedule: `0 */${h} * * *`
+            }
+        });
+    };
+
+
+
+    // Helper functions for sources
     const enabledSources = config.collection?.sources || ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'awin', 'rss'];
 
     const toggleSource = (sourceId: string) => {
@@ -54,6 +86,21 @@ export function CollectionSettings({
     };
 
     const isSourceEnabled = (sourceId: string) => enabledSources.includes(sourceId);
+
+    const handleModeChange = (mode: 'simple' | 'advanced') => {
+        setScheduleMode(mode);
+        if (mode === 'simple') {
+            // Restore last known simple hours or default to 6
+            const newSchedule = `0 */${simpleHours} * * *`;
+            setConfig({
+                ...config,
+                collection: {
+                    ...config.collection,
+                    schedule: newSchedule
+                }
+            });
+        }
+    };
 
     return (
         <Card>
@@ -98,28 +145,73 @@ export function CollectionSettings({
 
                 {/* Schedule Configuration */}
                 <div className="space-y-4 pt-4 border-t">
-                    <h3 className="text-sm font-medium flex items-center gap-2">
-                        <span className="w-4 h-4 flex items-center justify-center">🕒</span> Agendamento
-                    </h3>
-                    <div className="space-y-2">
-                        <Label htmlFor="collectionSchedule">Cronograma (Cron Expression)</Label>
-                        <div className="flex gap-2">
-                            <Input
-                                id="collectionSchedule"
-                                value={config.collection?.schedule || '0 */6 * * *'}
-                                onChange={(e) => setConfig({
-                                    ...config,
-                                    collection: {
-                                        ...config.collection,
-                                        schedule: e.target.value
-                                    }
-                                })}
-                                placeholder="0 */6 * * *"
-                            />
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-medium flex items-center gap-2">
+                            <span className="w-4 h-4 flex items-center justify-center">🕒</span> Agendamento
+                        </h3>
+                        <div className="flex items-center gap-2 bg-muted p-1 rounded-lg">
+                            <button
+                                onClick={() => handleModeChange('simple')}
+                                className={`px-3 py-1 text-xs rounded-md transition-all ${scheduleMode === 'simple' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                            >
+                                Simples
+                            </button>
+                            <button
+                                onClick={() => handleModeChange('advanced')}
+                                className={`px-3 py-1 text-xs rounded-md transition-all ${scheduleMode === 'advanced' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                            >
+                                Avançado
+                            </button>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                            Define a frequência da coleta automática (ex: <code>0 */6 * * *</code> para a cada 6 horas).
-                        </p>
+                    </div>
+
+                    <div className="space-y-4">
+                        {scheduleMode === 'simple' ? (
+                            <div className="p-4 rounded-lg border bg-card/50 space-y-3">
+                                <Label htmlFor="simpleInterval">Intervalo entre coletas (Horas)</Label>
+                                <div className="flex items-center gap-3">
+                                    <Input
+                                        id="simpleInterval"
+                                        type="number"
+                                        min={1}
+                                        max={23}
+                                        value={simpleHours}
+                                        onChange={(e) => handleSimpleHoursChange(parseInt(e.target.value) || 6)}
+                                        className="w-24 text-center font-bold text-lg"
+                                    />
+                                    <span className="text-sm text-muted-foreground">
+                                        O sistema irá buscar novas ofertas a cada <strong>{simpleHours} horas</strong>.
+                                    </span>
+                                </div>
+                                <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                                    <span className="font-mono">Cron gerado: 0 */{simpleHours} * * *</span>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                <Label htmlFor="collectionSchedule">Cronograma (Cron Expression)</Label>
+                                <div className="flex gap-2">
+                                    <Input
+                                        id="collectionSchedule"
+                                        value={config.collection?.schedule || '0 */6 * * *'}
+                                        onChange={(e) => setConfig({
+                                            ...config,
+                                            collection: {
+                                                ...config.collection,
+                                                schedule: e.target.value
+                                            }
+                                        })}
+                                        placeholder="0 */6 * * *"
+                                        className="font-mono"
+                                    />
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Define a frequência da coleta automática (ex: <code>0 */6 * * *</code> para a cada 6 horas).
+                                    <br />
+                                    Use <a href="https://crontab.guru/" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">crontab.guru</a> para ajuda.
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
 

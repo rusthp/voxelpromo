@@ -69,9 +69,7 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 
 // Security: CORS with better configuration
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',')
-  : [];
+const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [];
 
 // Always allow localhost:3001 (frontend), localhost:3000 (self), and localhost:8080 (alternative frontend port)
 if (!allowedOrigins.includes('http://localhost:3001')) allowedOrigins.push('http://localhost:3001');
@@ -142,9 +140,8 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   logger.error('Unhandled error:', err);
 
   // In production, don't  expose error details
-  const errorMessage = process.env.NODE_ENV === 'production'
-    ? 'Internal server error'
-    : err.message;
+  const errorMessage =
+    process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message;
 
   res.status(500).json({ error: errorMessage });
 });
@@ -255,4 +252,3 @@ async function startServer() {
 }
 
 startServer();
-

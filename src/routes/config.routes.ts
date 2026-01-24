@@ -6,7 +6,7 @@ import {
   validateTelegramBotToken,
   validateTelegramChatId,
   validateGroqApiKey,
-  validateOpenAIApiKey
+  validateOpenAIApiKey,
 } from '../utils/validators';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { getUserSettingsService } from '../services/user/UserSettingsService';
@@ -60,7 +60,11 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
     const validationErrors: string[] = [];
 
     // Validate Telegram Bot Token (if provided and not masked)
-    if (config.telegram?.botToken && config.telegram.botToken !== '***' && config.telegram.botToken.trim().length > 0) {
+    if (
+      config.telegram?.botToken &&
+      config.telegram.botToken !== '***' &&
+      config.telegram.botToken.trim().length > 0
+    ) {
       const validation = validateTelegramBotToken(config.telegram.botToken);
       if (!validation.isValid) {
         validationErrors.push(`Telegram Bot Token: ${validation.error}`);
@@ -76,7 +80,11 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
     }
 
     // Validate Groq API Key (if provided and not masked)
-    if (config.ai?.groqApiKey && config.ai.groqApiKey !== '***' && config.ai.groqApiKey.trim().length > 0) {
+    if (
+      config.ai?.groqApiKey &&
+      config.ai.groqApiKey !== '***' &&
+      config.ai.groqApiKey.trim().length > 0
+    ) {
       const validation = validateGroqApiKey(config.ai.groqApiKey);
       if (!validation.isValid) {
         validationErrors.push(`Groq API Key: ${validation.error}`);
@@ -84,7 +92,11 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
     }
 
     // Validate OpenAI API Key (if provided and not masked)
-    if (config.ai?.openaiApiKey && config.ai.openaiApiKey !== '***' && config.ai.openaiApiKey.trim().length > 0) {
+    if (
+      config.ai?.openaiApiKey &&
+      config.ai.openaiApiKey !== '***' &&
+      config.ai.openaiApiKey.trim().length > 0
+    ) {
       const validation = validateOpenAIApiKey(config.ai.openaiApiKey);
       if (!validation.isValid) {
         validationErrors.push(`OpenAI API Key: ${validation.error}`);
@@ -155,7 +167,11 @@ router.post('/', (req, res) => {
     const validationErrors: string[] = [];
 
     // Validate Telegram Bot Token (if provided and not masked)
-    if (config.telegram?.botToken && config.telegram.botToken !== '***' && config.telegram.botToken.trim().length > 0) {
+    if (
+      config.telegram?.botToken &&
+      config.telegram.botToken !== '***' &&
+      config.telegram.botToken.trim().length > 0
+    ) {
       const validation = validateTelegramBotToken(config.telegram.botToken);
       if (!validation.isValid) {
         validationErrors.push(`Telegram Bot Token: ${validation.error}`);
@@ -171,7 +187,11 @@ router.post('/', (req, res) => {
     }
 
     // Validate Groq API Key (if provided and not masked)
-    if (config.ai?.groqApiKey && config.ai.groqApiKey !== '***' && config.ai.groqApiKey.trim().length > 0) {
+    if (
+      config.ai?.groqApiKey &&
+      config.ai.groqApiKey !== '***' &&
+      config.ai.groqApiKey.trim().length > 0
+    ) {
       const validation = validateGroqApiKey(config.ai.groqApiKey);
       if (!validation.isValid) {
         validationErrors.push(`Groq API Key: ${validation.error}`);
@@ -179,7 +199,11 @@ router.post('/', (req, res) => {
     }
 
     // Validate OpenAI API Key (if provided and not masked)
-    if (config.ai?.openaiApiKey && config.ai.openaiApiKey !== '***' && config.ai.openaiApiKey.trim().length > 0) {
+    if (
+      config.ai?.openaiApiKey &&
+      config.ai.openaiApiKey !== '***' &&
+      config.ai.openaiApiKey.trim().length > 0
+    ) {
       const validation = validateOpenAIApiKey(config.ai.openaiApiKey);
       if (!validation.isValid) {
         validationErrors.push(`OpenAI API Key: ${validation.error}`);
@@ -262,12 +286,12 @@ router.post('/', (req, res) => {
         // Preserve tokens - they should only be updated via OAuth endpoints
         accessToken:
           config.mercadolivre?.accessToken !== undefined &&
-            config.mercadolivre.accessToken !== '***'
+          config.mercadolivre.accessToken !== '***'
             ? config.mercadolivre.accessToken
             : existingConfig.mercadolivre?.accessToken || '',
         refreshToken:
           config.mercadolivre?.refreshToken !== undefined &&
-            config.mercadolivre.refreshToken !== '***'
+          config.mercadolivre.refreshToken !== '***'
             ? config.mercadolivre.refreshToken
             : existingConfig.mercadolivre?.refreshToken || '',
         tokenExpiresAt:
@@ -433,12 +457,18 @@ router.post('/', (req, res) => {
         minDiscount: config.shopee?.minDiscount || existingConfig.shopee?.minDiscount,
         maxPrice: config.shopee?.maxPrice || existingConfig.shopee?.maxPrice,
         minPrice: config.shopee?.minPrice || existingConfig.shopee?.minPrice,
-        cacheEnabled: config.shopee?.cacheEnabled !== undefined ? config.shopee.cacheEnabled : existingConfig.shopee?.cacheEnabled,
+        cacheEnabled:
+          config.shopee?.cacheEnabled !== undefined
+            ? config.shopee.cacheEnabled
+            : existingConfig.shopee?.cacheEnabled,
       },
       awin: {
         ...existingConfig.awin,
         ...config.awin,
-        enabled: config.awin?.enabled !== undefined ? config.awin.enabled : existingConfig.awin?.enabled ?? false,
+        enabled:
+          config.awin?.enabled !== undefined
+            ? config.awin.enabled
+            : (existingConfig.awin?.enabled ?? false),
         apiToken:
           config.awin?.apiToken !== undefined
             ? config.awin.apiToken === '***'
@@ -476,7 +506,8 @@ router.post('/', (req, res) => {
             ? config.instagram.accessToken
             : existingConfig.instagram?.accessToken || '',
         pageAccessToken:
-          config.instagram?.pageAccessToken !== undefined && config.instagram.pageAccessToken !== '***'
+          config.instagram?.pageAccessToken !== undefined &&
+          config.instagram.pageAccessToken !== '***'
             ? config.instagram.pageAccessToken
             : existingConfig.instagram?.pageAccessToken || '',
         pageId:
@@ -772,7 +803,11 @@ router.post('/test', async (req, res) => {
                   success: false,
                   message: `⚠️ Autenticação OK (@${username}), mas sem permissão para postar. Verifique as permissões do app no Twitter Developer Portal.`,
                 };
-              } else if (postErrorMsg.includes('429') || postErrorMsg.includes('Too Many Requests') || (postError as any).code === 429) {
+              } else if (
+                postErrorMsg.includes('429') ||
+                postErrorMsg.includes('Too Many Requests') ||
+                (postError as any).code === 429
+              ) {
                 results.x = {
                   success: false,
                   message: `⚠️ Autenticação OK (@${username}), mas você atingiu o limite de postagens do Twitter (Rate Limit). O plano Grátis permite ~50 tweets/24h.`,
@@ -1033,9 +1068,8 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
               message: 'Client ID ou Client Secret não configurados',
             };
           } else {
-            const { MercadoLivreService } = await import(
-              '../services/mercadolivre/MercadoLivreService'
-            );
+            const { MercadoLivreService } =
+              await import('../services/mercadolivre/MercadoLivreService');
             const mercadoLivre = new MercadoLivreService();
 
             // Test by checking authentication status
@@ -1249,7 +1283,9 @@ async function getOffersSetupStatus(): Promise<{ hasOffers: boolean; count?: num
       return { hasOffers: false };
     }
 
-    const count = await mongoose.default.connection.db?.collection('offers').countDocuments({ isActive: true });
+    const count = await mongoose.default.connection.db
+      ?.collection('offers')
+      .countDocuments({ isActive: true });
     return { hasOffers: (count || 0) > 0, count: count || 0 };
   } catch {
     return { hasOffers: false };

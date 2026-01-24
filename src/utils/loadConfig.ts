@@ -87,9 +87,7 @@ export function loadConfigFromFile(force = false): void {
       process.env.WHATSAPP_TARGET_NUMBER = config.whatsapp.targetNumber;
       // Only log when actually loading from file (not using cache) to reduce log spam
       if (force || !configCache) {
-        logger.debug(
-          `WhatsApp config loaded (library: ${config.whatsapp.library || 'baileys'})`
-        );
+        logger.debug(`WhatsApp config loaded (library: ${config.whatsapp.library || 'baileys'})`);
       }
     }
 

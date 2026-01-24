@@ -6,9 +6,9 @@ import { logger } from '../utils/logger';
  * Email Service with dual provider support:
  * - SMTP (Titan/HostGator, Gmail, etc.) - Primary for production
  * - Resend API - Fallback or alternative
- * 
+ *
  * Priority: SMTP > Resend
- * 
+ *
  * Environment variables:
  * - EMAIL_PROVIDER: 'smtp' or 'resend' (default: auto-detect)
  * - EMAIL_HOST: SMTP host (e.g., smtp.titan.email)
@@ -20,163 +20,167 @@ import { logger } from '../utils/logger';
  * - RESEND_API_KEY: Resend API key (fallback)
  */
 class EmailService {
-    private smtpTransporter: nodemailer.Transporter | null = null;
-    private resend: Resend | null = null;
-    private from: string;
-    private provider: 'smtp' | 'resend' | null = null;
+  private smtpTransporter: nodemailer.Transporter | null = null;
+  private resend: Resend | null = null;
+  private from: string;
+  private provider: 'smtp' | 'resend' | null = null;
 
-    constructor() {
-        this.from = process.env.EMAIL_FROM || 'VoxelPromo <contato@voxelpromo.com>';
-        this.initializeProviders();
+  constructor() {
+    this.from = process.env.EMAIL_FROM || 'VoxelPromo <contato@voxelpromo.com>';
+    this.initializeProviders();
+  }
+
+  private initializeProviders(): void {
+    // Try SMTP first (preferred for Titan/HostGator)
+    if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      try {
+        const port = parseInt(process.env.EMAIL_PORT || '587');
+        const isSecure = process.env.EMAIL_SECURE === 'true' || port === 465;
+
+        this.smtpTransporter = nodemailer.createTransport({
+          host: process.env.EMAIL_HOST,
+          port: port,
+          secure: isSecure, // true for 465, false for 587
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+          },
+          authMethod: 'LOGIN', // Use LOGIN instead of PLAIN for Titan
+          tls: {
+            rejectUnauthorized: false,
+            minVersion: 'TLSv1.2', // Modern TLS
+          },
+          debug: process.env.NODE_ENV !== 'production',
+          logger: process.env.NODE_ENV !== 'production',
+        });
+
+        this.provider = 'smtp';
+        logger.info('✉️ EmailService initialized with SMTP', {
+          host: process.env.EMAIL_HOST,
+          port: process.env.EMAIL_PORT || '587',
+          user: process.env.EMAIL_USER?.substring(0, 5) + '...',
+        });
+      } catch (error) {
+        logger.error('Failed to initialize SMTP:', error);
+      }
     }
 
-    private initializeProviders(): void {
-        // Try SMTP first (preferred for Titan/HostGator)
-        if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-            try {
-                const port = parseInt(process.env.EMAIL_PORT || '587');
-                const isSecure = process.env.EMAIL_SECURE === 'true' || port === 465;
-
-                this.smtpTransporter = nodemailer.createTransport({
-                    host: process.env.EMAIL_HOST,
-                    port: port,
-                    secure: isSecure, // true for 465, false for 587
-                    auth: {
-                        user: process.env.EMAIL_USER,
-                        pass: process.env.EMAIL_PASS,
-                    },
-                    authMethod: 'LOGIN', // Use LOGIN instead of PLAIN for Titan
-                    tls: {
-                        rejectUnauthorized: false,
-                        minVersion: 'TLSv1.2' // Modern TLS
-                    },
-                    debug: process.env.NODE_ENV !== 'production',
-                    logger: process.env.NODE_ENV !== 'production'
-                });
-
-                this.provider = 'smtp';
-                logger.info('✉️ EmailService initialized with SMTP', {
-                    host: process.env.EMAIL_HOST,
-                    port: process.env.EMAIL_PORT || '587',
-                    user: process.env.EMAIL_USER?.substring(0, 5) + '...'
-                });
-            } catch (error) {
-                logger.error('Failed to initialize SMTP:', error);
-            }
-        }
-
-        // Try Resend as fallback
-        if (!this.provider && process.env.RESEND_API_KEY) {
-            this.resend = new Resend(process.env.RESEND_API_KEY);
-            this.provider = 'resend';
-            logger.info('✉️ EmailService initialized with Resend');
-        }
-
-        // No provider configured
-        if (!this.provider) {
-            if (process.env.NODE_ENV === 'production') {
-                logger.error('🔴 CRITICAL: No email provider configured in production!');
-                logger.error('   Configure EMAIL_HOST/USER/PASS (SMTP) or RESEND_API_KEY');
-            } else {
-                logger.warn('⚠️ No email provider configured. Email features disabled.');
-                logger.warn('   For Titan SMTP: Set EMAIL_HOST, EMAIL_USER, EMAIL_PASS');
-            }
-        }
+    // Try Resend as fallback
+    if (!this.provider && process.env.RESEND_API_KEY) {
+      this.resend = new Resend(process.env.RESEND_API_KEY);
+      this.provider = 'resend';
+      logger.info('✉️ EmailService initialized with Resend');
     }
 
-    /**
-     * Check if email service is configured
-     */
-    isConfigured(): boolean {
-        return this.provider !== null;
+    // No provider configured
+    if (!this.provider) {
+      if (process.env.NODE_ENV === 'production') {
+        logger.error('🔴 CRITICAL: No email provider configured in production!');
+        logger.error('   Configure EMAIL_HOST/USER/PASS (SMTP) or RESEND_API_KEY');
+      } else {
+        logger.warn('⚠️ No email provider configured. Email features disabled.');
+        logger.warn('   For Titan SMTP: Set EMAIL_HOST, EMAIL_USER, EMAIL_PASS');
+      }
+    }
+  }
+
+  /**
+   * Check if email service is configured
+   */
+  isConfigured(): boolean {
+    return this.provider !== null;
+  }
+
+  /**
+   * Get current provider name
+   */
+  getProvider(): string {
+    return this.provider || 'none';
+  }
+
+  /**
+   * Verify SMTP connection (useful for testing)
+   */
+  async verifyConnection(): Promise<boolean> {
+    if (this.smtpTransporter) {
+      try {
+        await this.smtpTransporter.verify();
+        logger.info('✅ SMTP connection verified');
+        return true;
+      } catch (error) {
+        logger.error('❌ SMTP connection failed:', error);
+        return false;
+      }
+    }
+    return this.resend !== null;
+  }
+
+  /**
+   * Send a generic email
+   */
+  async sendEmail(options: {
+    to: string;
+    subject: string;
+    html: string;
+    text?: string;
+  }): Promise<boolean> {
+    if (!this.provider) {
+      logger.warn('Email not sent: No provider configured');
+      return false;
     }
 
-    /**
-     * Get current provider name
-     */
-    getProvider(): string {
-        return this.provider || 'none';
-    }
+    try {
+      if (this.provider === 'smtp' && this.smtpTransporter) {
+        // Send via SMTP (Titan/HostGator)
+        await this.smtpTransporter.sendMail({
+          from: this.from,
+          to: options.to,
+          subject: options.subject,
+          html: options.html,
+          text: options.text,
+        });
+        logger.info(`📧 Email sent via SMTP to ${options.to}: ${options.subject}`);
+        return true;
+      } else if (this.provider === 'resend' && this.resend) {
+        // Send via Resend API
+        const result = await this.resend.emails.send({
+          from: this.from,
+          to: options.to,
+          subject: options.subject,
+          html: options.html,
+          text: options.text,
+        });
 
-    /**
-     * Verify SMTP connection (useful for testing)
-     */
-    async verifyConnection(): Promise<boolean> {
-        if (this.smtpTransporter) {
-            try {
-                await this.smtpTransporter.verify();
-                logger.info('✅ SMTP connection verified');
-                return true;
-            } catch (error) {
-                logger.error('❌ SMTP connection failed:', error);
-                return false;
-            }
+        if (result.error) {
+          logger.error('Failed to send email via Resend:', result.error);
+          return false;
         }
-        return this.resend !== null;
+        logger.info(`📧 Email sent via Resend to ${options.to}: ${options.subject}`);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      logger.error('Error sending email:', error);
+      return false;
     }
+  }
 
-    /**
-     * Send a generic email
-     */
-    async sendEmail(options: {
-        to: string;
-        subject: string;
-        html: string;
-        text?: string;
-    }): Promise<boolean> {
-        if (!this.provider) {
-            logger.warn('Email not sent: No provider configured');
-            return false;
-        }
+  /**
+   * Send subscription expiring reminder (D-5)
+   */
+  async sendExpirationReminder5Days(
+    to: string,
+    userName: string,
+    planName: string,
+    expiresAt: Date
+  ): Promise<boolean> {
+    const formattedDate = expiresAt.toLocaleDateString('pt-BR');
 
-        try {
-            if (this.provider === 'smtp' && this.smtpTransporter) {
-                // Send via SMTP (Titan/HostGator)
-                await this.smtpTransporter.sendMail({
-                    from: this.from,
-                    to: options.to,
-                    subject: options.subject,
-                    html: options.html,
-                    text: options.text,
-                });
-                logger.info(`📧 Email sent via SMTP to ${options.to}: ${options.subject}`);
-                return true;
-
-            } else if (this.provider === 'resend' && this.resend) {
-                // Send via Resend API
-                const result = await this.resend.emails.send({
-                    from: this.from,
-                    to: options.to,
-                    subject: options.subject,
-                    html: options.html,
-                    text: options.text,
-                });
-
-                if (result.error) {
-                    logger.error('Failed to send email via Resend:', result.error);
-                    return false;
-                }
-                logger.info(`📧 Email sent via Resend to ${options.to}: ${options.subject}`);
-                return true;
-            }
-
-            return false;
-        } catch (error) {
-            logger.error('Error sending email:', error);
-            return false;
-        }
-    }
-
-    /**
-     * Send subscription expiring reminder (D-5)
-     */
-    async sendExpirationReminder5Days(to: string, userName: string, planName: string, expiresAt: Date): Promise<boolean> {
-        const formattedDate = expiresAt.toLocaleDateString('pt-BR');
-
-        return this.sendEmail({
-            to,
-            subject: `⏰ Sua assinatura VoxelPromo expira em 5 dias`,
-            html: `
+    return this.sendEmail({
+      to,
+      subject: `⏰ Sua assinatura VoxelPromo expira em 5 dias`,
+      html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                     <h1 style="color: #06b6d4;">VoxelPromo</h1>
                     <h2>Olá, ${userName}! 👋</h2>
@@ -202,18 +206,22 @@ class EmailService {
                     </p>
                 </div>
             `,
-            text: `Olá ${userName}! Sua assinatura do plano ${planName} expira em ${formattedDate}. Acesse ${process.env.FRONTEND_URL}/pricing para renovar.`
-        });
-    }
+      text: `Olá ${userName}! Sua assinatura do plano ${planName} expira em ${formattedDate}. Acesse ${process.env.FRONTEND_URL}/pricing para renovar.`,
+    });
+  }
 
-    /**
-     * Send subscription expiring tomorrow reminder (D-1)
-     */
-    async sendExpirationReminderTomorrow(to: string, userName: string, planName: string): Promise<boolean> {
-        return this.sendEmail({
-            to,
-            subject: `🚨 URGENTE: Sua assinatura VoxelPromo expira AMANHÃ!`,
-            html: `
+  /**
+   * Send subscription expiring tomorrow reminder (D-1)
+   */
+  async sendExpirationReminderTomorrow(
+    to: string,
+    userName: string,
+    planName: string
+  ): Promise<boolean> {
+    return this.sendEmail({
+      to,
+      subject: `🚨 URGENTE: Sua assinatura VoxelPromo expira AMANHÃ!`,
+      html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                     <h1 style="color: #06b6d4;">VoxelPromo</h1>
                     <h2>Olá, ${userName}! ⚠️</h2>
@@ -241,18 +249,18 @@ class EmailService {
                     </p>
                 </div>
             `,
-            text: `URGENTE: Olá ${userName}! Sua assinatura do plano ${planName} expira AMANHÃ! Acesse ${process.env.FRONTEND_URL}/pricing para renovar e não perder acesso.`
-        });
-    }
+      text: `URGENTE: Olá ${userName}! Sua assinatura do plano ${planName} expira AMANHÃ! Acesse ${process.env.FRONTEND_URL}/pricing para renovar e não perder acesso.`,
+    });
+  }
 
-    /**
-     * Send subscription expired notification (D+1)
-     */
-    async sendExpiredNotification(to: string, userName: string, planName: string): Promise<boolean> {
-        return this.sendEmail({
-            to,
-            subject: `😢 Sua assinatura VoxelPromo expirou`,
-            html: `
+  /**
+   * Send subscription expired notification (D+1)
+   */
+  async sendExpiredNotification(to: string, userName: string, planName: string): Promise<boolean> {
+    return this.sendEmail({
+      to,
+      subject: `😢 Sua assinatura VoxelPromo expirou`,
+      html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                     <h1 style="color: #06b6d4;">VoxelPromo</h1>
                     <h2>Olá, ${userName}!</h2>
@@ -275,20 +283,25 @@ class EmailService {
                     </p>
                 </div>
             `,
-            text: `Olá ${userName}! Sua assinatura do plano ${planName} expirou. Acesse ${process.env.FRONTEND_URL}/pricing para reativar sua conta.`
-        });
-    }
+      text: `Olá ${userName}! Sua assinatura do plano ${planName} expirou. Acesse ${process.env.FRONTEND_URL}/pricing para reativar sua conta.`,
+    });
+  }
 
-    /**
-     * Send subscription activated confirmation
-     */
-    async sendSubscriptionActivated(to: string, userName: string, planName: string, nextBillingDate?: Date): Promise<boolean> {
-        const formattedDate = nextBillingDate?.toLocaleDateString('pt-BR') || 'em 30 dias';
+  /**
+   * Send subscription activated confirmation
+   */
+  async sendSubscriptionActivated(
+    to: string,
+    userName: string,
+    planName: string,
+    nextBillingDate?: Date
+  ): Promise<boolean> {
+    const formattedDate = nextBillingDate?.toLocaleDateString('pt-BR') || 'em 30 dias';
 
-        return this.sendEmail({
-            to,
-            subject: `🎉 Sua assinatura VoxelPromo foi ativada!`,
-            html: `
+    return this.sendEmail({
+      to,
+      subject: `🎉 Sua assinatura VoxelPromo foi ativada!`,
+      html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                     <h1 style="color: #06b6d4;">VoxelPromo</h1>
                     <h2>Parabéns, ${userName}! 🎉</h2>
@@ -319,20 +332,25 @@ class EmailService {
                     </p>
                 </div>
             `,
-            text: `Parabéns ${userName}! Sua assinatura do plano ${planName} foi ativada. Próxima cobrança: ${formattedDate}. Acesse ${process.env.FRONTEND_URL}/dashboard para começar.`
-        });
-    }
+      text: `Parabéns ${userName}! Sua assinatura do plano ${planName} foi ativada. Próxima cobrança: ${formattedDate}. Acesse ${process.env.FRONTEND_URL}/dashboard para começar.`,
+    });
+  }
 
-    /**
-     * Send subscription cancelled confirmation
-     */
-    async sendSubscriptionCancelled(to: string, userName: string, planName: string, accessUntil: Date): Promise<boolean> {
-        const formattedDate = accessUntil.toLocaleDateString('pt-BR');
+  /**
+   * Send subscription cancelled confirmation
+   */
+  async sendSubscriptionCancelled(
+    to: string,
+    userName: string,
+    planName: string,
+    accessUntil: Date
+  ): Promise<boolean> {
+    const formattedDate = accessUntil.toLocaleDateString('pt-BR');
 
-        return this.sendEmail({
-            to,
-            subject: `📝 Confirmação de cancelamento - VoxelPromo`,
-            html: `
+    return this.sendEmail({
+      to,
+      subject: `📝 Confirmação de cancelamento - VoxelPromo`,
+      html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                     <h1 style="color: #06b6d4;">VoxelPromo</h1>
                     <h2>Olá, ${userName}!</h2>
@@ -358,19 +376,19 @@ class EmailService {
                     </p>
                 </div>
             `,
-            text: `Olá ${userName}! Sua assinatura do plano ${planName} foi cancelada. Você ainda tem acesso até ${formattedDate}. Acesse ${process.env.FRONTEND_URL}/settings?tab=subscription para reativar.`
-        });
-    }
+      text: `Olá ${userName}! Sua assinatura do plano ${planName} foi cancelada. Você ainda tem acesso até ${formattedDate}. Acesse ${process.env.FRONTEND_URL}/settings?tab=subscription para reativar.`,
+    });
+  }
 
-    /**
-     * Send password reset email
-     * Token expires in 15 minutes for security
-     */
-    async sendPasswordResetEmail(to: string, resetUrl: string): Promise<boolean> {
-        return this.sendEmail({
-            to,
-            subject: `🔐 Redefinição de Senha - VoxelPromo`,
-            html: `
+  /**
+   * Send password reset email
+   * Token expires in 15 minutes for security
+   */
+  async sendPasswordResetEmail(to: string, resetUrl: string): Promise<boolean> {
+    return this.sendEmail({
+      to,
+      subject: `🔐 Redefinição de Senha - VoxelPromo`,
+      html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                     <h1 style="color: #06b6d4;">VoxelPromo</h1>
                     <h2>Redefinição de Senha</h2>
@@ -401,18 +419,18 @@ class EmailService {
                     </p>
                 </div>
             `,
-            text: `Redefinição de Senha VoxelPromo\n\nRecebemos uma solicitação para redefinir sua senha.\n\nClique no link abaixo (válido por 15 minutos):\n${resetUrl}\n\nSe você não solicitou, ignore este e-mail.`
-        });
-    }
+      text: `Redefinição de Senha VoxelPromo\n\nRecebemos uma solicitação para redefinir sua senha.\n\nClique no link abaixo (válido por 15 minutos):\n${resetUrl}\n\nSe você não solicitou, ignore este e-mail.`,
+    });
+  }
 
-    /**
-     * Send password changed notification (security)
-     */
-    async sendPasswordChangedNotification(to: string, userName: string): Promise<boolean> {
-        return this.sendEmail({
-            to,
-            subject: `🔒 Sua senha foi alterada - VoxelPromo`,
-            html: `
+  /**
+   * Send password changed notification (security)
+   */
+  async sendPasswordChangedNotification(to: string, userName: string): Promise<boolean> {
+    return this.sendEmail({
+      to,
+      subject: `🔒 Sua senha foi alterada - VoxelPromo`,
+      html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                     <h1 style="color: #06b6d4;">VoxelPromo</h1>
                     <h2>Olá, ${userName}!</h2>
@@ -440,18 +458,22 @@ class EmailService {
                     </p>
                 </div>
             `,
-            text: `Olá ${userName}! Sua senha VoxelPromo foi alterada em ${new Date().toLocaleString('pt-BR')}. Se você não fez essa alteração, entre em contato com nosso suporte imediatamente.`
-        });
-    }
+      text: `Olá ${userName}! Sua senha VoxelPromo foi alterada em ${new Date().toLocaleString('pt-BR')}. Se você não fez essa alteração, entre em contato com nosso suporte imediatamente.`,
+    });
+  }
 
-    /**
-     * Send email verification (clean design like Visor)
-     */
-    async sendVerificationEmail(to: string, userName: string, verificationUrl: string): Promise<boolean> {
-        return this.sendEmail({
-            to,
-            subject: `Verifique seu email - VoxelPromo`,
-            html: `
+  /**
+   * Send email verification (clean design like Visor)
+   */
+  async sendVerificationEmail(
+    to: string,
+    userName: string,
+    verificationUrl: string
+  ): Promise<boolean> {
+    return this.sendEmail({
+      to,
+      subject: `Verifique seu email - VoxelPromo`,
+      html: `
                 <!DOCTYPE html>
                 <html>
                 <head>
@@ -546,19 +568,19 @@ class EmailService {
                 </body>
                 </html>
             `,
-            text: `Olá ${userName}! Obrigado por se cadastrar no VoxelPromo. Verifique seu email acessando: ${verificationUrl}. Este link expira em 24 horas.`
-        });
-    }
+      text: `Olá ${userName}! Obrigado por se cadastrar no VoxelPromo. Verifique seu email acessando: ${verificationUrl}. Este link expira em 24 horas.`,
+    });
+  }
 }
 
 // Singleton instance
 let emailServiceInstance: EmailService | null = null;
 
 export function getEmailService(): EmailService {
-    if (!emailServiceInstance) {
-        emailServiceInstance = new EmailService();
-    }
-    return emailServiceInstance;
+  if (!emailServiceInstance) {
+    emailServiceInstance = new EmailService();
+  }
+  return emailServiceInstance;
 }
 
 export { EmailService };

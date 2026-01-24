@@ -31,12 +31,7 @@ import { documentsRoutes } from './documents.routes';
 import { paymentRoutes } from './payment.routes';
 import newsRoutes from './news.routes';
 import { usersRoutes } from './users.routes';
-import {
-  collectionLimiter,
-  configLimiter,
-  apiLimiter,
-} from '../middleware/rate-limit';
-
+import { collectionLimiter, configLimiter, apiLimiter } from '../middleware/rate-limit';
 
 export function setupRoutes(app: Express): void {
   // Serve static files for uploads (avatars, etc.)
@@ -117,16 +112,22 @@ export function setupRoutes(app: Express): void {
 
   if (isProduction) {
     // Serve static files from frontend/dist
-    app.use(express.static(frontendDistPath, {
-      maxAge: '1d', // Cache static assets for 1 day
-      etag: true,
-    }));
+    app.use(
+      express.static(frontendDistPath, {
+        maxAge: '1d', // Cache static assets for 1 day
+        etag: true,
+      })
+    );
 
     // SPA catch-all: Any route not handled by API should return index.html
     // This allows React Router to handle client-side routing
     app.get('*', (req, res, next) => {
       // Skip API routes
-      if (req.path.startsWith('/api/') || req.path.startsWith('/s/') || req.path.startsWith('/uploads/')) {
+      if (
+        req.path.startsWith('/api/') ||
+        req.path.startsWith('/s/') ||
+        req.path.startsWith('/uploads/')
+      ) {
         return next();
       }
 
@@ -141,4 +142,3 @@ export function setupRoutes(app: Express): void {
     });
   }
 }
-

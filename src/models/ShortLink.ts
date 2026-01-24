@@ -1,32 +1,32 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface ShortLinkDocument extends Document {
-    code: string;
-    originalUrl: string;
-    shortUrl: string;
-    clicks: number;
-    source: string;
-    offerId?: mongoose.Types.ObjectId;
-    createdAt: Date;
-    updatedAt: Date;
-    expiresAt?: Date;
-    isActive: boolean;
+  code: string;
+  originalUrl: string;
+  shortUrl: string;
+  clicks: number;
+  source: string;
+  offerId?: mongoose.Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+  expiresAt?: Date;
+  isActive: boolean;
 }
 
 const ShortLinkSchema = new Schema<ShortLinkDocument>(
-    {
-        code: { type: String, required: true, unique: true },
-        originalUrl: { type: String, required: true },
-        shortUrl: { type: String, required: true },
-        clicks: { type: Number, default: 0 },
-        source: { type: String, default: 'mercadolivre' },
-        offerId: { type: Schema.Types.ObjectId, ref: 'Offer' },
-        expiresAt: { type: Date },
-        isActive: { type: Boolean, default: true },
-    },
-    {
-        timestamps: true,
-    }
+  {
+    code: { type: String, required: true, unique: true },
+    originalUrl: { type: String, required: true },
+    shortUrl: { type: String, required: true },
+    clicks: { type: Number, default: 0 },
+    source: { type: String, default: 'mercadolivre' },
+    offerId: { type: Schema.Types.ObjectId, ref: 'Offer' },
+    expiresAt: { type: Date },
+    isActive: { type: Boolean, default: true },
+  },
+  {
+    timestamps: true,
+  }
 );
 
 // Indexes

@@ -4,7 +4,10 @@ import { OfferService } from '../services/offer/OfferService';
 import { validateRequest } from '../middleware/validation';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { FilterOptions, Offer } from '../types';
-import { PrioritizationService, SEASONAL_EVENTS } from '../services/automation/PrioritizationService';
+import {
+  PrioritizationService,
+  SEASONAL_EVENTS,
+} from '../services/automation/PrioritizationService';
 
 const router = Router();
 
@@ -128,11 +131,14 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     }
 
     const currentPrice = parseFloat(price);
-    const origPrice = original_price ? parseFloat(original_price) : (originalPrice ? parseFloat(originalPrice) : currentPrice);
-    const discountPct = discount_percentage ||
-      (origPrice > currentPrice
-        ? Math.round((1 - currentPrice / origPrice) * 100)
-        : 0);
+    const origPrice = original_price
+      ? parseFloat(original_price)
+      : originalPrice
+        ? parseFloat(originalPrice)
+        : currentPrice;
+    const discountPct =
+      discount_percentage ||
+      (origPrice > currentPrice ? Math.round((1 - currentPrice / origPrice) * 100) : 0);
 
     const offer: Partial<Offer> & { userId: string } = {
       userId: userId as any, // Will be converted to ObjectId in service
@@ -261,7 +267,7 @@ router.delete('/all', async (req: AuthRequest, res: Response) => {
       deletedCount,
       message: permanent
         ? `Permanently deleted ${deletedCount} offers`
-        : `Soft deleted ${deletedCount} offers`
+        : `Soft deleted ${deletedCount} offers`,
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
@@ -318,16 +324,16 @@ router.delete('/', validateRequest(deleteOffersSchema), async (req: AuthRequest,
 router.get('/seasonal/events', async (_req: AuthRequest, res: Response) => {
   try {
     const activeEvents = prioritizationService.getActiveSeasonalEvents();
-    const allEvents = SEASONAL_EVENTS.map(event => ({
+    const allEvents = SEASONAL_EVENTS.map((event) => ({
       ...event,
-      isActive: prioritizationService.isEventActiveOnDate(event)
+      isActive: prioritizationService.isEventActiveOnDate(event),
     }));
 
     return res.json({
       success: true,
       activeEvents,
       allEvents,
-      activeKeywords: prioritizationService.getActiveSeasonalKeywords()
+      activeKeywords: prioritizationService.getActiveSeasonalKeywords(),
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
@@ -351,15 +357,15 @@ router.get('/seasonal', async (req: AuthRequest, res: Response) => {
     );
 
     const seasonalOffers = allOffers
-      .map(offer => {
+      .map((offer) => {
         const match = prioritizationService.matchesActiveSeasonalEvent(offer);
         return {
           ...offer,
           seasonalMatch: match.matches ? match : null,
-          seasonalScore: prioritizationService.getSeasonalScore(offer)
+          seasonalScore: prioritizationService.getSeasonalScore(offer),
         };
       })
-      .filter(offer => offer.seasonalMatch !== null)
+      .filter((offer) => offer.seasonalMatch !== null)
       .sort((a, b) => b.seasonalScore - a.seasonalScore)
       .slice(0, parseInt(limit as string));
 
@@ -367,9 +373,9 @@ router.get('/seasonal', async (req: AuthRequest, res: Response) => {
 
     return res.json({
       success: true,
-      activeEvents: activeEvents.map(e => e.name),
+      activeEvents: activeEvents.map((e) => e.name),
       totalMatched: seasonalOffers.length,
-      offers: seasonalOffers
+      offers: seasonalOffers,
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
@@ -388,7 +394,13 @@ router.post('/seasonal/check', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'offerIds array is required' });
     }
 
-    const results: { offerId: string; matches: boolean; matchedEvents: string[]; matchedKeywords: string[]; score: number }[] = [];
+    const results: {
+      offerId: string;
+      matches: boolean;
+      matchedEvents: string[];
+      matchedKeywords: string[];
+      score: number;
+    }[] = [];
 
     for (const offerId of offerIds) {
       const offer = await offerService.getOfferById(offerId, userId);
@@ -399,7 +411,7 @@ router.post('/seasonal/check', async (req: AuthRequest, res: Response) => {
           matches: match.matches,
           matchedEvents: match.matchedEvents,
           matchedKeywords: match.matchedKeywords,
-          score: prioritizationService.getSeasonalScore(offer)
+          score: prioritizationService.getSeasonalScore(offer),
         });
       }
     }
@@ -407,7 +419,7 @@ router.post('/seasonal/check', async (req: AuthRequest, res: Response) => {
     return res.json({
       success: true,
       results,
-      activeEvents: prioritizationService.getActiveSeasonalEvents().map(e => e.name)
+      activeEvents: prioritizationService.getActiveSeasonalEvents().map((e) => e.name),
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });

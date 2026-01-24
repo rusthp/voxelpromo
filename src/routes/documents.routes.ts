@@ -8,20 +8,20 @@ const router = Router();
  * Validate a CPF number (mathematical validation only)
  */
 router.post('/validate-cpf', (req: Request, res: Response) => {
-    const { cpf } = req.body;
+  const { cpf } = req.body;
 
-    if (!cpf) {
-        return res.status(400).json({ error: 'CPF é obrigatório' });
-    }
+  if (!cpf) {
+    return res.status(400).json({ error: 'CPF é obrigatório' });
+  }
 
-    const isValid = DocumentValidatorService.validateCPF(cpf);
-    const formatted = DocumentValidatorService.formatCPF(cpf);
+  const isValid = DocumentValidatorService.validateCPF(cpf);
+  const formatted = DocumentValidatorService.formatCPF(cpf);
 
-    return res.json({
-        valid: isValid,
-        formatted: isValid ? formatted : null,
-        message: isValid ? 'CPF válido' : 'CPF inválido (dígitos verificadores incorretos)',
-    });
+  return res.json({
+    valid: isValid,
+    formatted: isValid ? formatted : null,
+    message: isValid ? 'CPF válido' : 'CPF inválido (dígitos verificadores incorretos)',
+  });
 });
 
 /**
@@ -29,23 +29,23 @@ router.post('/validate-cpf', (req: Request, res: Response) => {
  * Validate a CNPJ and lookup company data from BrasilAPI
  */
 router.post('/validate-cnpj', async (req: Request, res: Response) => {
-    const { cnpj } = req.body;
+  const { cnpj } = req.body;
 
-    if (!cnpj) {
-        return res.status(400).json({ error: 'CNPJ é obrigatório' });
-    }
+  if (!cnpj) {
+    return res.status(400).json({ error: 'CNPJ é obrigatório' });
+  }
 
-    const result = await DocumentValidatorService.lookupCNPJ(cnpj);
-    const formatted = DocumentValidatorService.formatCNPJ(cnpj);
+  const result = await DocumentValidatorService.lookupCNPJ(cnpj);
+  const formatted = DocumentValidatorService.formatCNPJ(cnpj);
 
-    return res.json({
-        valid: result.valid,
-        formatted: result.valid ? formatted : null,
-        razaoSocial: result.razaoSocial,
-        nomeFantasia: result.nomeFantasia,
-        situacao: result.situacao,
-        message: result.error || (result.valid ? 'CNPJ válido' : 'CNPJ inválido'),
-    });
+  return res.json({
+    valid: result.valid,
+    formatted: result.valid ? formatted : null,
+    razaoSocial: result.razaoSocial,
+    nomeFantasia: result.nomeFantasia,
+    situacao: result.situacao,
+    message: result.error || (result.valid ? 'CNPJ válido' : 'CNPJ inválido'),
+  });
 });
 
 export { router as documentsRoutes };

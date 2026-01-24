@@ -44,7 +44,9 @@ export class OfferService {
   /**
    * Get Telegram service for specific user (Multi-tenant)
    */
-  private async getTelegramServiceForUser(userId?: string | object): Promise<TelegramService | null> {
+  private async getTelegramServiceForUser(
+    userId?: string | object
+  ): Promise<TelegramService | null> {
     const uid = userId?.toString();
 
     // 1. Fallback / Legacy (No User Context) -> Use ENV variables
@@ -62,10 +64,14 @@ export class OfferService {
       const { UserSettingsModel } = await import('../../models/UserSettings');
       const settings = await UserSettingsModel.findOne({ userId: uid });
 
-      if (settings?.telegram?.isConfigured && settings.telegram.botToken && settings.telegram.channelId) {
+      if (
+        settings?.telegram?.isConfigured &&
+        settings.telegram.botToken &&
+        settings.telegram.channelId
+      ) {
         const service = new TelegramService({
           botToken: settings.telegram.botToken,
-          chatId: settings.telegram.channelId
+          chatId: settings.telegram.channelId,
         });
         this.telegramServices.set(uid, service);
         return service;
@@ -120,21 +126,24 @@ export class OfferService {
         source: offer.source,
         price: offer.currentPrice,
         url: offer.productUrl,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       };
 
-      this.getVectorizerService().insert(text, {
-        collection: 'voxelpromo-offers',
-        metadata
-      }).then(result => {
-        if (!result.success) {
-          logger.warn(`⚠️ Failed to index offer ${offer._id}: ${result.error}`);
-        } else {
-          logger.debug(`🧠 Indexed offer ${offer._id} in Vectorizer`);
-        }
-      }).catch(err => {
-        logger.error(`Error indexing offer ${offer._id}:`, err);
-      });
+      this.getVectorizerService()
+        .insert(text, {
+          collection: 'voxelpromo-offers',
+          metadata,
+        })
+        .then((result) => {
+          if (!result.success) {
+            logger.warn(`⚠️ Failed to index offer ${offer._id}: ${result.error}`);
+          } else {
+            logger.debug(`🧠 Indexed offer ${offer._id} in Vectorizer`);
+          }
+        })
+        .catch((err) => {
+          logger.error(`Error indexing offer ${offer._id}:`, err);
+        });
     } catch (error) {
       logger.error('Error preparing offer for indexing:', error);
     }
@@ -372,7 +381,10 @@ export class OfferService {
           activeIds.add(productId);
         }
       } catch (error: unknown) {
-        logger.error(`Error saving offer "${offer.title?.substring(0, 50)}...":`, getErrorMessage(error));
+        logger.error(
+          `Error saving offer "${offer.title?.substring(0, 50)}...":`,
+          getErrorMessage(error)
+        );
       }
     }
 
@@ -401,15 +413,15 @@ export class OfferService {
 
       if (options.maxPrice) {
         query.currentPrice = {
-          ...(query.currentPrice as Record<string, unknown> || {}),
-          $lte: options.maxPrice
+          ...((query.currentPrice as Record<string, unknown>) || {}),
+          $lte: options.maxPrice,
         };
       }
 
       if (options.minPrice) {
         query.currentPrice = {
-          ...(query.currentPrice as Record<string, unknown> || {}),
-          $gte: options.minPrice
+          ...((query.currentPrice as Record<string, unknown>) || {}),
+          $gte: options.minPrice,
         };
       }
 
@@ -455,7 +467,6 @@ export class OfferService {
           break;
       }
 
-
       const offers = await OfferModel.find(query)
         .sort(sort as any) // Safe cast for Mongoose sort
         .skip(skip) // Add skip to query chain
@@ -472,7 +483,12 @@ export class OfferService {
   /**
    * Get all offers (user-scoped)
    */
-  async getAllOffers(limit?: number, skip: number = 0, sortBy: string = 'newest', userId?: string): Promise<Offer[]> {
+  async getAllOffers(
+    limit?: number,
+    skip: number = 0,
+    sortBy: string = 'newest',
+    userId?: string
+  ): Promise<Offer[]> {
     try {
       let sort: Record<string, number> = { createdAt: -1 };
 
@@ -498,7 +514,9 @@ export class OfferService {
         queryFilter.userId = userId;
       }
 
-      let query = OfferModel.find(queryFilter).sort(sort as any).skip(skip);
+      let query = OfferModel.find(queryFilter)
+        .sort(sort as any)
+        .skip(skip);
 
       // Only apply limit if provided
       if (limit !== undefined && limit > 0) {
@@ -574,7 +592,11 @@ export class OfferService {
   /**
    * Post offer to channels (user-scoped)
    */
-  async postOffer(offerId: string, channels: string[] = ['telegram'], userId?: string): Promise<boolean> {
+  async postOffer(
+    offerId: string,
+    channels: string[] = ['telegram'],
+    userId?: string
+  ): Promise<boolean> {
     try {
       const offer = await this.getOfferById(offerId, userId);
       if (!offer) {
@@ -599,7 +621,9 @@ export class OfferService {
       const postedChannels: string[] = [];
 
       // Prepare post content
-      const postContent = offer.aiGeneratedPost || `${offer.title}\n\nPreço: R$ ${offer.currentPrice}\nDesconto: ${offer.discountPercentage}%\n\n${offer.productUrl}`;
+      const postContent =
+        offer.aiGeneratedPost ||
+        `${offer.title}\n\nPreço: R$ ${offer.currentPrice}\nDesconto: ${offer.discountPercentage}%\n\n${offer.productUrl}`;
 
       // Send to Telegram
       if (channels.includes('telegram') && !offer.postedChannels?.includes('telegram')) {
@@ -614,13 +638,16 @@ export class OfferService {
 
             // Helper to normalize text (remove accents, lowercase)
             const normalize = (text: string) =>
-              text.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase();
+              text
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase();
 
             const textToScan = normalize(`${offer.title} ${offer.description || ''}`);
 
             // 1. Whitelist Check (Match at least one)
             if (whitelist && whitelist.length > 0) {
-              const hasMatch = whitelist.some(term => textToScan.includes(normalize(term)));
+              const hasMatch = whitelist.some((term) => textToScan.includes(normalize(term)));
               if (!hasMatch) {
                 logger.info(`🚫 Offer blocked by whitelist: ${offer.title}`);
                 // Return true to "pretend" success so it doesn't retry, but don't post
@@ -630,7 +657,7 @@ export class OfferService {
 
             // 2. Blacklist Check (Must NOT match any)
             if (blacklist && blacklist.length > 0) {
-              const hasForbidden = blacklist.some(term => textToScan.includes(normalize(term)));
+              const hasForbidden = blacklist.some((term) => textToScan.includes(normalize(term)));
               if (hasForbidden) {
                 logger.info(`🚫 Offer blocked by blacklist: ${offer.title}`);
                 return true;
@@ -652,7 +679,7 @@ export class OfferService {
                 platform: 'telegram',
                 postContent,
                 status: 'success',
-                userId: offer.userId // Add userId to history
+                userId: offer.userId, // Add userId to history
               });
             } else {
               // Save failed attempt
@@ -662,7 +689,7 @@ export class OfferService {
                 postContent,
                 status: 'failed',
                 error: 'Failed to send to Telegram',
-                userId: offer.userId
+                userId: offer.userId,
               });
             }
           } else {
@@ -676,7 +703,7 @@ export class OfferService {
             postContent,
             status: 'failed',
             error: getErrorMessage(error),
-            userId: offer.userId
+            userId: offer.userId,
           });
         }
       }
@@ -719,9 +746,11 @@ export class OfferService {
       }
 
       // Send to X (Twitter)
-      if ((channels.includes('x') || channels.includes('twitter')) &&
+      if (
+        (channels.includes('x') || channels.includes('twitter')) &&
         !offer.postedChannels?.includes('x') &&
-        !offer.postedChannels?.includes('twitter')) {
+        !offer.postedChannels?.includes('twitter')
+      ) {
         try {
           logger.info(`📤 Attempting to post offer ${offerId} to X (Twitter)`);
           const xSuccess = await this.getXService().sendOffer(offer);
@@ -768,8 +797,8 @@ export class OfferService {
       if (channels.includes('instagram') && !offer.postedChannels?.includes('instagram')) {
         try {
           logger.info(`📤 Attempting to post offer ${offerId} to Instagram`);
-          const instagramSuccess = await this.getInstagramService().sendOffer(offer);
-          if (instagramSuccess) {
+          const igResult = await this.getInstagramService().sendOffer(offer);
+          if (igResult.success) {
             postedChannels.push('instagram');
             success = true;
             logger.info(`✅ Successfully posted offer ${offerId} to Instagram`);
@@ -778,8 +807,14 @@ export class OfferService {
             await PostHistoryModel.create({
               offerId,
               platform: 'instagram',
-              postContent,
+              postContent: igResult.caption || postContent,
               status: 'success',
+              userId: offer.userId,
+              metadata: {
+                mediaId: igResult.mediaId,
+                affiliateUrl: offer.affiliateUrl,
+                caption: igResult.caption,
+              },
             });
           } else {
             logger.warn(`⚠️ Failed to post offer ${offerId} to Instagram - check logs`);
@@ -828,7 +863,11 @@ export class OfferService {
   /**
    * Post multiple offers
    */
-  async postOffers(offerIds: string[], channels: string[] = ['telegram'], userId?: string): Promise<number> {
+  async postOffers(
+    offerIds: string[],
+    channels: string[] = ['telegram'],
+    userId?: string
+  ): Promise<number> {
     let successCount = 0;
 
     for (const offerId of offerIds) {
@@ -983,9 +1022,10 @@ export class OfferService {
         try {
           // Fetch automation config to get enabled channels
           const config = await AutomationConfigModel.findOne({}).lean();
-          const enabledChannels = config?.enabledChannels && config.enabledChannels.length > 0
-            ? config.enabledChannels
-            : ['telegram']; // Default to telegram if no config
+          const enabledChannels =
+            config?.enabledChannels && config.enabledChannels.length > 0
+              ? config.enabledChannels
+              : ['telegram']; // Default to telegram if no config
 
           // Post to configured channels
           const success = await this.postOffer(offer._id.toString(), enabledChannels);
@@ -993,7 +1033,7 @@ export class OfferService {
           if (success) {
             // Clear scheduledAt after successful posting
             await OfferModel.findByIdAndUpdate(offer._id, {
-              $unset: { scheduledAt: 1 }
+              $unset: { scheduledAt: 1 },
             });
             processedCount++;
             await this.delay(2000); // Rate limit
@@ -1028,12 +1068,14 @@ export class OfferService {
 
       const result = await OfferModel.deleteMany({
         createdAt: { $lt: cutoffDate },
-        isActive: false // Only delete inactive offers
+        isActive: false, // Only delete inactive offers
       });
 
       const deletedCount = result.deletedCount || 0;
       if (deletedCount > 0) {
-        logger.info(`🗑️ Cleaned up ${deletedCount} old inactive offers (older than ${daysToKeep} days)`);
+        logger.info(
+          `🗑️ Cleaned up ${deletedCount} old inactive offers (older than ${daysToKeep} days)`
+        );
       }
 
       return deletedCount;

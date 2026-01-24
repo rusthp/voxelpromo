@@ -27,22 +27,25 @@ interface ShopeeProduct {
 interface ShopeeConfig {
   feedUrls?: string[];
   affiliateCode?: string;
-  minDiscount?: number;      // Desconto mínimo (%)
-  maxPrice?: number;          // Preço máximo (BRL)
-  minPrice?: number;          // Preço mínimo (BRL)
-  cacheEnabled?: boolean;     // Habilitar cache de feeds
-  validateLinks?: boolean;    // Validar links antes de salvar
+  minDiscount?: number; // Desconto mínimo (%)
+  maxPrice?: number; // Preço máximo (BRL)
+  minPrice?: number; // Preço mínimo (BRL)
+  cacheEnabled?: boolean; // Habilitar cache de feeds
+  validateLinks?: boolean; // Validar links antes de salvar
 }
 
 export class ShopeeService {
   private categoryService: CategoryService;
 
   // Cache de feeds processados (feedUrl -> {products, timestamp})
-  private feedCache = new Map<string, {
-    products: ShopeeProduct[];
-    timestamp: number;
-    feedUrl: string;
-  }>();
+  private feedCache = new Map<
+    string,
+    {
+      products: ShopeeProduct[];
+      timestamp: number;
+      feedUrl: string;
+    }
+  >();
 
   // TTL do cache: 6 horas
   private readonly FEED_CACHE_TTL = 6 * 60 * 60 * 1000;
@@ -134,7 +137,7 @@ export class ShopeeService {
           if (age < this.FEED_CACHE_TTL) {
             logger.info(`💾 Cache HIT for feed (age: ${Math.round(age / 1000 / 60)}min)`, {
               products: cached.products.length,
-              feedUrl: feedUrl.substring(0, 60) + '...'
+              feedUrl: feedUrl.substring(0, 60) + '...',
             });
             return cached.products;
           } else {
@@ -165,10 +168,11 @@ export class ShopeeService {
           response = await axios.get(feedUrl, {
             headers: {
               Accept: 'text/csv, application/csv, */*',
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
               'Accept-Encoding': 'gzip, deflate, br',
               'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-              'Connection': 'keep-alive',
+              Connection: 'keep-alive',
             },
             httpsAgent,
             timeout: 120000, // 120 seconds for large CSV files
@@ -179,18 +183,22 @@ export class ShopeeService {
           break; // Success, exit retry loop
         } catch (error: any) {
           lastError = error;
-          const isTLSError = error.message?.includes('TLS') ||
+          const isTLSError =
+            error.message?.includes('TLS') ||
             error.message?.includes('socket disconnected') ||
             error.code === 'ECONNRESET' ||
             error.code === 'ETIMEDOUT';
 
           if (isTLSError && attempt < maxRetries) {
             const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // Exponential backoff: 2s, 4s, 8s
-            logger.warn(`⚠️ TLS/Connection error on attempt ${attempt}/${maxRetries}. Retrying in ${delay}ms...`, {
-              error: error.message,
-              code: error.code,
-            });
-            await new Promise(resolve => setTimeout(resolve, delay));
+            logger.warn(
+              `⚠️ TLS/Connection error on attempt ${attempt}/${maxRetries}. Retrying in ${delay}ms...`,
+              {
+                error: error.message,
+                code: error.code,
+              }
+            );
+            await new Promise((resolve) => setTimeout(resolve, delay));
           } else if (attempt >= maxRetries) {
             logger.error(`❌ All ${maxRetries} attempts failed for Shopee feed`, {
               error: error.message,
@@ -292,15 +300,16 @@ export class ShopeeService {
             : price;
           const discount = record.discount_percentage
             ? parseFloat(
-              record.discount_percentage
-                .toString()
-                .replace(/[^\d.,]/g, '')
-                .replace(',', '.')
-            )
+                record.discount_percentage
+                  .toString()
+                  .replace(/[^\d.,]/g, '')
+                  .replace(',', '.')
+              )
             : 0;
 
           // Calculate discount percentage if not provided
-          const discountPercentage = discount > 0 ? discount : (price > 0 ? ((price - salePrice) / price) * 100 : 0);
+          const discountPercentage =
+            discount > 0 ? discount : price > 0 ? ((price - salePrice) / price) * 100 : 0;
 
           // Early filters (before creating object)
           if (config.minDiscount && discountPercentage < config.minDiscount) {
@@ -338,12 +347,15 @@ export class ShopeeService {
             description: record.description || record.title || '',
             product_link: record.product_link || '',
             // Priority: 1) product_short link (with space), 2) product_short_link, 3) link, 4) product_link
-            product_short_link: record['product_short link'] || record.product_short_link || record.link || record.product_link || '',
+            product_short_link:
+              record['product_short link'] ||
+              record.product_short_link ||
+              record.link ||
+              record.product_link ||
+              '',
             global_category1: record.global_category1 || 'electronics',
             global_category2: record.global_category2,
-            item_rating: record.item_rating
-              ? parseFloat(record.item_rating.toString())
-              : undefined,
+            item_rating: record.item_rating ? parseFloat(record.item_rating.toString()) : undefined,
             global_catid1: record.global_catid1,
             global_catid2: record.global_catid2,
           });
@@ -356,7 +368,9 @@ export class ShopeeService {
 
       logger.info(`✅ Successfully processed ${products.length} products in ${elapsed}ms`);
       if (filteredCount > 0) {
-        logger.info(`📊 Early filters: ${filteredCount} products discarded, ${products.length} kept`);
+        logger.info(
+          `📊 Early filters: ${filteredCount} products discarded, ${products.length} kept`
+        );
       }
 
       // Save to cache if enabled
@@ -364,7 +378,7 @@ export class ShopeeService {
         this.feedCache.set(feedUrl, {
           products,
           timestamp: Date.now(),
-          feedUrl
+          feedUrl,
         });
         logger.debug(`💾 Cached ${products.length} products for feed`);
       }
@@ -488,9 +502,13 @@ export class ShopeeService {
         // Format: product_url + ?utm_source=an_{affiliateId}&mmp_pid=an_{affiliateId}&utm_medium=affiliates
         const separator = rawProductLink.includes('?') ? '&' : '?';
         affiliateUrl = `${rawProductLink}${separator}mmp_pid=an_${config.affiliateCode}&utm_source=an_${config.affiliateCode}&utm_medium=affiliates&utm_campaign=voxelpromo`;
-        logger.debug(`Generated affiliate link for ${product.itemid} using affiliate ID: ${config.affiliateCode}`);
+        logger.debug(
+          `Generated affiliate link for ${product.itemid} using affiliate ID: ${config.affiliateCode}`
+        );
       } else if (isAlreadyAffiliate) {
-        logger.debug(`Using existing affiliate link for ${product.itemid}: ${affiliateUrl.substring(0, 60)}...`);
+        logger.debug(
+          `Using existing affiliate link for ${product.itemid}: ${affiliateUrl.substring(0, 60)}...`
+        );
       }
 
       // Build tags

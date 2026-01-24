@@ -33,12 +33,16 @@ async function runJobForActiveUsers(jobName: string, action: (user: any) => Prom
         successCount++;
       } catch (userError: any) {
         errorCount++;
-        logger.error(`❌ Error in ${jobName} for user ${user.email} (${user._id}): ${userError.message}`);
+        logger.error(
+          `❌ Error in ${jobName} for user ${user.email} (${user._id}): ${userError.message}`
+        );
       }
     }
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-    logger.info(`✅ [Multi-Tenant Job] ${jobName} completed in ${duration}s. Success: ${successCount}, Errors: ${errorCount}.`);
+    logger.info(
+      `✅ [Multi-Tenant Job] ${jobName} completed in ${duration}s. Success: ${successCount}, Errors: ${errorCount}.`
+    );
   } catch (error: any) {
     logger.error(`❌ Critical Error running multi-tenant job ${jobName}: ${error.message}`, error);
   }
@@ -73,7 +77,7 @@ export function setupCronJobs(): void {
         logger.info(`   -> User ${user.email}: Collected ${result.total} offers`);
       }
     });
-  });
+  }, { timezone: 'America/Sao_Paulo' });
 
   // 2. Post best offers every day at 9 AM (Multi-Tenant)
   cron.schedule('0 9 * * *', async () => {
@@ -85,11 +89,11 @@ export function setupCronJobs(): void {
         excludePosted: true,
         minDiscount: 20,
         limit: 5,
-        userId: user.id
+        userId: user.id,
       });
 
       if (offers.length > 0) {
-        const offerIds = offers.map(o => o._id!.toString());
+        const offerIds = offers.map((o) => o._id!.toString());
         logger.info(`   -> User ${user.email}: Found ${offers.length} offers to post.`);
 
         // Post offers using user context (will load user's Telegram/X keys)
@@ -102,7 +106,7 @@ export function setupCronJobs(): void {
         // logger.debug(`   -> User ${user.email}: No offers to post.`);
       }
     });
-  });
+  }, { timezone: 'America/Sao_Paulo' });
 
   // 3. Generate AI posts every 12 hours (Multi-Tenant)
   cron.schedule('0 */12 * * *', async () => {
@@ -110,7 +114,7 @@ export function setupCronJobs(): void {
       const offers = await offerService.filterOffers({
         excludePosted: true,
         limit: 10,
-        userId: user.id
+        userId: user.id,
       });
 
       let generated = 0;
@@ -120,7 +124,7 @@ export function setupCronJobs(): void {
             await offerService.generateAIPost(offer._id, 'viral', user.id.toString());
             generated++;
             // Basic rate limit
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise((r) => setTimeout(r, 1000));
           } catch (e) {
             // Ignore individual failures
           }
@@ -130,7 +134,7 @@ export function setupCronJobs(): void {
         logger.info(`   -> User ${user.email}: Generated ${generated} AI posts`);
       }
     });
-  });
+  }, { timezone: 'America/Sao_Paulo' });
 
   // 4. Process scheduled offers (Global Loop)
   // This runs every minute and processes offers from ALL users.
@@ -140,9 +144,8 @@ export function setupCronJobs(): void {
     try {
       await offerService.processScheduledOffers();
     } catch (error) {
-      logger.error('❌ Error processing scheduled offers:', error);
     }
-  });
+  }, { timezone: 'America/Sao_Paulo' });
 
   // 5. Daily Cleanup (3 AM) - Global
   // Keeps logic to cleanup old offers for everyone
@@ -154,7 +157,7 @@ export function setupCronJobs(): void {
     } catch (error) {
       logger.error('❌ Error in daily cleanup:', error);
     }
-  });
+  }, { timezone: 'America/Sao_Paulo' });
 
   // 6. Subscription Sync (6 em 6 hours) - Already Multi-Tenant aware
   cron.schedule('0 */6 * * *', async () => {
@@ -176,7 +179,7 @@ export function setupCronJobs(): void {
       const usersWithSubscriptions = await User.find({
         'subscription.mpSubscriptionId': { $exists: true, $ne: null },
         'subscription.accessType': 'recurring',
-        'subscription.status': { $in: ['authorized', 'paused', 'pending'] }
+        'subscription.status': { $in: ['authorized', 'paused', 'pending'] },
       }).limit(100);
 
       if (usersWithSubscriptions.length === 0) return;
@@ -185,7 +188,9 @@ export function setupCronJobs(): void {
       for (const user of usersWithSubscriptions) {
         try {
           if (!user.subscription?.mpSubscriptionId) continue;
-          const mpDetails = await paymentService.getSubscriptionDetails(user.subscription.mpSubscriptionId) as any;
+          const mpDetails = (await paymentService.getSubscriptionDetails(
+            user.subscription.mpSubscriptionId
+          )) as any;
 
           let newStatus: any = user.subscription.status;
           if (mpDetails.status === 'authorized') newStatus = 'authorized';
@@ -201,16 +206,15 @@ export function setupCronJobs(): void {
           }
           await user.save();
           syncedCount++;
-          await new Promise(resolve => setTimeout(resolve, 6000)); // Rate limit
+          await new Promise((resolve) => setTimeout(resolve, 6000)); // Rate limit
         } catch (error) {
           // Log error
         }
       }
       logger.info(`✅ Subscription Sync: ${syncedCount} synced`);
     } catch (error) {
-      logger.error('❌ Error in Subscription Sync:', error);
     }
-  });
+  }, { timezone: 'America/Sao_Paulo' });
 
   // 7. Awin Feed Sync (Legacy/Global)
   // Maintains existing behavior for now (Admin keys/Env)
@@ -232,16 +236,16 @@ export function setupCronJobs(): void {
           try {
             await feedManager.getProducts(feed.advertiserId, { forceRefresh: true });
             refreshedCount++;
-            await new Promise(resolve => setTimeout(resolve, 15000));
-          } catch (e) { /* Ignore individual feed refresh errors */ }
+            await new Promise((resolve) => setTimeout(resolve, 15000));
+          } catch (e) {
+            /* Ignore individual feed refresh errors */
+          }
         }
         logger.info(`✅ Awin Feed Sync: Refreshed ${refreshedCount} feeds`);
       }
     } catch (error) {
-      logger.error('❌ Error in Awin Feed Sync:', error);
     }
-  });
+  }, { timezone: 'America/Sao_Paulo' });
 
   logger.info('✅ Cron jobs scheduled (Multi-Tenant Mode)');
 }
-

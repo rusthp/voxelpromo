@@ -44,7 +44,6 @@ interface AmazonConfig {
 }
 
 export class AmazonService {
-
   private config: AmazonConfig;
   private host: string;
   private awsRegion: string;
@@ -56,38 +55,38 @@ export class AmazonService {
     // Map country codes/regions to AWS Regions for signing
     // IMPORTANT: Brazil PA-API uses us-east-1 for signing, NOT sa-east-1!
     const regionMap: Record<string, string> = {
-      'BR': 'us-east-1', // Brazil uses us-east-1 for PA-API signing
-      'US': 'us-east-1',
-      'UK': 'eu-west-1',
-      'DE': 'eu-west-1',
-      'FR': 'eu-west-1',
-      'JP': 'us-west-2',
-      'CA': 'us-east-1',
-      'IN': 'eu-west-1',
-      'IT': 'eu-west-1',
-      'ES': 'eu-west-1',
-      'MX': 'us-east-1',
-      'AU': 'us-west-2',
-      'SG': 'us-west-2',
+      BR: 'us-east-1', // Brazil uses us-east-1 for PA-API signing
+      US: 'us-east-1',
+      UK: 'eu-west-1',
+      DE: 'eu-west-1',
+      FR: 'eu-west-1',
+      JP: 'us-west-2',
+      CA: 'us-east-1',
+      IN: 'eu-west-1',
+      IT: 'eu-west-1',
+      ES: 'eu-west-1',
+      MX: 'us-east-1',
+      AU: 'us-west-2',
+      SG: 'us-west-2',
       'sa-east-1': 'us-east-1', // Brazil uses us-east-1 for PA-API!
       'us-east-1': 'us-east-1',
     };
 
     // Map regions to PA-API Hosts
     const hosts: Record<string, string> = {
-      'BR': 'webservices.amazon.com.br',
-      'US': 'webservices.amazon.com',
-      'UK': 'webservices.amazon.co.uk',
-      'DE': 'webservices.amazon.de',
-      'FR': 'webservices.amazon.fr',
-      'JP': 'webservices.amazon.co.jp',
-      'CA': 'webservices.amazon.ca',
-      'IN': 'webservices.amazon.in',
-      'IT': 'webservices.amazon.it',
-      'ES': 'webservices.amazon.es',
-      'MX': 'webservices.amazon.com.mx',
-      'AU': 'webservices.amazon.com.au',
-      'SG': 'webservices.amazon.sg',
+      BR: 'webservices.amazon.com.br',
+      US: 'webservices.amazon.com',
+      UK: 'webservices.amazon.co.uk',
+      DE: 'webservices.amazon.de',
+      FR: 'webservices.amazon.fr',
+      JP: 'webservices.amazon.co.jp',
+      CA: 'webservices.amazon.ca',
+      IN: 'webservices.amazon.in',
+      IT: 'webservices.amazon.it',
+      ES: 'webservices.amazon.es',
+      MX: 'webservices.amazon.com.mx',
+      AU: 'webservices.amazon.com.au',
+      SG: 'webservices.amazon.sg',
       'us-east-1': 'webservices.amazon.com',
       'sa-east-1': 'webservices.amazon.com.br',
     };
@@ -176,7 +175,14 @@ export class AmazonService {
       const dateStamp = amzDate.substr(0, 8);
       const payloadString = JSON.stringify(payload);
 
-      const { authHeader } = this.generateSignature('POST', path, payloadString, amzDate, dateStamp, operation);
+      const { authHeader } = this.generateSignature(
+        'POST',
+        path,
+        payloadString,
+        amzDate,
+        dateStamp,
+        operation
+      );
 
       const url = `https://${this.host}${path}`;
 
@@ -192,8 +198,8 @@ export class AmazonService {
           'X-Amz-Date': amzDate,
           'X-Amz-Target': `com.amazon.paapi5.v1.ProductAdvertisingAPIv1.${operation}`,
           'Content-Encoding': 'amz-1.0',
-          'Authorization': authHeader,
-          'Host': this.host,
+          Authorization: authHeader,
+          Host: this.host,
         },
       });
 
@@ -369,7 +375,8 @@ export class AmazonService {
       if (!this.config.accessKey || !this.config.secretKey || !this.config.associateTag) {
         return {
           success: false,
-          message: 'Credenciais não configuradas. Configure Access Key, Secret Key e Associate Tag.',
+          message:
+            'Credenciais não configuradas. Configure Access Key, Secret Key e Associate Tag.',
         };
       }
 

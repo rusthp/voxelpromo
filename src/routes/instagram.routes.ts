@@ -15,10 +15,10 @@ let instagramService: InstagramService | null = null;
  * Get Instagram service instance (singleton)
  */
 function getInstagramService(): InstagramService {
-    if (!instagramService) {
-        instagramService = new InstagramService();
-    }
-    return instagramService;
+  if (!instagramService) {
+    instagramService = new InstagramService();
+  }
+  return instagramService;
 }
 
 /**
@@ -34,52 +34,52 @@ function getInstagramService(): InstagramService {
  *         description: Instagram status for current user
  */
 router.get('/status', authenticate, async (req: AuthRequest, res: Response) => {
-    try {
-        const userId = req.user!.id;
-        const settingsService = getUserSettingsService();
-        const userSettings = await settingsService.getSettings(userId);
+  try {
+    const userId = req.user!.id;
+    const settingsService = getUserSettingsService();
+    const userSettings = await settingsService.getSettings(userId);
 
-        // Check if user completed OAuth (has access token)
-        if (userSettings.instagram.isConfigured) {
-            return res.json({
-                success: true,
-                configured: true,
-                authenticated: true,
-                account: {
-                    username: userSettings.instagram.username || 'Unknown',
-                    accountType: userSettings.instagram.accountType || 'BUSINESS',
-                    igUserId: userSettings.instagram.igUserId,
-                },
-                rateLimit: { remaining: 200, limit: 200, resetAt: new Date(Date.now() + 3600000) },
-            });
-        }
-
-        // Check if user saved config but hasn't completed OAuth yet
-        if (userSettings.instagram.pendingOAuth) {
-            return res.json({
-                success: true,
-                configured: true,  // Config is saved
-                authenticated: false, // But OAuth not completed -> shows Connect button
-                account: null,
-                rateLimit: null,
-            });
-        }
-
-        // Not configured at all - show config form
-        return res.json({
-            success: true,
-            configured: false,
-            authenticated: false,
-            account: null,
-            rateLimit: null,
-        });
-    } catch (error: any) {
-        logger.error('Error getting Instagram status:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message,
-        });
+    // Check if user completed OAuth (has access token)
+    if (userSettings.instagram.isConfigured) {
+      return res.json({
+        success: true,
+        configured: true,
+        authenticated: true,
+        account: {
+          username: userSettings.instagram.username || 'Unknown',
+          accountType: userSettings.instagram.accountType || 'BUSINESS',
+          igUserId: userSettings.instagram.igUserId,
+        },
+        rateLimit: { remaining: 200, limit: 200, resetAt: new Date(Date.now() + 3600000) },
+      });
     }
+
+    // Check if user saved config but hasn't completed OAuth yet
+    if (userSettings.instagram.pendingOAuth) {
+      return res.json({
+        success: true,
+        configured: true, // Config is saved
+        authenticated: false, // But OAuth not completed -> shows Connect button
+        account: null,
+        rateLimit: null,
+      });
+    }
+
+    // Not configured at all - show config form
+    return res.json({
+      success: true,
+      configured: false,
+      authenticated: false,
+      account: null,
+      rateLimit: null,
+    });
+  } catch (error: any) {
+    logger.error('Error getting Instagram status:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
 });
 
 /**
@@ -95,48 +95,48 @@ router.get('/status', authenticate, async (req: AuthRequest, res: Response) => {
  *         description: Authorization URL
  */
 router.get('/auth/url', authenticate, async (req: AuthRequest, res: Response) => {
-    try {
-        const userId = req.user!.id;
-        const service = getInstagramService();
+  try {
+    const userId = req.user!.id;
+    const service = getInstagramService();
 
-        if (!service.isConfigured()) {
-            return res.status(400).json({
-                success: false,
-                error: 'Instagram não configurado. Configure o App ID e App Secret primeiro.',
-            });
-        }
-
-        // Build redirect URI
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-        const host = req.headers['x-forwarded-host'] || req.get('host');
-        const baseUrl = `${protocol}://${host}`;
-        const redirectUri = `${baseUrl}/api/instagram/auth/callback`;
-
-        // Generate state with userId encoded for CSRF protection + user identification
-        const stateData = {
-            csrf: Math.random().toString(36).substring(2, 15),
-            userId: userId,
-        };
-        const state = Buffer.from(JSON.stringify(stateData)).toString('base64');
-
-        // Store state in UserSettings (MULTI-TENANT)
-        const settingsService = getUserSettingsService();
-        await settingsService.storeInstagramOAuthState(userId, state, redirectUri);
-
-        const authUrl = service.getAuthorizationUrl(redirectUri, state);
-
-        return res.json({
-            success: true,
-            authUrl,
-            redirectUri,
-        });
-    } catch (error: any) {
-        logger.error('Error generating Instagram auth URL:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message,
-        });
+    if (!service.isConfigured()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Instagram não configurado. Configure o App ID e App Secret primeiro.',
+      });
     }
+
+    // Build redirect URI
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const baseUrl = `${protocol}://${host}`;
+    const redirectUri = `${baseUrl}/api/instagram/auth/callback`;
+
+    // Generate state with userId encoded for CSRF protection + user identification
+    const stateData = {
+      csrf: Math.random().toString(36).substring(2, 15),
+      userId: userId,
+    };
+    const state = Buffer.from(JSON.stringify(stateData)).toString('base64');
+
+    // Store state in UserSettings (MULTI-TENANT)
+    const settingsService = getUserSettingsService();
+    await settingsService.storeInstagramOAuthState(userId, state, redirectUri);
+
+    const authUrl = service.getAuthorizationUrl(redirectUri, state);
+
+    return res.json({
+      success: true,
+      authUrl,
+      redirectUri,
+    });
+  } catch (error: any) {
+    logger.error('Error generating Instagram auth URL:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
 });
 
 /**
@@ -150,65 +150,65 @@ router.get('/auth/url', authenticate, async (req: AuthRequest, res: Response) =>
  *         description: Redirect to frontend
  */
 router.get('/auth/callback', async (req: Request, res: Response) => {
-    try {
-        const { code, state, error, error_reason } = req.query;
+  try {
+    const { code, state, error, error_reason } = req.query;
 
-        if (error) {
-            logger.error(`Instagram OAuth error: ${error} - ${error_reason}`);
-            return res.redirect(`/instagram?error=${encodeURIComponent(String(error_reason || error))}`);
-        }
-
-        if (!code || !state) {
-            return res.redirect('/instagram?error=missing_code_or_state');
-        }
-
-        // Decode state to get userId (MULTI-TENANT)
-        let stateData: { csrf: string; userId: string };
-        try {
-            stateData = JSON.parse(Buffer.from(String(state), 'base64').toString());
-        } catch {
-            logger.error('Invalid OAuth state format');
-            return res.redirect('/instagram?error=invalid_state');
-        }
-
-        const userId = stateData.userId;
-        if (!userId) {
-            logger.error('No userId in OAuth state');
-            return res.redirect('/instagram?error=no_user_id');
-        }
-
-        // Verify state against UserSettings
-        const settingsService = getUserSettingsService();
-        const verification = await settingsService.verifyInstagramOAuthState(userId, String(state));
-
-        if (!verification.valid) {
-            logger.warn(`Instagram OAuth state mismatch for user ${userId}`);
-            return res.redirect('/instagram?error=state_mismatch');
-        }
-
-        const redirectUri = verification.redirectUri;
-
-        // Exchange code for token using global service (has appId/appSecret)
-        const service = getInstagramService();
-        const tokenResult = await service.exchangeCodeForToken(String(code), redirectUri!);
-
-        // Get account info
-        const accountInfo = await service.getAccountInfo();
-
-        // Save tokens to UserSettings (MULTI-TENANT)
-        await settingsService.updateInstagramTokens(userId, {
-            accessToken: tokenResult.access_token,
-            igUserId: service.getIgUserId() || accountInfo?.id || '',
-            username: accountInfo?.username,
-            accountType: accountInfo?.name || 'BUSINESS',
-        });
-
-        logger.info(`✅ Instagram OAuth completed for user ${userId} (@${accountInfo?.username})`);
-        return res.redirect('/instagram?success=true');
-    } catch (error: any) {
-        logger.error('Instagram OAuth callback error:', error);
-        return res.redirect(`/instagram?error=${encodeURIComponent(error.message)}`);
+    if (error) {
+      logger.error(`Instagram OAuth error: ${error} - ${error_reason}`);
+      return res.redirect(`/instagram?error=${encodeURIComponent(String(error_reason || error))}`);
     }
+
+    if (!code || !state) {
+      return res.redirect('/instagram?error=missing_code_or_state');
+    }
+
+    // Decode state to get userId (MULTI-TENANT)
+    let stateData: { csrf: string; userId: string };
+    try {
+      stateData = JSON.parse(Buffer.from(String(state), 'base64').toString());
+    } catch {
+      logger.error('Invalid OAuth state format');
+      return res.redirect('/instagram?error=invalid_state');
+    }
+
+    const userId = stateData.userId;
+    if (!userId) {
+      logger.error('No userId in OAuth state');
+      return res.redirect('/instagram?error=no_user_id');
+    }
+
+    // Verify state against UserSettings
+    const settingsService = getUserSettingsService();
+    const verification = await settingsService.verifyInstagramOAuthState(userId, String(state));
+
+    if (!verification.valid) {
+      logger.warn(`Instagram OAuth state mismatch for user ${userId}`);
+      return res.redirect('/instagram?error=state_mismatch');
+    }
+
+    const redirectUri = verification.redirectUri;
+
+    // Exchange code for token using global service (has appId/appSecret)
+    const service = getInstagramService();
+    const tokenResult = await service.exchangeCodeForToken(String(code), redirectUri!);
+
+    // Get account info
+    const accountInfo = await service.getAccountInfo();
+
+    // Save tokens to UserSettings (MULTI-TENANT)
+    await settingsService.updateInstagramTokens(userId, {
+      accessToken: tokenResult.access_token,
+      igUserId: service.getIgUserId() || accountInfo?.id || '',
+      username: accountInfo?.username,
+      accountType: accountInfo?.name || 'BUSINESS',
+    });
+
+    logger.info(`✅ Instagram OAuth completed for user ${userId} (@${accountInfo?.username})`);
+    return res.redirect('/instagram?success=true');
+  } catch (error: any) {
+    logger.error('Instagram OAuth callback error:', error);
+    return res.redirect(`/instagram?error=${encodeURIComponent(error.message)}`);
+  }
 });
 
 /**
@@ -221,50 +221,50 @@ router.get('/auth/callback', async (req: Request, res: Response) => {
  *       - bearerAuth: []
  */
 router.post('/auth/exchange', async (req: Request, res: Response) => {
-    try {
-        const { code, redirectUri } = req.body;
+  try {
+    const { code, redirectUri } = req.body;
 
-        if (!code) {
-            return res.status(400).json({
-                success: false,
-                error: 'Authorization code is required',
-            });
-        }
-
-        const service = getInstagramService();
-
-        // Use provided redirectUri or try to get from config
-        let finalRedirectUri = redirectUri;
-        if (!finalRedirectUri) {
-            const configPath = join(process.cwd(), 'config.json');
-            if (existsSync(configPath)) {
-                const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-                finalRedirectUri = config.instagram?._oauthRedirectUri;
-            }
-        }
-
-        if (!finalRedirectUri) {
-            return res.status(400).json({
-                success: false,
-                error: 'Redirect URI is required. Please start OAuth flow first.',
-            });
-        }
-
-        const tokenResponse = await service.exchangeCodeForToken(code, finalRedirectUri);
-        service.reloadCredentials();
-
-        return res.json({
-            success: true,
-            message: 'Instagram conectado com sucesso!',
-            expiresIn: tokenResponse.expires_in,
-        });
-    } catch (error: any) {
-        logger.error('Error exchanging Instagram code:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message,
-        });
+    if (!code) {
+      return res.status(400).json({
+        success: false,
+        error: 'Authorization code is required',
+      });
     }
+
+    const service = getInstagramService();
+
+    // Use provided redirectUri or try to get from config
+    let finalRedirectUri = redirectUri;
+    if (!finalRedirectUri) {
+      const configPath = join(process.cwd(), 'config.json');
+      if (existsSync(configPath)) {
+        const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+        finalRedirectUri = config.instagram?._oauthRedirectUri;
+      }
+    }
+
+    if (!finalRedirectUri) {
+      return res.status(400).json({
+        success: false,
+        error: 'Redirect URI is required. Please start OAuth flow first.',
+      });
+    }
+
+    const tokenResponse = await service.exchangeCodeForToken(code, finalRedirectUri);
+    service.reloadCredentials();
+
+    return res.json({
+      success: true,
+      message: 'Instagram conectado com sucesso!',
+      expiresIn: tokenResponse.expires_in,
+    });
+  } catch (error: any) {
+    logger.error('Error exchanging Instagram code:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
 });
 
 /**
@@ -277,21 +277,21 @@ router.post('/auth/exchange', async (req: Request, res: Response) => {
  *       - bearerAuth: []
  */
 router.post('/auth/disconnect', async (_req: Request, res: Response) => {
-    try {
-        const service = getInstagramService();
-        await service.disconnect();
+  try {
+    const service = getInstagramService();
+    await service.disconnect();
 
-        return res.json({
-            success: true,
-            message: 'Instagram desconectado com sucesso',
-        });
-    } catch (error: any) {
-        logger.error('Error disconnecting Instagram:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message,
-        });
-    }
+    return res.json({
+      success: true,
+      message: 'Instagram desconectado com sucesso',
+    });
+  } catch (error: any) {
+    logger.error('Error disconnecting Instagram:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
 });
 
 /**
@@ -302,18 +302,18 @@ router.post('/auth/disconnect', async (_req: Request, res: Response) => {
  *     tags: [Instagram]
  */
 router.get('/webhook', (req: Request, res: Response) => {
-    const mode = req.query['hub.mode'] as string;
-    const token = req.query['hub.verify_token'] as string;
-    const challenge = req.query['hub.challenge'] as string;
+  const mode = req.query['hub.mode'] as string;
+  const token = req.query['hub.verify_token'] as string;
+  const challenge = req.query['hub.challenge'] as string;
 
-    const service = getInstagramService();
-    const result = service.verifyWebhook(mode, token, challenge);
+  const service = getInstagramService();
+  const result = service.verifyWebhook(mode, token, challenge);
 
-    if (result) {
-        return res.status(200).send(result);
-    }
+  if (result) {
+    return res.status(200).send(result);
+  }
 
-    return res.sendStatus(403);
+  return res.sendStatus(403);
 });
 
 /**
@@ -324,17 +324,17 @@ router.get('/webhook', (req: Request, res: Response) => {
  *     tags: [Instagram]
  */
 router.post('/webhook', async (req: Request, res: Response) => {
-    try {
-        const service = getInstagramService();
-        await service.handleWebhook(req.body);
+  try {
+    const service = getInstagramService();
+    await service.handleWebhook(req.body);
 
-        // Always respond with 200 OK to acknowledge receipt
-        return res.sendStatus(200);
-    } catch (error: any) {
-        logger.error('Error handling Instagram webhook:', error);
-        // Still respond with 200 to prevent retries
-        return res.sendStatus(200);
-    }
+    // Always respond with 200 OK to acknowledge receipt
+    return res.sendStatus(200);
+  } catch (error: any) {
+    logger.error('Error handling Instagram webhook:', error);
+    // Still respond with 200 to prevent retries
+    return res.sendStatus(200);
+  }
 });
 
 /**
@@ -347,41 +347,41 @@ router.post('/webhook', async (req: Request, res: Response) => {
  *       - bearerAuth: []
  */
 router.post('/test', authenticate, async (req: AuthRequest, res: Response) => {
-    try {
-        const userId = req.user!.id;
+  try {
+    const userId = req.user!.id;
 
-        // Use user-specific Instagram service (MULTI-TENANT)
-        const service = await InstagramService.createForUser(userId);
+    // Use user-specific Instagram service (MULTI-TENANT)
+    const service = await InstagramService.createForUser(userId);
 
-        if (!service.isAuthenticated()) {
-            return res.status(400).json({
-                success: false,
-                error: 'Instagram não está conectado. Complete a autenticação OAuth primeiro.',
-            });
-        }
-
-        const success = await service.sendTestMessage();
-
-        if (success) {
-            const accountInfo = await service.getAccountInfo();
-            return res.json({
-                success: true,
-                message: `Conexão verificada! Conectado como @${accountInfo?.username}`,
-                account: accountInfo,
-            });
-        } else {
-            return res.status(500).json({
-                success: false,
-                error: 'Falha ao verificar conexão. Verifique os logs.',
-            });
-        }
-    } catch (error: any) {
-        logger.error('Error testing Instagram:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message,
-        });
+    if (!service.isAuthenticated()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Instagram não está conectado. Complete a autenticação OAuth primeiro.',
+      });
     }
+
+    const success = await service.sendTestMessage();
+
+    if (success) {
+      const accountInfo = await service.getAccountInfo();
+      return res.json({
+        success: true,
+        message: `Conexão verificada! Conectado como @${accountInfo?.username}`,
+        account: accountInfo,
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        error: 'Falha ao verificar conexão. Verifique os logs.',
+      });
+    }
+  } catch (error: any) {
+    logger.error('Error testing Instagram:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
 });
 
 /**
@@ -394,77 +394,77 @@ router.post('/test', authenticate, async (req: AuthRequest, res: Response) => {
  *       - bearerAuth: []
  */
 router.post('/config', authenticate, async (req: AuthRequest, res: Response) => {
-    try {
-        const userId = req.user!.id;
-        const { appId, appSecret, webhookVerifyToken, accessToken, igUserId } = req.body;
+  try {
+    const userId = req.user!.id;
+    const { appId, appSecret, webhookVerifyToken, accessToken, igUserId } = req.body;
 
-        // Save to global config.json for InstagramService (OAuth requires app-level credentials)
-        const configPath = join(process.cwd(), 'config.json');
-        let config: any = {};
+    // Save to global config.json for InstagramService (OAuth requires app-level credentials)
+    const configPath = join(process.cwd(), 'config.json');
+    let config: any = {};
 
-        if (existsSync(configPath)) {
-            config = JSON.parse(readFileSync(configPath, 'utf-8'));
-        }
-
-        config.instagram = config.instagram || {};
-
-        // Only update if provided and not masked
-        if (appId && appId !== '***') {
-            config.instagram.appId = appId;
-        }
-        if (appSecret && appSecret !== '***') {
-            config.instagram.appSecret = appSecret;
-        }
-        if (webhookVerifyToken !== undefined) {
-            config.instagram.webhookVerifyToken = webhookVerifyToken;
-        }
-
-        // Manual token flow - directly save accessToken and igUserId
-        if (accessToken && accessToken !== '***') {
-            config.instagram.accessToken = accessToken;
-            logger.info('✅ Instagram manual access token saved');
-        }
-        if (igUserId && igUserId !== '***') {
-            config.instagram.igUserId = igUserId;
-            logger.info('✅ Instagram IG User ID saved');
-        }
-
-        writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-
-        // Update environment variables for immediate use
-        if (accessToken && accessToken !== '***') {
-            process.env.INSTAGRAM_ACCESS_TOKEN = accessToken;
-        }
-        if (igUserId && igUserId !== '***') {
-            process.env.INSTAGRAM_IG_USER_ID = igUserId;
-        }
-
-        // Reload service credentials
-        const service = getInstagramService();
-        service.reloadCredentials();
-
-        // CRITICAL: Mark user as "pendingOAuth" in UserSettings so /status knows config is saved
-        // This allows the Connect button to appear
-        const settingsService = getUserSettingsService();
-        await settingsService.updateInstagramSettings(userId, {
-            isConfigured: false, // Will become true after OAuth completes
-            pendingOAuth: true,  // New flag to indicate config saved, waiting for OAuth
-        });
-
-        logger.info(`✅ Instagram config saved for user ${userId}, pending OAuth`);
-
-        return res.json({
-            success: true,
-            message: 'Configuração atualizada com sucesso',
-            pendingOAuth: true,
-        });
-    } catch (error: any) {
-        logger.error('Error updating Instagram config:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message,
-        });
+    if (existsSync(configPath)) {
+      config = JSON.parse(readFileSync(configPath, 'utf-8'));
     }
+
+    config.instagram = config.instagram || {};
+
+    // Only update if provided and not masked
+    if (appId && appId !== '***') {
+      config.instagram.appId = appId;
+    }
+    if (appSecret && appSecret !== '***') {
+      config.instagram.appSecret = appSecret;
+    }
+    if (webhookVerifyToken !== undefined) {
+      config.instagram.webhookVerifyToken = webhookVerifyToken;
+    }
+
+    // Manual token flow - directly save accessToken and igUserId
+    if (accessToken && accessToken !== '***') {
+      config.instagram.accessToken = accessToken;
+      logger.info('✅ Instagram manual access token saved');
+    }
+    if (igUserId && igUserId !== '***') {
+      config.instagram.igUserId = igUserId;
+      logger.info('✅ Instagram IG User ID saved');
+    }
+
+    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+
+    // Update environment variables for immediate use
+    if (accessToken && accessToken !== '***') {
+      process.env.INSTAGRAM_ACCESS_TOKEN = accessToken;
+    }
+    if (igUserId && igUserId !== '***') {
+      process.env.INSTAGRAM_IG_USER_ID = igUserId;
+    }
+
+    // Reload service credentials
+    const service = getInstagramService();
+    service.reloadCredentials();
+
+    // CRITICAL: Mark user as "pendingOAuth" in UserSettings so /status knows config is saved
+    // This allows the Connect button to appear
+    const settingsService = getUserSettingsService();
+    await settingsService.updateInstagramSettings(userId, {
+      isConfigured: false, // Will become true after OAuth completes
+      pendingOAuth: true, // New flag to indicate config saved, waiting for OAuth
+    });
+
+    logger.info(`✅ Instagram config saved for user ${userId}, pending OAuth`);
+
+    return res.json({
+      success: true,
+      message: 'Configuração atualizada com sucesso',
+      pendingOAuth: true,
+    });
+  } catch (error: any) {
+    logger.error('Error updating Instagram config:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
 });
 
 /**
@@ -477,20 +477,80 @@ router.post('/config', authenticate, async (req: AuthRequest, res: Response) => 
  *       - bearerAuth: []
  */
 router.get('/rate-limit', (_req: Request, res: Response) => {
-    try {
-        const service = getInstagramService();
-        const status = service.getRateLimitStatus();
+  try {
+    const service = getInstagramService();
+    const status = service.getRateLimitStatus();
 
-        return res.json({
-            success: true,
-            ...status,
-        });
-    } catch (error: any) {
-        return res.status(500).json({
-            success: false,
-            error: error.message,
-        });
-    }
+    return res.json({
+      success: true,
+      ...status,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/instagram/conversions:
+ *   get:
+ *     summary: Get Instagram conversion metrics
+ *     tags: [Instagram]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/conversions', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { InstagramConversionModel } = await import('../models/InstagramConversion');
+
+    // Stats for last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const conversions = await InstagramConversionModel.find({
+      userId,
+      sentAt: { $gte: thirtyDaysAgo },
+    })
+      .sort({ sentAt: -1 })
+      .populate('offerId', 'title imageUrl');
+
+    // Aggregations
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const stats = {
+      total: conversions.length,
+      today: conversions.filter((c) => new Date(c.sentAt) >= today).length,
+      bySource: conversions.reduce((acc: any, curr) => {
+        acc[curr.source] = (acc[curr.source] || 0) + 1;
+        return acc;
+      }, {}),
+      recent: conversions.slice(0, 10).map((c: any) => ({
+        id: c._id,
+        offerTitle: c.offerId?.title || 'Oferta removida',
+        offerImage: c.offerId?.imageUrl,
+        recipient: c.igSenderId,
+        source: c.source,
+        date: c.sentAt,
+        status: 'sent', // TODO: track clicks
+      })),
+    };
+
+    return res.json({
+      success: true,
+      stats,
+    });
+  } catch (error: any) {
+    logger.error('Error getting Instagram conversions:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
 });
 
 /**
@@ -502,22 +562,32 @@ router.get('/rate-limit', (_req: Request, res: Response) => {
  *     security:
  *       - bearerAuth: []
  */
-router.get('/settings', (_req: Request, res: Response) => {
-    try {
-        const service = getInstagramService();
-        const settings = service.getSettings();
+router.get('/settings', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const settingsService = getUserSettingsService();
+    const settings = await settingsService.getInstagramCredentials(userId);
 
-        return res.json({
-            success: true,
-            settings,
-        });
-    } catch (error: any) {
-        logger.error('Error getting Instagram settings:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message,
-        });
-    }
+    return res.json({
+      success: true,
+      settings: {
+        enabled: true, // Always enabled if configured
+        autoReplyDM: settings.autoReplyDM,
+        welcomeMessage: settings.welcomeMessage,
+        keywordReplies:
+          settings.keywordReplies instanceof Map
+            ? Object.fromEntries(settings.keywordReplies)
+            : settings.keywordReplies || {},
+        conversionKeywords: settings.conversionKeywords,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Error getting Instagram settings:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
 });
 
 /**
@@ -529,31 +599,40 @@ router.get('/settings', (_req: Request, res: Response) => {
  *     security:
  *       - bearerAuth: []
  */
-router.post('/settings', async (req: Request, res: Response) => {
-    try {
-        const { enabled, autoReplyDM, welcomeMessage, keywordReplies } = req.body;
-        const service = getInstagramService();
+router.post('/settings', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { autoReplyDM, welcomeMessage, keywordReplies, conversionKeywords } = req.body;
+    const settingsService = getUserSettingsService();
 
-        const updates: any = {};
-        if (typeof enabled === 'boolean') updates.enabled = enabled;
-        if (typeof autoReplyDM === 'boolean') updates.autoReplyDM = autoReplyDM;
-        if (welcomeMessage !== undefined) updates.welcomeMessage = welcomeMessage;
-        if (keywordReplies !== undefined) updates.keywordReplies = keywordReplies;
+    const updates: any = {};
+    if (typeof autoReplyDM === 'boolean') updates.autoReplyDM = autoReplyDM;
+    if (welcomeMessage !== undefined) updates.welcomeMessage = welcomeMessage;
+    if (keywordReplies !== undefined) updates.keywordReplies = keywordReplies;
+    if (conversionKeywords !== undefined) updates.conversionKeywords = conversionKeywords;
 
-        await service.updateSettings(updates);
+    const updatedSettings = await settingsService.updateInstagramSettings(userId, updates);
 
-        return res.json({
-            success: true,
-            message: 'Configurações atualizadas com sucesso',
-            settings: service.getSettings(),
-        });
-    } catch (error: any) {
-        logger.error('Error updating Instagram settings:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message,
-        });
-    }
+    return res.json({
+      success: true,
+      message: 'Configurações atualizadas com sucesso',
+      settings: {
+        autoReplyDM: updatedSettings.instagram.autoReplyDM,
+        welcomeMessage: updatedSettings.instagram.welcomeMessage,
+        keywordReplies:
+          updatedSettings.instagram.keywordReplies instanceof Map
+            ? Object.fromEntries(updatedSettings.instagram.keywordReplies)
+            : updatedSettings.instagram.keywordReplies || {},
+        conversionKeywords: updatedSettings.instagram.conversionKeywords,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Error updating Instagram settings:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
 });
 
 // ========================================
@@ -586,48 +665,48 @@ router.post('/settings', async (req: Request, res: Response) => {
  *                 default: IMAGE
  */
 router.post('/story', authenticate, async (req: AuthRequest, res: Response) => {
-    try {
-        const userId = req.user!.id;
-        const { mediaUrl, mediaType = 'IMAGE' } = req.body;
+  try {
+    const userId = req.user!.id;
+    const { mediaUrl, mediaType = 'IMAGE' } = req.body;
 
-        if (!mediaUrl) {
-            return res.status(400).json({
-                success: false,
-                error: 'mediaUrl is required',
-            });
-        }
-
-        // Use user-specific Instagram service (MULTI-TENANT)
-        const service = await InstagramService.createForUser(userId);
-
-        if (!service.isAuthenticated()) {
-            return res.status(401).json({
-                success: false,
-                error: 'Instagram não está conectado',
-            });
-        }
-
-        const mediaId = await service.publishStory(mediaUrl, mediaType);
-
-        if (mediaId) {
-            return res.json({
-                success: true,
-                message: 'Story publicado com sucesso!',
-                mediaId,
-            });
-        } else {
-            return res.status(500).json({
-                success: false,
-                error: 'Falha ao publicar Story. Verifique os logs.',
-            });
-        }
-    } catch (error: any) {
-        logger.error('Error publishing Instagram story:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message,
-        });
+    if (!mediaUrl) {
+      return res.status(400).json({
+        success: false,
+        error: 'mediaUrl is required',
+      });
     }
+
+    // Use user-specific Instagram service (MULTI-TENANT)
+    const service = await InstagramService.createForUser(userId);
+
+    if (!service.isAuthenticated()) {
+      return res.status(401).json({
+        success: false,
+        error: 'Instagram não está conectado',
+      });
+    }
+
+    const mediaId = await service.publishStory(mediaUrl, mediaType);
+
+    if (mediaId) {
+      return res.json({
+        success: true,
+        message: 'Story publicado com sucesso!',
+        mediaId,
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        error: 'Falha ao publicar Story. Verifique os logs.',
+      });
+    }
+  } catch (error: any) {
+    logger.error('Error publishing Instagram story:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
 });
 
 /**
@@ -658,48 +737,48 @@ router.post('/story', authenticate, async (req: AuthRequest, res: Response) => {
  *                 default: true
  */
 router.post('/reel', authenticate, async (req: AuthRequest, res: Response) => {
-    try {
-        const userId = req.user!.id;
-        const { videoUrl, caption, shareToFeed = true } = req.body;
+  try {
+    const userId = req.user!.id;
+    const { videoUrl, caption, shareToFeed = true } = req.body;
 
-        if (!videoUrl) {
-            return res.status(400).json({
-                success: false,
-                error: 'videoUrl is required',
-            });
-        }
-
-        // Use user-specific Instagram service (MULTI-TENANT)
-        const service = await InstagramService.createForUser(userId);
-
-        if (!service.isAuthenticated()) {
-            return res.status(401).json({
-                success: false,
-                error: 'Instagram não está conectado',
-            });
-        }
-
-        const mediaId = await service.publishReel(videoUrl, caption, shareToFeed);
-
-        if (mediaId) {
-            return res.json({
-                success: true,
-                message: 'Reel publicado com sucesso!',
-                mediaId,
-            });
-        } else {
-            return res.status(500).json({
-                success: false,
-                error: 'Falha ao publicar Reel. Verifique os logs.',
-            });
-        }
-    } catch (error: any) {
-        logger.error('Error publishing Instagram reel:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message,
-        });
+    if (!videoUrl) {
+      return res.status(400).json({
+        success: false,
+        error: 'videoUrl is required',
+      });
     }
+
+    // Use user-specific Instagram service (MULTI-TENANT)
+    const service = await InstagramService.createForUser(userId);
+
+    if (!service.isAuthenticated()) {
+      return res.status(401).json({
+        success: false,
+        error: 'Instagram não está conectado',
+      });
+    }
+
+    const mediaId = await service.publishReel(videoUrl, caption, shareToFeed);
+
+    if (mediaId) {
+      return res.json({
+        success: true,
+        message: 'Reel publicado com sucesso!',
+        mediaId,
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        error: 'Falha ao publicar Reel. Verifique os logs.',
+      });
+    }
+  } catch (error: any) {
+    logger.error('Error publishing Instagram reel:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
 });
 
 /**
@@ -718,40 +797,40 @@ router.post('/reel', authenticate, async (req: AuthRequest, res: Response) => {
  *           type: string
  */
 router.get('/insights/:mediaId', authenticate, async (req: AuthRequest, res: Response) => {
-    try {
-        const userId = req.user!.id;
-        const { mediaId } = req.params;
+  try {
+    const userId = req.user!.id;
+    const { mediaId } = req.params;
 
-        // Use user-specific Instagram service (MULTI-TENANT)
-        const service = await InstagramService.createForUser(userId);
+    // Use user-specific Instagram service (MULTI-TENANT)
+    const service = await InstagramService.createForUser(userId);
 
-        if (!service.isAuthenticated()) {
-            return res.status(401).json({
-                success: false,
-                error: 'Instagram não está conectado',
-            });
-        }
-
-        const insights = await service.getMediaInsights(mediaId);
-
-        if (insights) {
-            return res.json({
-                success: true,
-                insights,
-            });
-        } else {
-            return res.status(404).json({
-                success: false,
-                error: 'Não foi possível obter insights para esta mídia',
-            });
-        }
-    } catch (error: any) {
-        logger.error('Error getting Instagram insights:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message,
-        });
+    if (!service.isAuthenticated()) {
+      return res.status(401).json({
+        success: false,
+        error: 'Instagram não está conectado',
+      });
     }
+
+    const insights = await service.getMediaInsights(mediaId);
+
+    if (insights) {
+      return res.json({
+        success: true,
+        insights,
+      });
+    } else {
+      return res.status(404).json({
+        success: false,
+        error: 'Não foi possível obter insights para esta mídia',
+      });
+    }
+  } catch (error: any) {
+    logger.error('Error getting Instagram insights:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
 });
 
 /**
@@ -770,35 +849,34 @@ router.get('/insights/:mediaId', authenticate, async (req: AuthRequest, res: Res
  *           default: 10
  */
 router.get('/media', authenticate, async (req: AuthRequest, res: Response) => {
-    try {
-        const userId = req.user!.id;
-        const limit = parseInt(req.query.limit as string) || 10;
+  try {
+    const userId = req.user!.id;
+    const limit = parseInt(req.query.limit as string) || 10;
 
-        // Use user-specific Instagram service (MULTI-TENANT)
-        const service = await InstagramService.createForUser(userId);
+    // Use user-specific Instagram service (MULTI-TENANT)
+    const service = await InstagramService.createForUser(userId);
 
-        if (!service.isAuthenticated()) {
-            return res.status(401).json({
-                success: false,
-                error: 'Instagram não está conectado',
-            });
-        }
-
-        const media = await service.getRecentMedia(limit);
-
-        return res.json({
-            success: true,
-            media,
-            count: media.length,
-        });
-    } catch (error: any) {
-        logger.error('Error getting Instagram media:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message,
-        });
+    if (!service.isAuthenticated()) {
+      return res.status(401).json({
+        success: false,
+        error: 'Instagram não está conectado',
+      });
     }
+
+    const media = await service.getRecentMedia(limit);
+
+    return res.json({
+      success: true,
+      media,
+      count: media.length,
+    });
+  } catch (error: any) {
+    logger.error('Error getting Instagram media:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
 });
 
 export default router;
-

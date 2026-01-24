@@ -38,47 +38,51 @@ interface StatCardProps {
 
 function StatCard({ title, value, subtitle, icon, trend, gradient, iconBg }: StatCardProps) {
     return (
-        <div className={cn(
-            "relative overflow-hidden rounded-2xl p-6",
-            "bg-gradient-to-br border border-white/10",
-            "backdrop-blur-xl shadow-2xl",
-            "transition-all duration-300 hover:scale-[1.02] hover:shadow-cyan-500/10",
-            gradient
-        )}>
-            {/* Decorative glow */}
-            <div className="absolute -top-24 -right-24 w-48 h-48 rounded-full bg-white/5 blur-3xl" />
+        <div className="flex flex-col gap-2">
+            {/* Title outside the card */}
+            <p className="text-sm text-white/70 font-medium px-1">{title}</p>
 
-            {/* Header */}
-            <div className="flex items-start justify-between mb-4">
-                <div className={cn(
-                    "p-3 rounded-xl",
-                    "bg-gradient-to-br shadow-lg",
-                    iconBg
-                )}>
-                    {icon}
-                </div>
-                {trend && (
+            <div className={cn(
+                "relative overflow-hidden rounded-2xl p-6",
+                "bg-gradient-to-br border border-white/10",
+                "backdrop-blur-xl shadow-2xl",
+                "transition-all duration-300 hover:scale-[1.02] hover:shadow-cyan-500/10",
+                gradient
+            )}>
+                {/* Decorative glow */}
+                <div className="absolute -top-24 -right-24 w-48 h-48 rounded-full bg-white/5 blur-3xl" />
+
+                {/* Header */}
+                <div className="flex items-start justify-between mb-4">
                     <div className={cn(
-                        "flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium",
-                        trend.isPositive
-                            ? "bg-emerald-500/20 text-emerald-400"
-                            : "bg-red-500/20 text-red-400"
+                        "p-3 rounded-xl",
+                        "bg-gradient-to-br shadow-lg",
+                        iconBg
                     )}>
-                        {trend.isPositive ? (
-                            <ArrowUpRight className="w-3 h-3" />
-                        ) : (
-                            <ArrowDownRight className="w-3 h-3" />
-                        )}
-                        {trend.value > 0 ? '+' : ''}{trend.value}%
+                        {icon}
                     </div>
-                )}
-            </div>
+                    {trend && (
+                        <div className={cn(
+                            "flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium",
+                            trend.isPositive
+                                ? "bg-emerald-500/20 text-emerald-400"
+                                : "bg-red-500/20 text-red-400"
+                        )}>
+                            {trend.isPositive ? (
+                                <ArrowUpRight className="w-3 h-3" />
+                            ) : (
+                                <ArrowDownRight className="w-3 h-3" />
+                            )}
+                            {trend.value > 0 ? '+' : ''}{trend.value}%
+                        </div>
+                    )}
+                </div>
 
-            {/* Content */}
-            <div className="relative z-10">
-                <p className="text-sm text-white/60 font-medium mb-1">{title}</p>
-                <p className="text-3xl font-bold text-white tracking-tight mb-1">{value}</p>
-                <p className="text-xs text-white/40">{subtitle}</p>
+                {/* Content */}
+                <div className="relative z-10">
+                    <p className="text-3xl font-bold text-white tracking-tight mb-1">{value}</p>
+                    <p className="text-xs text-white/40">{subtitle}</p>
+                </div>
             </div>
         </div>
     );

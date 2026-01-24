@@ -5,14 +5,14 @@ import { AppError } from './AppError';
  * User provided invalid data
  */
 export class ValidationError extends AppError {
-    constructor(message: string, context?: Record<string, any>) {
-        super(message, {
-            statusCode: 400,
-            isOperational: true,
-            errorCode: 'VALIDATION_ERROR',
-            context,
-        });
-    }
+  constructor(message: string, context?: Record<string, any>) {
+    super(message, {
+      statusCode: 400,
+      isOperational: true,
+      errorCode: 'VALIDATION_ERROR',
+      context,
+    });
+  }
 }
 
 /**
@@ -20,14 +20,14 @@ export class ValidationError extends AppError {
  * Requested resource does not exist
  */
 export class NotFoundError extends AppError {
-    constructor(resource: string, context?: Record<string, any>) {
-        super(`${resource} not found`, {
-            statusCode: 404,
-            isOperational: true,
-            errorCode: 'NOT_FOUND',
-            context: { resource, ...context },
-        });
-    }
+  constructor(resource: string, context?: Record<string, any>) {
+    super(`${resource} not found`, {
+      statusCode: 404,
+      isOperational: true,
+      errorCode: 'NOT_FOUND',
+      context: { resource, ...context },
+    });
+  }
 }
 
 /**
@@ -35,14 +35,14 @@ export class NotFoundError extends AppError {
  * Authentication failed or missing
  */
 export class UnauthorizedError extends AppError {
-    constructor(message: string = 'Authentication required', context?: Record<string, any>) {
-        super(message, {
-            statusCode: 401,
-            isOperational: true,
-            errorCode: 'UNAUTHORIZED',
-            context,
-        });
-    }
+  constructor(message: string = 'Authentication required', context?: Record<string, any>) {
+    super(message, {
+      statusCode: 401,
+      isOperational: true,
+      errorCode: 'UNAUTHORIZED',
+      context,
+    });
+  }
 }
 
 /**
@@ -50,14 +50,14 @@ export class UnauthorizedError extends AppError {
  * User lacks permission
  */
 export class ForbiddenError extends AppError {
-    constructor(message: string = 'Access forbidden', context?: Record<string, any>) {
-        super(message, {
-            statusCode: 403,
-            isOperational: true,
-            errorCode: 'FORBIDDEN',
-            context,
-        });
-    }
+  constructor(message: string = 'Access forbidden', context?: Record<string, any>) {
+    super(message, {
+      statusCode: 403,
+      isOperational: true,
+      errorCode: 'FORBIDDEN',
+      context,
+    });
+  }
 }
 
 /**
@@ -65,17 +65,17 @@ export class ForbiddenError extends AppError {
  * External service failed
  */
 export class ExternalAPIError extends AppError {
-    constructor(
-        message: string,
-        context?: Record<string, any> & { service?: string; endpoint?: string }
-    ) {
-        super(message, {
-            statusCode: 502,
-            isOperational: true,
-            errorCode: 'EXTERNAL_API_ERROR',
-            context,
-        });
-    }
+  constructor(
+    message: string,
+    context?: Record<string, any> & { service?: string; endpoint?: string }
+  ) {
+    super(message, {
+      statusCode: 502,
+      isOperational: true,
+      errorCode: 'EXTERNAL_API_ERROR',
+      context,
+    });
+  }
 }
 
 /**
@@ -83,14 +83,14 @@ export class ExternalAPIError extends AppError {
  * Database operation failed
  */
 export class DatabaseError extends AppError {
-    constructor(message: string, context?: Record<string, any>) {
-        super(message, {
-            statusCode: 500,
-            isOperational: true,
-            errorCode: 'DATABASE_ERROR',
-            context,
-        });
-    }
+  constructor(message: string, context?: Record<string, any>) {
+    super(message, {
+      statusCode: 500,
+      isOperational: true,
+      errorCode: 'DATABASE_ERROR',
+      context,
+    });
+  }
 }
 
 /**
@@ -98,14 +98,14 @@ export class DatabaseError extends AppError {
  * Rate limit exceeded
  */
 export class RateLimitError extends AppError {
-    constructor(message: string = 'Rate limit exceeded', context?: Record<string, any>) {
-        super(message, {
-            statusCode: 429,
-            isOperational: true,
-            errorCode: 'RATE_LIMIT_EXCEEDED',
-            context,
-        });
-    }
+  constructor(message: string = 'Rate limit exceeded', context?: Record<string, any>) {
+    super(message, {
+      statusCode: 429,
+      isOperational: true,
+      errorCode: 'RATE_LIMIT_EXCEEDED',
+      context,
+    });
+  }
 }
 
 /**
@@ -113,14 +113,14 @@ export class RateLimitError extends AppError {
  * Operation timed out
  */
 export class TimeoutError extends AppError {
-    constructor(message: string = 'Operation timed out', context?: Record<string, any>) {
-        super(message, {
-            statusCode: 504,
-            isOperational: true,
-            errorCode: 'TIMEOUT',
-            context,
-        });
-    }
+  constructor(message: string = 'Operation timed out', context?: Record<string, any>) {
+    super(message, {
+      statusCode: 504,
+      isOperational: true,
+      errorCode: 'TIMEOUT',
+      context,
+    });
+  }
 }
 
 /**
@@ -128,14 +128,14 @@ export class TimeoutError extends AppError {
  * System misconfiguration (non-operational)
  */
 export class ConfigurationError extends AppError {
-    constructor(message: string, context?: Record<string, any>) {
-        super(message, {
-            statusCode: 500,
-            isOperational: false, // This is a programming error
-            errorCode: 'CONFIGURATION_ERROR',
-            context,
-        });
-    }
+  constructor(message: string, context?: Record<string, any>) {
+    super(message, {
+      statusCode: 500,
+      isOperational: false, // This is a programming error
+      errorCode: 'CONFIGURATION_ERROR',
+      context,
+    });
+  }
 }
 
 // Re-export base class

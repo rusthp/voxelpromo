@@ -10,14 +10,14 @@ const shortenerService = new UrlShortenerService();
  * Redirect to original URL
  */
 router.get('/:code', async (req: Request, res: Response) => {
-    try {
-        const { code } = req.params;
+  try {
+    const { code } = req.params;
 
-        const originalUrl = await shortenerService.resolveCode(code);
+    const originalUrl = await shortenerService.resolveCode(code);
 
-        if (!originalUrl) {
-            logger.warn(`🔗 Short link not found or expired: ${code}`);
-            return res.status(404).send(`
+    if (!originalUrl) {
+      logger.warn(`🔗 Short link not found or expired: ${code}`);
+      return res.status(404).send(`
         <!DOCTYPE html>
         <html>
         <head>
@@ -36,14 +36,14 @@ router.get('/:code', async (req: Request, res: Response) => {
         </body>
         </html>
       `);
-        }
-
-        // HTTP 301 Permanent Redirect for SEO
-        return res.redirect(301, originalUrl);
-    } catch (error: any) {
-        logger.error('Error resolving short link:', error);
-        return res.status(500).send('Erro interno');
     }
+
+    // HTTP 301 Permanent Redirect for SEO
+    return res.redirect(301, originalUrl);
+  } catch (error: any) {
+    logger.error('Error resolving short link:', error);
+    return res.status(500).send('Erro interno');
+  }
 });
 
 export default router;
