@@ -499,11 +499,20 @@ export class InstagramService {
 
     try {
       // Business Login for Instagram - always use graph.instagram.com
+      logger.info(`📱 Instagram getAccountInfo - fetching user data`, {
+        igUserId: this.igUserId,
+        hasAccessToken: !!this.accessToken,
+      });
+
       const response = await axios.get(`${this.graphApiBase}/${this.apiVersion}/${this.igUserId}`, {
         params: {
           access_token: this.accessToken,
           fields: 'id,username,account_type,media_count,profile_picture_url',
         },
+      });
+
+      logger.info(`📱 Instagram getAccountInfo - API response`, {
+        data: response.data,
       });
 
       return {
