@@ -680,7 +680,7 @@ router.post('/story', authenticate, async (req: AuthRequest, res: Response) => {
     const service = await InstagramService.createForUser(userId);
 
     if (!service.isAuthenticated()) {
-      return res.status(401).json({
+      return res.status(403).json({
         success: false,
         error: 'Instagram não está conectado',
       });
@@ -752,7 +752,7 @@ router.post('/reel', authenticate, async (req: AuthRequest, res: Response) => {
     const service = await InstagramService.createForUser(userId);
 
     if (!service.isAuthenticated()) {
-      return res.status(401).json({
+      return res.status(403).json({
         success: false,
         error: 'Instagram não está conectado',
       });
@@ -805,7 +805,7 @@ router.get('/insights/:mediaId', authenticate, async (req: AuthRequest, res: Res
     const service = await InstagramService.createForUser(userId);
 
     if (!service.isAuthenticated()) {
-      return res.status(401).json({
+      return res.status(403).json({
         success: false,
         error: 'Instagram não está conectado',
       });
@@ -857,7 +857,7 @@ router.get('/media', authenticate, async (req: AuthRequest, res: Response) => {
     const service = await InstagramService.createForUser(userId);
 
     if (!service.isAuthenticated()) {
-      return res.status(401).json({
+      return res.status(403).json({
         success: false,
         error: 'Instagram não está conectado',
       });
