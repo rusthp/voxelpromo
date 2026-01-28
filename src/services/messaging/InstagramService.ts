@@ -334,8 +334,16 @@ export class InstagramService {
       formData.append('redirect_uri', redirectUri);
       formData.append('code', cleanCode);
 
+      const tokenUrl = `${this.tokenApiBase}/oauth/access_token`;
+      logger.info(`📱 Instagram OAuth - Exchanging code for token`, {
+        tokenUrl,
+        redirectUriSent: redirectUri,
+        codeLength: cleanCode.length,
+        clientId: this.appId,
+      });
+
       const response = await axios.post(
-        `${this.tokenApiBase}/oauth/access_token`,
+        tokenUrl,
         formData.toString(),
         { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
       );
