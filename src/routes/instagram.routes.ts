@@ -112,6 +112,17 @@ router.get('/auth/url', authenticate, async (req: AuthRequest, res: Response) =>
     const baseUrl = `${protocol}://${host}`;
     const redirectUri = `${baseUrl}/api/instagram/auth/callback`;
 
+    logger.info(`📱 Instagram OAuth - Generating auth URL`, {
+      protocol,
+      host,
+      redirectUri,
+      headers: {
+        'x-forwarded-proto': req.headers['x-forwarded-proto'],
+        'x-forwarded-host': req.headers['x-forwarded-host'],
+        host: req.get('host'),
+      },
+    });
+
     // Generate state with userId encoded for CSRF protection + user identification
     const stateData = {
       csrf: Math.random().toString(36).substring(2, 15),
@@ -187,6 +198,12 @@ router.get('/auth/callback', async (req: Request, res: Response) => {
     }
 
     const redirectUri = verification.redirectUri;
+
+    logger.info(`📱 Instagram OAuth - Callback received`, {
+      storedRedirectUri: redirectUri,
+      userId,
+      codePrefix: String(code).substring(0, 20) + '...',
+    });
 
     // Exchange code for token using global service (has appId/appSecret)
     const service = getInstagramService();
