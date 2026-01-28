@@ -286,9 +286,14 @@ export class InstagramService {
       );
     }
 
-    // PHASE 1: Minimal scopes for faster Meta approval
-    // Add instagram_business_manage_messages and instagram_business_manage_comments in PHASE 2
-    const scopes = ['instagram_business_basic', 'instagram_business_content_publish'].join(',');
+    // All scopes as configured in Meta Developers Console
+    const scopes = [
+      'instagram_business_basic',
+      'instagram_business_manage_messages',
+      'instagram_business_manage_comments',
+      'instagram_business_content_publish',
+      'instagram_business_manage_insights',
+    ].join(',');
 
     const params = new URLSearchParams({
       client_id: this.appId, // Instagram App ID
