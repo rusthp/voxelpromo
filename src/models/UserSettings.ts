@@ -80,6 +80,9 @@ export interface InstagramSettings {
   welcomeMessage?: string;
   keywordReplies?: Map<string, string>;
   conversionKeywords?: string[];
+  // OAuth State (Temporary)
+  _oauthState?: string;
+  _oauthRedirectUri?: string;
 }
 
 export interface WhatsAppSettings {
@@ -250,6 +253,8 @@ const InstagramSettingsSchema = new Schema(
     welcomeMessage: { type: String, default: 'Olá! Como posso ajudar?' },
     keywordReplies: { type: Map, of: String, default: {} },
     conversionKeywords: { type: [String], default: ['quero', 'eu quero', 'link', 'comprar'] },
+    _oauthState: String,
+    _oauthRedirectUri: String,
   },
   { _id: false }
 );
