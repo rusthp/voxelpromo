@@ -106,16 +106,21 @@ router.get('/auth/url', authenticate, async (req: AuthRequest, res: Response) =>
       });
     }
 
-    // Build redirect URI
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.headers['x-forwarded-host'] || req.get('host');
-    const baseUrl = `${protocol}://${host}`;
-    const redirectUri = `${baseUrl}/api/instagram/auth/callback`;
+    // Build redirect URI - use hardcoded production URI to ensure exact match with Meta console
+    // In production, INSTAGRAM_REDIRECT_URI should be set to: https://voxelpromo.com/api/instagram/auth/callback
+    let redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
+
+    if (!redirectUri) {
+      // Fallback to dynamic construction for development
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      const host = req.headers['x-forwarded-host'] || req.get('host');
+      const baseUrl = `${protocol}://${host}`;
+      redirectUri = `${baseUrl}/api/instagram/auth/callback`;
+    }
 
     logger.info(`📱 Instagram OAuth - Generating auth URL`, {
-      protocol,
-      host,
       redirectUri,
+      fromEnv: !!process.env.INSTAGRAM_REDIRECT_URI,
       headers: {
         'x-forwarded-proto': req.headers['x-forwarded-proto'],
         'x-forwarded-host': req.headers['x-forwarded-host'],
