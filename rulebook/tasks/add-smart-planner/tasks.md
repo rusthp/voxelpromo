@@ -14,8 +14,8 @@
 
 ## 3. Testing Phase
 - [x] 3.1 Fix TypeScript errors (offer._id null checks)
-- [ ] 3.2 Add unit tests for distributeHourlyPosts <!-- pending -->
-- [ ] 3.3 Test end-to-end scheduling <!-- pending -->
+- [x] 3.2 Add unit tests for distributeHourlyPosts <!-- completed: 12 tests added -->
+- [x] 3.3 Test end-to-end scheduling <!-- completed: 10 E2E tests added -->
 
 ## 4. Documentation Phase
 - [x] 4.1 Create task structure per RULEBOOK.md

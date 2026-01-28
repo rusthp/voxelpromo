@@ -9,9 +9,7 @@ import {
     ArrowLeft,
     Sparkles,
     Mail,
-    MessageCircle,
     Send,
-    MapPin,
     Clock,
     CheckCircle2
 } from "lucide-react";
@@ -32,15 +30,39 @@ const Contact = () => {
         e.preventDefault();
         setIsSubmitting(true);
 
-        // Simulate sending (in production, send to backend)
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        try {
+            const response = await fetch('/api/contact', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData),
+            });
 
-        setIsSubmitting(false);
-        setSubmitted(true);
-        toast({
-            title: "Mensagem enviada!",
-            description: "Responderemos em até 24 horas úteis.",
-        });
+            const data = await response.json();
+
+            if (data.success) {
+                setSubmitted(true);
+                toast({
+                    title: "Mensagem enviada!",
+                    description: data.message || "Responderemos em até 24 horas úteis.",
+                });
+            } else {
+                toast({
+                    title: "Erro ao enviar",
+                    description: data.error || "Tente novamente mais tarde.",
+                    variant: "destructive",
+                });
+            }
+        } catch (error) {
+            toast({
+                title: "Erro de conexão",
+                description: "Verifique sua internet e tente novamente.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const contactInfo = [
@@ -51,22 +73,10 @@ const Contact = () => {
             color: "text-voxel-cyan"
         },
         {
-            icon: MessageCircle,
-            title: "WhatsApp",
-            description: "+55 (11) 99999-9999",
-            color: "text-voxel-pink"
-        },
-        {
             icon: Clock,
             title: "Horário de Atendimento",
             description: "Seg-Sex: 9h às 18h",
             color: "text-voxel-orange"
-        },
-        {
-            icon: MapPin,
-            title: "Localização",
-            description: "São Paulo, Brasil",
-            color: "text-voxel-cyan"
         }
     ];
 

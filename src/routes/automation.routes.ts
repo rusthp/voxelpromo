@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { AutomationService } from '../services/automation/AutomationService';
 import { logger } from '../utils/logger';
+import { validate } from '../middleware/validate';
+import { automationConfigSchema } from '../validation/automation.validation';
 
 const router = Router();
 const automationService = new AutomationService();
@@ -52,7 +54,7 @@ router.get('/config', async (_req: Request, res: Response) => {
  *       200:
  *         description: Configuration saved successfully
  */
-router.post('/config', async (req: Request, res: Response) => {
+router.post('/config', validate(automationConfigSchema), async (req: Request, res: Response) => {
   try {
     const config = await automationService.saveConfig(req.body);
     return res.json({ success: true, config });

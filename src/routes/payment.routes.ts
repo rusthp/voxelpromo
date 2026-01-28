@@ -6,6 +6,8 @@ import { TransactionModel } from '../models/Transaction';
 import { LogService } from '../services/LogService';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { logger } from '../utils/logger';
+import { validate } from '../middleware/validate';
+import { createCheckoutSchema, createPixSchema, createBoletoSchema } from '../validation/payment.validation';
 
 const router = Router();
 
@@ -14,15 +16,10 @@ const router = Router();
  * Create a Mercado Pago checkout for a subscription plan
  * PROTECTED ROUTE - Requires authentication
  */
-router.post('/create-checkout', authenticate, async (req: AuthRequest, res: Response) => {
+router.post('/create-checkout', authenticate, validate(createCheckoutSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { planId } = req.body;
     const userId = req.user!.id;
-
-    if (!planId) {
-      res.status(400).json({ success: false, error: 'Plan ID is required' });
-      return;
-    }
 
     // Get user info
     const user = await UserModel.findById(userId);
@@ -151,18 +148,10 @@ router.post('/process-subscription', authenticate, async (req: AuthRequest, res:
  * Generate a Pix payment for a subscription plan
  * PROTECTED ROUTE - Requires authentication
  */
-router.post('/create-pix', authenticate, async (req: AuthRequest, res: Response) => {
+router.post('/create-pix', authenticate, validate(createPixSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { planId, payerEmail, payerCpf, amount } = req.body;
     const userId = req.user!.id;
-
-    if (!planId || !payerEmail || !payerCpf) {
-      res.status(400).json({
-        success: false,
-        error: 'Plan ID, email e CPF são obrigatórios',
-      });
-      return;
-    }
 
     const user = await UserModel.findById(userId);
     if (!user) {
@@ -204,18 +193,10 @@ router.post('/create-pix', authenticate, async (req: AuthRequest, res: Response)
  * Generate a Boleto payment for a subscription plan
  * PROTECTED ROUTE - Requires authentication
  */
-router.post('/create-boleto', authenticate, async (req: AuthRequest, res: Response) => {
+router.post('/create-boleto', authenticate, validate(createBoletoSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { planId, payerEmail, payerCpf, amount } = req.body;
     const userId = req.user!.id;
-
-    if (!planId || !payerEmail || !payerCpf) {
-      res.status(400).json({
-        success: false,
-        error: 'Plan ID, email e CPF são obrigatórios',
-      });
-      return;
-    }
 
     const user = await UserModel.findById(userId);
     if (!user) {

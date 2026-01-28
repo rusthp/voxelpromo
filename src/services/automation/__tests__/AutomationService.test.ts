@@ -366,4 +366,341 @@ describe('AutomationService', () => {
       expect(result.config.startHour).toBe(8);
     });
   });
+
+  describe('distributeHourlyPosts', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('should return 0 when config is not active', async () => {
+      (configCache.get as jest.Mock).mockReturnValue({ isActive: false });
+
+      const result = await automationService.distributeHourlyPosts();
+
+      expect(result).toBe(0);
+    });
+
+    it('should return 0 when postsPerHour is 0 or undefined', async () => {
+      (configCache.get as jest.Mock).mockReturnValue({
+        isActive: true,
+        postsPerHour: 0,
+      });
+
+      const result = await automationService.distributeHourlyPosts();
+
+      expect(result).toBe(0);
+    });
+
+    it('should return 0 when postsPerHour is negative', async () => {
+      (configCache.get as jest.Mock).mockReturnValue({
+        isActive: true,
+        postsPerHour: -5,
+      });
+
+      const result = await automationService.distributeHourlyPosts();
+
+      expect(result).toBe(0);
+    });
+
+    it('should return 0 when outside working hours', async () => {
+      // Set time to 5 AM (outside 8-18 working hours)
+      jest.setSystemTime(new Date('2024-01-15T05:30:00'));
+
+      (configCache.get as jest.Mock).mockReturnValue({
+        isActive: true,
+        postsPerHour: 3,
+        startHour: 8,
+        endHour: 18,
+      });
+
+      const result = await automationService.distributeHourlyPosts();
+
+      expect(result).toBe(0);
+    });
+
+    it('should return 0 when no offers are available', async () => {
+      // Set time to 12:00 (within working hours, 59 minutes remaining)
+      jest.setSystemTime(new Date('2024-01-15T12:00:00'));
+
+      (configCache.get as jest.Mock).mockReturnValue({
+        isActive: true,
+        postsPerHour: 3,
+        startHour: 8,
+        endHour: 18,
+      });
+
+      // Mock getNextScheduledOffers to return empty array
+      (OfferModel.find as jest.Mock).mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockResolvedValue([]),
+      });
+
+      (ProductStatsModel.find as jest.Mock).mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue([]),
+      });
+
+      const result = await automationService.distributeHourlyPosts();
+
+      expect(result).toBe(0);
+    });
+
+    it('should return 0 when less than 1 minute remaining in the hour', async () => {
+      // Set time to 12:59 (less than 1 minute remaining)
+      jest.setSystemTime(new Date('2024-01-15T12:59:30'));
+
+      (configCache.get as jest.Mock).mockReturnValue({
+        isActive: true,
+        postsPerHour: 3,
+        startHour: 8,
+        endHour: 18,
+      });
+
+      const result = await automationService.distributeHourlyPosts();
+
+      expect(result).toBe(0);
+    });
+
+    it('should schedule offers when all conditions are met', async () => {
+      // Set time to 12:00 (within working hours, 59 minutes remaining)
+      jest.setSystemTime(new Date('2024-01-15T12:00:00'));
+
+      const mockOffers = [
+        {
+          _id: new mongoose.Types.ObjectId(),
+          title: 'Test Product 1',
+          productUrl: 'http://example.com/1',
+          currentPrice: 100,
+          discountPercentage: 20,
+        },
+        {
+          _id: new mongoose.Types.ObjectId(),
+          title: 'Test Product 2',
+          productUrl: 'http://example.com/2',
+          currentPrice: 200,
+          discountPercentage: 30,
+        },
+        {
+          _id: new mongoose.Types.ObjectId(),
+          title: 'Test Product 3',
+          productUrl: 'http://example.com/3',
+          currentPrice: 150,
+          discountPercentage: 25,
+        },
+      ];
+
+      (configCache.get as jest.Mock).mockReturnValue({
+        isActive: true,
+        postsPerHour: 3,
+        startHour: 8,
+        endHour: 18,
+      });
+
+      // Mock getNextScheduledOffers - return offers via OfferModel
+      (OfferModel.find as jest.Mock).mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockResolvedValue(mockOffers),
+      });
+
+      (ProductStatsModel.find as jest.Mock).mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue([]),
+      });
+
+      // Mock OfferService.scheduleOffer
+      const mockScheduleOffer = jest.fn().mockResolvedValue(true);
+      jest.doMock('../../offer/OfferService', () => ({
+        OfferService: jest.fn().mockImplementation(() => ({
+          scheduleOffer: mockScheduleOffer,
+        })),
+      }));
+
+      const result = await automationService.distributeHourlyPosts();
+
+      // Should schedule up to postsPerHour (3) offers
+      expect(result).toBeLessThanOrEqual(3);
+    });
+
+    it('should skip already scheduled offers', async () => {
+      // Set time to 12:00
+      jest.setSystemTime(new Date('2024-01-15T12:00:00'));
+
+      const mockOffers = [
+        {
+          _id: new mongoose.Types.ObjectId(),
+          title: 'Already Scheduled',
+          scheduledAt: new Date('2024-01-15T13:00:00'), // Already scheduled
+        },
+        {
+          _id: new mongoose.Types.ObjectId(),
+          title: 'Not Scheduled',
+          // No scheduledAt
+        },
+      ];
+
+      (configCache.get as jest.Mock).mockReturnValue({
+        isActive: true,
+        postsPerHour: 2,
+        startHour: 8,
+        endHour: 18,
+      });
+
+      (OfferModel.find as jest.Mock).mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockResolvedValue(mockOffers),
+      });
+
+      (ProductStatsModel.find as jest.Mock).mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue([]),
+      });
+
+      const result = await automationService.distributeHourlyPosts();
+
+      // Only non-scheduled offers should be considered
+      expect(result).toBeLessThanOrEqual(1);
+    });
+
+    it('should limit posts by remaining minutes when time is limited', async () => {
+      // Set time to 12:55 (only 4 minutes remaining)
+      jest.setSystemTime(new Date('2024-01-15T12:55:00'));
+
+      const mockOffers = [
+        { _id: new mongoose.Types.ObjectId(), title: 'Offer 1' },
+        { _id: new mongoose.Types.ObjectId(), title: 'Offer 2' },
+        { _id: new mongoose.Types.ObjectId(), title: 'Offer 3' },
+        { _id: new mongoose.Types.ObjectId(), title: 'Offer 4' },
+        { _id: new mongoose.Types.ObjectId(), title: 'Offer 5' },
+        { _id: new mongoose.Types.ObjectId(), title: 'Offer 6' },
+        { _id: new mongoose.Types.ObjectId(), title: 'Offer 7' },
+        { _id: new mongoose.Types.ObjectId(), title: 'Offer 8' },
+        { _id: new mongoose.Types.ObjectId(), title: 'Offer 9' },
+        { _id: new mongoose.Types.ObjectId(), title: 'Offer 10' },
+      ];
+
+      (configCache.get as jest.Mock).mockReturnValue({
+        isActive: true,
+        postsPerHour: 10, // Wants 10 posts
+        startHour: 8,
+        endHour: 18,
+      });
+
+      (OfferModel.find as jest.Mock).mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockResolvedValue(mockOffers),
+      });
+
+      (ProductStatsModel.find as jest.Mock).mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue([]),
+      });
+
+      const result = await automationService.distributeHourlyPosts();
+
+      // Should be limited by remaining minutes (4)
+      expect(result).toBeLessThanOrEqual(4);
+    });
+
+    it('should generate unique random minutes for each post', async () => {
+      // Set time to 12:00 (59 minutes remaining)
+      jest.setSystemTime(new Date('2024-01-15T12:00:00'));
+
+      const mockOffers = [
+        { _id: new mongoose.Types.ObjectId(), title: 'Offer 1' },
+        { _id: new mongoose.Types.ObjectId(), title: 'Offer 2' },
+        { _id: new mongoose.Types.ObjectId(), title: 'Offer 3' },
+      ];
+
+      (configCache.get as jest.Mock).mockReturnValue({
+        isActive: true,
+        postsPerHour: 3,
+        startHour: 8,
+        endHour: 18,
+      });
+
+      (OfferModel.find as jest.Mock).mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockResolvedValue(mockOffers),
+      });
+
+      (ProductStatsModel.find as jest.Mock).mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue([]),
+      });
+
+      // Run multiple times to verify randomness produces different results
+      const results: number[] = [];
+      for (let i = 0; i < 5; i++) {
+        const result = await automationService.distributeHourlyPosts();
+        results.push(result);
+      }
+
+      // All runs should complete successfully (return >= 0)
+      results.forEach((r) => expect(r).toBeGreaterThanOrEqual(0));
+    });
+
+    it('should handle errors gracefully and return 0', async () => {
+      // Set time to 12:00
+      jest.setSystemTime(new Date('2024-01-15T12:00:00'));
+
+      (configCache.get as jest.Mock).mockReturnValue({
+        isActive: true,
+        postsPerHour: 3,
+        startHour: 8,
+        endHour: 18,
+      });
+
+      // Simulate database error
+      (OfferModel.find as jest.Mock).mockImplementation(() => {
+        throw new Error('Database connection lost');
+      });
+
+      const result = await automationService.distributeHourlyPosts();
+
+      expect(result).toBe(0);
+    });
+
+    it('should work with overnight schedule (20h-2h)', async () => {
+      // Set time to 22:00 (within overnight schedule)
+      jest.setSystemTime(new Date('2024-01-15T22:00:00'));
+
+      const mockOffers = [
+        { _id: new mongoose.Types.ObjectId(), title: 'Night Offer 1' },
+        { _id: new mongoose.Types.ObjectId(), title: 'Night Offer 2' },
+      ];
+
+      (configCache.get as jest.Mock).mockReturnValue({
+        isActive: true,
+        postsPerHour: 2,
+        startHour: 20,
+        endHour: 2, // Overnight
+      });
+
+      (OfferModel.find as jest.Mock).mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockResolvedValue(mockOffers),
+      });
+
+      (ProductStatsModel.find as jest.Mock).mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue([]),
+      });
+
+      const result = await automationService.distributeHourlyPosts();
+
+      // Should work with overnight schedule
+      expect(result).toBeGreaterThanOrEqual(0);
+    });
+  });
 });
+

@@ -143,7 +143,8 @@ export function setupCronJobs(): void {
   cron.schedule('* * * * *', async () => {
     try {
       await offerService.processScheduledOffers();
-    } catch (error) {
+    } catch {
+      /* Silent - processScheduledOffers logs internally */
     }
   }, { timezone: 'America/Sao_Paulo' });
 
@@ -212,7 +213,8 @@ export function setupCronJobs(): void {
         }
       }
       logger.info(`✅ Subscription Sync: ${syncedCount} synced`);
-    } catch (error) {
+    } catch {
+      /* Silent - logged above */
     }
   }, { timezone: 'America/Sao_Paulo' });
 
@@ -243,7 +245,8 @@ export function setupCronJobs(): void {
         }
         logger.info(`✅ Awin Feed Sync: Refreshed ${refreshedCount} feeds`);
       }
-    } catch (error) {
+    } catch {
+      /* Silent - feed sync is non-critical */
     }
   }, { timezone: 'America/Sao_Paulo' });
 

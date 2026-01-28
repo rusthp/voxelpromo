@@ -86,7 +86,6 @@ export default function InstagramPage() {
     const [recentMedia, setRecentMedia] = useState<MediaItem[]>([]);
     const [settings, setSettings] = useState<InstagramSettings>({
         enabled: true,
-        enabled: true,
         autoReplyDM: false,
         welcomeMessage: '',
         keywordReplies: {},
@@ -126,7 +125,7 @@ export default function InstagramPage() {
 
     const fetchRecentMedia = async () => {
         try {
-            const response = await api.get('/instagram/media/recent');
+            const response = await api.get('/instagram/media');
             if (response.data.success) {
                 setRecentMedia(response.data.media || []);
             }
@@ -231,7 +230,7 @@ export default function InstagramPage() {
         }
         setPublishing('story');
         try {
-            const response = await api.post('/instagram/publish/story', {
+            const response = await api.post('/instagram/story', {
                 mediaUrl: storyUrl,
                 mediaType: 'IMAGE'
             });
@@ -256,7 +255,7 @@ export default function InstagramPage() {
         }
         setPublishing('reel');
         try {
-            const response = await api.post('/instagram/publish/reel', {
+            const response = await api.post('/instagram/reel', {
                 videoUrl: reelUrl,
                 caption: reelCaption
             });

@@ -31,6 +31,7 @@ import { documentsRoutes } from './documents.routes';
 import { paymentRoutes } from './payment.routes';
 import newsRoutes from './news.routes';
 import { usersRoutes } from './users.routes';
+import { contactRoutes } from './contact.routes';
 import { collectionLimiter, configLimiter, apiLimiter } from '../middleware/rate-limit';
 
 export function setupRoutes(app: Express): void {
@@ -78,6 +79,7 @@ export function setupRoutes(app: Express): void {
   app.use('/api/ai', aiRoutes); // AI provider testing (public for initial setup)
   app.use('/api/payments', paymentRoutes); // Mercado Pago webhooks need to be public
   app.use('/api/news', apiLimiter, newsRoutes); // Public news list, Admin management protected internally
+  app.use('/api/contact', apiLimiter, contactRoutes); // Public contact form
 
   // Protected routes (require authentication) with rate limiting
   app.use('/api/offers', authenticate, apiLimiter, offerRoutes);
