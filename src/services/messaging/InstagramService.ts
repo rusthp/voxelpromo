@@ -507,8 +507,7 @@ export class InstagramService {
       const response = await axios.get(`${this.graphApiBase}/${this.apiVersion}/${this.igUserId}`, {
         params: {
           access_token: this.accessToken,
-          // Only request fields available with instagram_business_basic scope
-          fields: 'id,username',
+          fields: 'id,username,account_type,media_count,profile_picture_url',
         },
       });
 
@@ -519,8 +518,8 @@ export class InstagramService {
       return {
         id: response.data.id,
         username: response.data.username,
-        name: 'BUSINESS', // Default to BUSINESS for Business Login
-        profile_picture_url: undefined, // Not available without additional permissions
+        name: response.data.account_type,
+        profile_picture_url: response.data.profile_picture_url,
       };
     } catch (error: any) {
       const errorData = error.response?.data?.error;

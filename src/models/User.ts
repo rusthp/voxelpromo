@@ -10,10 +10,13 @@ export interface IUserPreferences {
 export interface IUser extends Document {
   username: string;
   email: string;
-  password: string;
+  password?: string; // Optional for Google OAuth users
   role: 'admin' | 'user';
   isActive: boolean;
   lastLogin?: Date;
+  // OAuth fields
+  googleId?: string; // Google user ID (sub claim)
+  authProvider: 'local' | 'google'; // Authentication method
   // Profile fields
   displayName?: string;
   avatarUrl?: string;
@@ -97,9 +100,20 @@ const UserSchema = new Schema<IUser>(
     },
     password: {
       type: String,
-      required: true,
+      required: false, // Optional for Google OAuth users
       minlength: 6,
       select: false, // Don't return password by default
+    },
+    // OAuth fields
+    googleId: {
+      type: String,
+      sparse: true, // Allow null but unique when set
+      index: true,
+    },
+    authProvider: {
+      type: String,
+      enum: ['local', 'google'],
+      default: 'local',
     },
     role: {
       type: String,
@@ -245,9 +259,10 @@ const UserSchema = new Schema<IUser>(
   }
 );
 
-// Hash password before saving
+// Hash password before saving (only for local auth users)
 UserSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) {
+  // Skip if password not modified or if Google OAuth user
+  if (!this.isModified('password') || !this.password) {
     return next();
   }
 
@@ -258,6 +273,14 @@ UserSchema.pre('save', async function (next) {
   } catch (error: any) {
     next(error);
   }
+});
+
+// Validate that local users have password
+UserSchema.pre('save', function (next) {
+  if (this.authProvider === 'local' && !this.password && this.isNew) {
+    return next(new Error('Password is required for local authentication'));
+  }
+  next();
 });
 
 // Method to compare password

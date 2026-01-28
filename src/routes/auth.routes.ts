@@ -15,6 +15,7 @@ import {
 } from '../middleware/rate-limit';
 import { getErrorMessage } from '../types/domain.types';
 import { isMongoDBDuplicateError, isMongooseValidationError } from '../types/auth.types';
+import { getGoogleAuthService } from '../services/GoogleAuthService';
 
 const router = Router();
 
@@ -826,4 +827,164 @@ router.post('/resend-verification', async (req: Request, res: Response) => {
   }
 });
 
+// ============================================================
+// Google OAuth Routes
+// ============================================================
+
+/**
+ * GET /api/auth/google/config
+ * Get Google OAuth configuration for frontend
+ */
+router.get('/google/config', (_req: Request, res: Response) => {
+  const googleAuth = getGoogleAuthService();
+
+  if (!googleAuth.isConfigured()) {
+    return res.json({
+      configured: false,
+      clientId: null,
+    });
+  }
+
+  return res.json({
+    configured: true,
+    clientId: googleAuth.getClientId(),
+  });
+});
+
+/**
+ * POST /api/auth/google
+ * Authenticate with Google ID Token
+ *
+ * SECURITY:
+ * - Rate limited (same as auth)
+ * - Validates token with Google API
+ * - Requires email_verified from Google
+ * - Creates user if not exists
+ * - Links Google to existing account if email matches
+ *
+ * Request body: { idToken: string }
+ */
+router.post('/google', authLimiter, async (req: Request, res: Response) => {
+  try {
+    const { idToken } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({ error: 'Token do Google é obrigatório' });
+    }
+
+    const googleAuth = getGoogleAuthService();
+
+    if (!googleAuth.isConfigured()) {
+      return res.status(503).json({ error: 'Login com Google não está configurado' });
+    }
+
+    // Verify token with Google (supports both ID token and access token)
+    let googleUser;
+    try {
+      googleUser = await googleAuth.verifyToken(idToken);
+    } catch (verifyError: any) {
+      logger.warn('Google token verification failed:', verifyError.message);
+      return res.status(401).json({ error: 'Token do Google inválido ou expirado' });
+    }
+
+    // Find existing user by email or googleId
+    let user = await UserModel.findOne({
+      $or: [{ email: googleUser.email }, { googleId: googleUser.googleId }],
+    });
+
+    let isNewUser = false;
+
+    if (user) {
+      // Existing user - check if we need to link Google account
+      if (!user.googleId) {
+        // User exists with email but no Google link - link it now
+        // SECURITY: Only link if user logged in with same email
+        if (user.email === googleUser.email) {
+          user.googleId = googleUser.googleId;
+          // Update avatar if not set
+          if (!user.avatarUrl && googleUser.picture) {
+            user.avatarUrl = googleUser.picture;
+          }
+          // Update display name if not set
+          if (!user.displayName && googleUser.name) {
+            user.displayName = googleUser.name;
+          }
+          logger.info(`🔗 Linked Google account to existing user: ${user.email}`);
+        }
+      }
+
+      // Check if user is active
+      if (!user.isActive) {
+        return res.status(401).json({ error: 'Conta desativada' });
+      }
+    } else {
+      // New user - create account
+      isNewUser = true;
+
+      // Generate unique username from email
+      const baseUsername = googleUser.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '');
+      let username = baseUsername;
+      let counter = 1;
+
+      // Ensure unique username
+      while (await UserModel.findOne({ username })) {
+        username = `${baseUsername}${counter}`;
+        counter++;
+      }
+
+      user = new UserModel({
+        username,
+        email: googleUser.email,
+        googleId: googleUser.googleId,
+        authProvider: 'google',
+        displayName: googleUser.name,
+        avatarUrl: googleUser.picture,
+        emailVerified: true, // Google already verified the email
+        role: 'user',
+        plan: {
+          tier: 'free',
+          status: 'active',
+        },
+      });
+
+      await user.save();
+      logger.info(`✨ Created new user via Google: ${user.email}`);
+    }
+
+    // Update last login
+    user.lastLogin = new Date();
+    await user.save();
+
+    // Generate tokens
+    const { accessToken, refreshToken } = await generateTokens(
+      user._id.toString(),
+      user.username,
+      user.role,
+      req
+    );
+
+    logger.info(`✅ Google login successful: ${user.email} (${isNewUser ? 'new' : 'existing'})`);
+
+    return res.json({
+      success: true,
+      message: isNewUser ? 'Conta criada com sucesso!' : 'Login realizado com sucesso',
+      isNewUser,
+      accessToken,
+      refreshToken,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl,
+      },
+    });
+  } catch (error: unknown) {
+    logger.error('Google auth error:', error);
+    return res.status(500).json({ error: getErrorMessage(error) || 'Erro ao autenticar com Google' });
+  }
+});
+
 export { router as authRoutes };
+

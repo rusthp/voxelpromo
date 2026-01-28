@@ -47,6 +47,7 @@ interface AuthContextType {
     isAuthenticated: boolean;
     isLoading: boolean;
     login: (email: string, password: string) => Promise<void>;
+    loginWithGoogle: (idToken: string) => Promise<void>;
     logout: () => Promise<void>;
     updateUser: (userData: Partial<User>) => void;
     refreshProfile: () => Promise<void>;
@@ -141,6 +142,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await refreshProfile();
     };
 
+    const loginWithGoogle = async (idToken: string) => {
+        const response = await api.post('/auth/google', { idToken });
+        const { accessToken, user: userData } = response.data;
+
+        localStorage.setItem(AUTH_TOKEN_KEY, accessToken);
+        localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData));
+        setUser(userData);
+
+        // Refresh to get full profile data
+        await refreshProfile();
+    };
+
     const logout = async () => {
         try {
             await api.post('/auth/logout');
@@ -168,6 +181,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 isAuthenticated,
                 isLoading,
                 login,
+                loginWithGoogle,
                 logout,
                 updateUser,
                 refreshProfile,

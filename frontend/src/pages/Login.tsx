@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { Mail, Loader2, AlertCircle } from "lucide-react";
 import api from "@/services/api";
+import { GoogleLoginButton } from "@/components/GoogleLoginButton";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 
 const Login = () => {
     const [email, setEmail] = useState("");
@@ -15,9 +17,10 @@ const Login = () => {
     const [loading, setLoading] = useState(false);
     const [verificationRequired, setVerificationRequired] = useState(false);
     const [resendingEmail, setResendingEmail] = useState(false);
+    const [googleClientId, setGoogleClientId] = useState<string | null>(null);
     const navigate = useNavigate();
     const location = useLocation();
-    const { login } = useAuth();
+    const { login, loginWithGoogle } = useAuth();
 
     // Show message from registration
     useEffect(() => {
@@ -28,6 +31,21 @@ const Login = () => {
             window.history.replaceState({}, document.title);
         }
     }, [location]);
+
+    // Fetch Google OAuth config
+    useEffect(() => {
+        const fetchGoogleConfig = async () => {
+            try {
+                const response = await api.get('/auth/google/config');
+                if (response.data.configured && response.data.clientId) {
+                    setGoogleClientId(response.data.clientId);
+                }
+            } catch (error) {
+                console.error('Failed to fetch Google config:', error);
+            }
+        };
+        fetchGoogleConfig();
+    }, []);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -67,6 +85,17 @@ const Login = () => {
             toast.error(error.response?.data?.error || "Erro ao reenviar email");
         } finally {
             setResendingEmail(false);
+        }
+    };
+
+    const handleGoogleLogin = async (idToken: string) => {
+        try {
+            await loginWithGoogle(idToken);
+            toast.success("Login realizado com sucesso!");
+            navigate("/products");
+        } catch (error: any) {
+            console.error("Google login error:", error);
+            toast.error(error.response?.data?.error || "Erro ao fazer login com Google");
         }
     };
 
@@ -155,6 +184,29 @@ const Login = () => {
                                 )}
                             </Button>
                         </form>
+
+                        {/* Google Login Divider */}
+                        {googleClientId && (
+                            <>
+                                <div className="relative my-4">
+                                    <div className="absolute inset-0 flex items-center">
+                                        <span className="w-full border-t border-border/50" />
+                                    </div>
+                                    <div className="relative flex justify-center text-xs uppercase">
+                                        <span className="bg-card px-2 text-muted-foreground">ou</span>
+                                    </div>
+                                </div>
+
+                                {/* Google Login Button */}
+                                <GoogleOAuthProvider clientId={googleClientId}>
+                                    <GoogleLoginButton
+                                        onSuccess={handleGoogleLogin}
+                                        onError={(error) => toast.error(error.message || "Erro ao conectar com Google")}
+                                        disabled={loading}
+                                    />
+                                </GoogleOAuthProvider>
+                            </>
+                        )}
                     </CardContent>
                     <CardFooter className="flex flex-col gap-4">
                         <Link to="/forgot-password" className="text-sm text-muted-foreground hover:text-primary">
