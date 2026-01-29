@@ -26,7 +26,8 @@ import {
     TrendingUp,
     MousePointerClick,
     Plus,
-    Trash2
+    Trash2,
+    AlertTriangle
 } from 'lucide-react';
 import api from '@/services/api';
 import { toast } from 'sonner';
@@ -311,6 +312,19 @@ export default function InstagramPage() {
                         <RefreshCw className="h-4 w-4 mr-2" />
                         Atualizar
                     </Button>
+                </div>
+
+                {/* Beta Warning Banner */}
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                    <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0" />
+                    <div>
+                        <p className="font-medium text-amber-600 dark:text-amber-400">
+                            🧪 Funcionalidade em Fase de Testes
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                            A integração com Instagram está em desenvolvimento ativo. Algumas funcionalidades podem apresentar instabilidade.
+                        </p>
+                    </div>
                 </div>
 
                 <Tabs defaultValue="overview" className="space-y-6">
