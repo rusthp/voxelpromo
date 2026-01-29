@@ -48,10 +48,10 @@ const PLANS_INFO: Record<string, Plan> = {
     },
     agency: {
         id: 'agency',
-        displayName: 'Agência',
+        displayName: 'Plus',
         description: 'Para times e empresas',
-        price: 19990,
-        priceDisplay: 'R$ 199,90',
+        price: 11990,
+        priceDisplay: 'R$ 119,90',
         billingCycle: 'por mês',
         features: ['Posts ilimitados', 'White-label', 'API', 'Suporte dedicado'],
         trialDays: 7

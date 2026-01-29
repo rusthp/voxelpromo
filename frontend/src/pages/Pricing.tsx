@@ -51,8 +51,8 @@ const PLANS: Plan[] = [
         id: 'agency',
         name: 'Plus',
         displayName: 'Plus',
-        price: 9990,
-        priceDisplay: 'R$ 99,90/mês',
+        price: 11990,
+        priceDisplay: 'R$ 119,90/mês',
         features: [
             'Posts ilimitados',
             'Regras de automação ilimitadas',

@@ -45,6 +45,91 @@ import { MessageTemplate, TemplateTone } from '@/types/settings';
 import { Loader2, Plus, Pencil, Trash2, Check, RefreshCw, FileText, Play } from 'lucide-react';
 import api from '@/services/api';
 
+// Default template examples for each tone
+const DEFAULT_TEMPLATES: Record<TemplateTone, { name: string; content: string }> = {
+    casual: {
+        name: 'Template Casual',
+        content: `Gente, olha o que eu achei! 😱
+
+{title} tá com um preço surreal hoje!
+
+Tava {originalPrice}, mas agora tá saindo por só <b>{price}</b>!
+Isso é {discountPercent} de desconto! 🤯
+
+Aproveita aqui: {link}
+
+Corre que o estoque voa! 🏃‍♀️`
+    },
+    professional: {
+        name: 'Template Profissional',
+        content: `📊 <b>Oportunidade de Economia</b>
+
+<b>{title}</b>
+
+Preço original: {originalPrice}
+Preço promocional: <b>{price}</b>
+Economia: {discountPercent}
+
+✅ Produto verificado
+✅ Entrega garantida
+
+Acesse: {link}
+
+#Economia #Promoção`
+    },
+    urgent: {
+        name: 'Template Urgente',
+        content: `⚠️ <b>ÚLTIMAS UNIDADES!</b> ⚠️
+
+🔥 {title}
+
+❌ Era: {originalPrice}
+✅ Agora: <b>{price}</b>
+📉 {discountPercent} OFF
+
+⏰ OFERTA POR TEMPO LIMITADO!
+
+👉 COMPRAR AGORA: {link}
+
+🚨 Não perca! Estoque acabando!`
+    },
+    viral: {
+        name: 'Template Viral',
+        content: `🚨 <b>IMPERDÍVEL! BAIXOU MUITO!</b> 🚨
+
+📦 <b>{title}</b>
+
+🔥 De: <del>{originalPrice}</del>
+💰 <b>Por: {price}</b>
+📉 <b>{discountPercent} OFF</b>
+
+💳 <i>Pagamento seguro</i>
+
+🏃‍♂️ Corra antes que acabe:
+👉 {link}
+
+#Ofertas #Promoção`
+    },
+    storytelling: {
+        name: 'Template História',
+        content: `📖 Deixa eu te contar uma coisa...
+
+Eu estava navegando hoje e encontrei algo que precisei compartilhar com vocês.
+
+<b>{title}</b>
+
+Sabe aquele produto que você fica de olho esperando baixar? Pois é, baixou! 🎉
+
+De {originalPrice} para apenas <b>{price}</b> – são {discountPercent} de desconto real.
+
+Não sei até quando vai durar, mas se você estava esperando o momento certo... é agora.
+
+👉 {link}
+
+#Dica #Oportunidade`
+    }
+};
+
 export const TemplatesSettings: React.FC = () => {
     const [templates, setTemplates] = useState<MessageTemplate[]>([]);
     const [loading, setLoading] = useState(false);
@@ -68,6 +153,22 @@ export const TemplatesSettings: React.FC = () => {
     const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
     const [testResult, setTestResult] = useState<{ rendered: string, offer: any } | null>(null);
     const [testingTemplateId, setTestingTemplateId] = useState<string | null>(null);
+
+    // Handle tone change - auto-fill with default template for that tone
+    const handleToneChange = (newTone: TemplateTone) => {
+        // Only auto-fill if creating new template (not editing)
+        if (!editingTemplate) {
+            const defaultTemplate = DEFAULT_TEMPLATES[newTone];
+            setFormData({
+                ...formData,
+                tone: newTone,
+                name: formData.name || defaultTemplate.name,
+                content: defaultTemplate.content,
+            });
+        } else {
+            setFormData({ ...formData, tone: newTone });
+        }
+    };
 
     useEffect(() => {
         fetchTemplates();
@@ -122,23 +223,12 @@ export const TemplatesSettings: React.FC = () => {
             });
         } else {
             setEditingTemplate(null);
+            const defaultTone: TemplateTone = 'casual';
+            const defaultTemplate = DEFAULT_TEMPLATES[defaultTone];
             setFormData({
-                name: '',
-                tone: 'casual',
-                content: `🚨 <b>OFERTA IMPERDÍVEL!</b> 🚨
-
-📦 <b>{title}</b>
-
-🔥 De: <del>{originalPrice}</del>
-💰 <b>Por: {price}</b>
-📉 <b>{discount} OFF</b>
-
-💳 <i>Pagamento seguro</i>
-
-🏃‍♂️ Corra antes que acabe:
-👉 {link}
-
-#{category} #Oferta`,
+                name: defaultTemplate.name,
+                tone: defaultTone,
+                content: defaultTemplate.content,
                 isActive: true,
                 isDefault: false,
             });
@@ -397,15 +487,15 @@ export const TemplatesSettings: React.FC = () => {
                                 <Label htmlFor="tone">Tone</Label>
                                 <Select
                                     value={formData.tone}
-                                    onValueChange={(value: any) => setFormData({ ...formData, tone: value })}
+                                    onValueChange={(value: TemplateTone) => handleToneChange(value)}
                                 >
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select tone" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="casual">Casual</SelectItem>
-                                        <SelectItem value="professional">Professional</SelectItem>
-                                        <SelectItem value="urgent">Urgent</SelectItem>
+                                        <SelectItem value="professional">Profissional</SelectItem>
+                                        <SelectItem value="urgent">Urgente</SelectItem>
                                         <SelectItem value="viral">Viral</SelectItem>
                                         <SelectItem value="storytelling">História</SelectItem>
                                     </SelectContent>
