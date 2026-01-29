@@ -38,12 +38,12 @@ const PLANS_INFO: Record<string, Plan> = {
     },
     pro: {
         id: 'pro',
-        displayName: 'Pro',
+        displayName: 'Performance',
         description: 'Para afiliados profissionais',
-        price: 4990,
-        priceDisplay: 'R$ 49,90',
+        price: 7990,
+        priceDisplay: 'R$ 79,90',
         billingCycle: 'por mês',
-        features: ['100 posts/dia', 'Todos os canais', 'Analytics', 'Suporte prioritário'],
+        features: ['200 posts/dia', 'Todos os canais', 'Analytics', 'Filtros inteligentes', 'Suporte prioritário'],
         trialDays: 7
     },
     agency: {
@@ -333,7 +333,7 @@ export default function Checkout() {
                 <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 lg:w-[45%] p-6 lg:p-12 border-r border-zinc-800">
                     <button
                         onClick={() => navigate('/pricing')}
-                        className="flex items-center gap-2 text-zinc-500 hover:text-cyan-400 mb-8 transition-colors"
+                        className="flex items-center gap-2 text-zinc-500 hover:text-cyan-400 mb-4 transition-colors"
                     >
                         <ArrowLeft className="w-4 h-4" />
                         <span className="text-sm font-medium bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">VoxelPromo</span>

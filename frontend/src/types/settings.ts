@@ -159,7 +159,7 @@ export interface AutomationStatus {
     message?: string;
 }
 
-export type TemplateTone = 'casual' | 'professional' | 'urgent' | 'viral';
+export type TemplateTone = 'casual' | 'professional' | 'urgent' | 'viral' | 'storytelling';
 
 export interface MessageTemplate {
     _id: string;

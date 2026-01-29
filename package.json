@@ -22,7 +22,8 @@
     "format:check": "prettier --check \"src/**/*.ts\"",
     "quality": "npm run type-check && npm run lint && npm run format:check && npm run test:coverage",
     "init": "node scripts/check-env.js",
-    "create-admin": "node scripts/create-admin.js"
+    "create-admin": "node scripts/create-admin.js",
+    "postinstall": "cd frontend && npm install"
   },
   "keywords": [
     "offers",

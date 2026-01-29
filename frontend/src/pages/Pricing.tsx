@@ -1,8 +1,8 @@
-import { Check } from "lucide-react";
+import { Check, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 interface Plan {
     id: string;
@@ -35,8 +35,8 @@ const PLANS: Plan[] = [
         id: 'pro',
         name: 'Performance',
         displayName: 'Performance',
-        price: 4990,
-        priceDisplay: 'R$ 49,90/mês',
+        price: 7990,
+        priceDisplay: 'R$ 79,90/mês',
         features: [
             '200 posts por dia',
             '10 regras de automação',
@@ -80,6 +80,22 @@ export default function Pricing() {
     return (
         <div className="min-h-screen bg-background py-12 px-4">
             <div className="max-w-7xl mx-auto">
+                {/* Back Button and Logo */}
+                <div className="mb-8">
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                        <span className="text-sm">Voltar</span>
+                    </button>
+                    <Link to="/" className="block mt-4">
+                        <span className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent hover:opacity-80 transition-opacity cursor-pointer">
+                            VoxelPromo
+                        </span>
+                    </Link>
+                </div>
+
                 {/* Header */}
                 <div className="text-center mb-12">
                     <h1 className="text-4xl font-bold mb-4">Escolha seu Plano</h1>

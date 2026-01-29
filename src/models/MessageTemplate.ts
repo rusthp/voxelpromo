@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export type TemplateTone = 'casual' | 'professional' | 'urgent' | 'viral';
+export type TemplateTone = 'casual' | 'professional' | 'urgent' | 'viral' | 'storytelling';
 
 export interface MessageTemplateDocument extends Document {
   name: string;
@@ -23,7 +23,7 @@ const MessageTemplateSchema = new Schema<MessageTemplateDocument>({
   name: { type: String, required: true, trim: true, maxlength: 100 },
   tone: {
     type: String,
-    enum: ['casual', 'professional', 'urgent', 'viral'],
+    enum: ['casual', 'professional', 'urgent', 'viral', 'storytelling'],
     required: true,
     default: 'casual',
   },

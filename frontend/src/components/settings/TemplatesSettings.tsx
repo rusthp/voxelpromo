@@ -407,6 +407,7 @@ export const TemplatesSettings: React.FC = () => {
                                         <SelectItem value="professional">Professional</SelectItem>
                                         <SelectItem value="urgent">Urgent</SelectItem>
                                         <SelectItem value="viral">Viral</SelectItem>
+                                        <SelectItem value="storytelling">História</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>

@@ -203,7 +203,7 @@ ${offer.rating ? `⭐ ${offer.rating.toFixed(1)} ${offer.reviewsCount ? `(${offe
       const defaults = [
         {
           name: 'Standard Viral',
-          tone: 'viral',
+          tone: 'viral' as TemplateTone,
           content:
             '🚨 <b>IMPERDÍVEL! BAIXOU MUITO!</b> 🚨\n\n📦 <b>{title}</b>\n\n🔥 De: <del>{originalPrice}</del>\n💰 <b>Por: {price}</b>\n📉 <b>{discountPercent} OFF</b>\n\n💳 <i>Pagamento seguro via {source}</i>\n\n🏃‍♂️ Corra antes que acabe:\n👉 {url}\n\n#{source} #Ofertas #Promoção',
           isActive: true,
@@ -211,9 +211,17 @@ ${offer.rating ? `⭐ ${offer.rating.toFixed(1)} ${offer.reviewsCount ? `(${offe
         },
         {
           name: 'Casual Friendly',
-          tone: 'casual',
+          tone: 'casual' as TemplateTone,
           content:
             'Gente, olha o que eu achei! 😱\n\n{title} tá com um preço surreal hoje!\n\nTava {originalPrice}, mas agora tá saindo por só <b>{price}</b>!\nIsso é {discountPercent} de desconto! 🤯\n\nAproveita aqui: {url}\n\nCorre que o estoque voa!',
+          isActive: true,
+          isDefault: false,
+        },
+        {
+          name: 'História Narrativa',
+          tone: 'storytelling' as TemplateTone,
+          content:
+            '📖 Deixa eu te contar uma coisa...\n\nEu estava navegando hoje e encontrei algo que precisei compartilhar com vocês.\n\n<b>{title}</b>\n\nSabe aquele produto que você fica de olho esperando baixar? Pois é, baixou! 🎉\n\nDe {originalPrice} para apenas <b>{price}</b> – são {discountPercent} de desconto real.\n\nNão sei até quando vai durar, mas se você estava esperando o momento certo... é agora.\n\n👉 {url}\n\n#Dica #Oportunidade',
           isActive: true,
           isDefault: false,
         },
