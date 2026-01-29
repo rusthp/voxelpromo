@@ -95,18 +95,18 @@ export function OnboardingChecklist() {
             id: "ai",
             title: "Configurar IA",
             description: status.ai.configured
-                ? `${status.ai.provider || "Groq"} configurado`
-                : "Configure a IA para gerar textos criativos",
+                ? `✅ ${status.ai.provider || "Groq"} pronto para gerar textos`
+                : "Gera textos criativos para suas ofertas automaticamente",
             completed: status.ai.configured,
             href: "/settings?tab=ai",
             icon: Sparkles,
         },
         {
             id: "telegram",
-            title: "Configurar Telegram",
+            title: "Conectar Telegram",
             description: status.telegram.configured
-                ? `@${status.telegram.botUsername || "bot"} conectado`
-                : "Conecte o bot do Telegram",
+                ? `✅ @${status.telegram.botUsername || "bot"} conectado`
+                : "Publica ofertas direto no seu canal/grupo",
             completed: status.telegram.configured,
             href: "/settings?tab=messaging",
             icon: Bot,
@@ -115,8 +115,8 @@ export function OnboardingChecklist() {
             id: "whatsapp",
             title: "Conectar WhatsApp",
             description: status.whatsapp.connected
-                ? "WhatsApp conectado"
-                : "Opcional: conecte via QR code",
+                ? "✅ WhatsApp conectado"
+                : "Opcional: envia para grupos e contatos",
             completed: status.whatsapp.connected || false,
             href: "/settings?tab=messaging",
             icon: MessageSquare,
@@ -125,8 +125,8 @@ export function OnboardingChecklist() {
             id: "offers",
             title: "Coletar ofertas",
             description: status.offers.hasOffers
-                ? `${status.offers.count || 0} ofertas coletadas`
-                : "Faça sua primeira coleta de produtos",
+                ? `✅ ${status.offers.count || 0} ofertas prontas para postar`
+                : "Busca promoções nos seus afiliados favoritos",
             completed: status.offers.hasOffers,
             href: "/products",
             icon: Package,
@@ -135,8 +135,8 @@ export function OnboardingChecklist() {
             id: "automation",
             title: "Ativar automação",
             description: status.automation.enabled
-                ? "Automação ativa"
-                : "Configure postagens automáticas",
+                ? "✅ Postando automaticamente"
+                : "Publica sozinho nos horários que você definir",
             completed: status.automation.enabled || false,
             href: "/settings?tab=automation",
             icon: Zap,

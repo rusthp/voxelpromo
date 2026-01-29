@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { HelpTip } from "@/components/ui/help-tip";
 import { ConfigState } from "@/types/settings";
 import { AI_PROVIDERS, AI_PROVIDER_LABELS } from "@/constants/channels";
 import { toast } from "sonner";
@@ -57,6 +58,11 @@ export function AISettings({ config, setConfig }: AISettingsProps) {
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+                <HelpTip
+                    id="ai-settings"
+                    title="💡 O que a IA faz?"
+                    description="Gera textos criativos e persuasivos para suas ofertas automaticamente. Recomendamos o Groq (gratuito e rápido)."
+                />
                 <div className="space-y-2">
                     <Label htmlFor="ai-provider">Provedor Padrão</Label>
                     <div className="p-3 bg-muted/50 rounded-lg border text-sm text-muted-foreground">

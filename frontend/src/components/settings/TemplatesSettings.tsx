@@ -44,6 +44,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { MessageTemplate, TemplateTone } from '@/types/settings';
 import { Loader2, Plus, Pencil, Trash2, Check, RefreshCw, FileText, Play } from 'lucide-react';
 import api from '@/services/api';
+import { HelpTip } from '@/components/ui/help-tip';
 
 // Default template examples for each tone
 const DEFAULT_TEMPLATES: Record<TemplateTone, { name: string; content: string }> = {
@@ -361,7 +362,12 @@ export const TemplatesSettings: React.FC = () => {
                         </Button>
                     </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
+                    <HelpTip
+                        id="templates-settings"
+                        title="📝 O que são templates?"
+                        description="Templates definem como suas ofertas aparecem no Telegram/WhatsApp. Escolha o tom que combina com seu público."
+                    />
                     {loading ? (
                         <div className="flex justify-center p-8">
                             <Loader2 className="h-8 w-8 animate-spin" />
