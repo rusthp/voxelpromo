@@ -120,6 +120,12 @@ router.put('/', authenticate, async (req: AuthRequest, res: Response) => {
       if (preferences.pushNotifications !== undefined) {
         updateData['preferences.pushNotifications'] = preferences.pushNotifications;
       }
+      if (preferences.niche !== undefined) {
+        const validNiches = ['tech', 'fashion', 'health', 'home', 'sports', 'games', 'general', null];
+        if (validNiches.includes(preferences.niche)) {
+          updateData['preferences.niche'] = preferences.niche;
+        }
+      }
     }
 
     if (req.body.billing) {

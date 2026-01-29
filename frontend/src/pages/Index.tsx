@@ -6,6 +6,8 @@ import { ProductCard } from "@/components/dashboard/ProductCard";
 import { SocialPlatforms } from "@/components/dashboard/SocialPlatforms";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
+import { NicheSelectionModal, NicheType } from "@/components/settings/NicheSelectionModal";
+import { useAuth } from "@/hooks/useAuth";
 import api from "@/services/api";
 
 interface Stats {
@@ -27,9 +29,23 @@ interface Offer {
 }
 
 const Index = () => {
+  const { user, refreshProfile } = useAuth();
   const [stats, setStats] = useState<Stats | null>(null);
   const [products, setProducts] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showNicheModal, setShowNicheModal] = useState(false);
+
+  // Check if we need to show niche selection modal
+  useEffect(() => {
+    if (user && !user.preferences?.niche) {
+      setShowNicheModal(true);
+    }
+  }, [user]);
+
+  const handleNicheSelected = async (niche: NicheType) => {
+    setShowNicheModal(false);
+    await refreshProfile();
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -130,6 +146,12 @@ const Index = () => {
           </div>
         </div>
       </div>
+
+      {/* Niche Selection Modal - shows on first login if niche not set */}
+      <NicheSelectionModal
+        open={showNicheModal}
+        onNicheSelected={handleNicheSelected}
+      />
     </Layout>
   );
 };

@@ -5,6 +5,7 @@ export interface UserPreferences {
     theme: 'dark' | 'light';
     emailNotifications: boolean;
     pushNotifications: boolean;
+    niche?: 'tech' | 'fashion' | 'health' | 'home' | 'sports' | 'games' | 'general' | null;
 }
 
 export interface User {

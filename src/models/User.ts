@@ -5,6 +5,7 @@ export interface IUserPreferences {
   theme: 'dark' | 'light';
   emailNotifications: boolean;
   pushNotifications: boolean;
+  niche?: 'tech' | 'fashion' | 'health' | 'home' | 'sports' | 'games' | 'general' | null;
 }
 
 export interface IUser extends Document {
@@ -150,6 +151,11 @@ const UserSchema = new Schema<IUser>(
       pushNotifications: {
         type: Boolean,
         default: true,
+      },
+      niche: {
+        type: String,
+        enum: ['tech', 'fashion', 'health', 'home', 'sports', 'games', 'general', null],
+        default: null,
       },
     },
     // Content Filters
