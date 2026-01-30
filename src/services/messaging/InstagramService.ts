@@ -493,7 +493,7 @@ export class InstagramService {
    * Resolve Instagram Business Account from Access Token
    * Checks for linked pages and their Instagram accounts
    */
-  async resolveBusinessAccount(token: string): Promise<string | null> {
+  async resolveBusinessAccount(token: string): Promise<{ id: string; username: string } | null> {
     try {
       logger.info('📱 Resolving Instagram Business Account from token...');
       const response = await axios.get(`${this.graphApiBase}/${this.apiVersion}/me/accounts`, {
@@ -508,7 +508,10 @@ export class InstagramService {
         if (page.instagram_business_account?.id) {
           logger.info(`✅ Found Instagram Business Account: @${page.instagram_business_account.username} (${page.instagram_business_account.id})`);
           this.igUserId = page.instagram_business_account.id;
-          return this.igUserId;
+          return {
+            id: page.instagram_business_account.id,
+            username: page.instagram_business_account.username
+          };
         }
       }
 
@@ -1421,7 +1424,8 @@ export class InstagramService {
 
       return response.data.data || [];
     } catch (error: any) {
-      logger.error(`Error fetching recent media: ${error.message}`);
+      const errorDetails = error.response?.data?.error ? JSON.stringify(error.response.data.error) : error.message;
+      logger.error(`Error fetching recent media: ${error.message}`, { details: errorDetails });
       return [];
     }
   }

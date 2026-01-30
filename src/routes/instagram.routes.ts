@@ -445,36 +445,29 @@ router.post('/config', authenticate, async (req: AuthRequest, res: Response) => 
     if (accessToken && accessToken !== '***') {
       // Resolve IG User ID if not provided
       let resolvedIgUserId = igUserId;
+      let resolvedUsername = 'Instagram User';
+
       if (!resolvedIgUserId || resolvedIgUserId === '***') {
         const tempService = new InstagramService();
         // Temporarily set token to resolve account
         // We use a temporary service instance but we need to inject the token logic
         // Actually resolveBusinessAccount is an instance method, so we can use a fresh instance
-        resolvedIgUserId = await tempService.resolveBusinessAccount(accessToken);
+        const account = await tempService.resolveBusinessAccount(accessToken);
+        if (account) {
+          resolvedIgUserId = account.id;
+          resolvedUsername = account.username;
+        }
       }
 
       if (resolvedIgUserId) {
         // Get account info to populate username/name
-        // Get account info to populate username/name
-        // We need to override private properties or use a specific constructor/method? 
-        // Since we don't have a public setter, we might need to rely on the fact resolveBusinessAccount sets it internally?
-        // But tempService is new. 
-        // Let's rely on resolveBusinessAccount returning the ID.
-        // And then we can use updateInstagramTokens service.
-
-        // To get username/name, we need getAccountInfo. 
-        // But getAccountInfo relies on this.accessToken and this.igUserId being set.
-        // We can't easily set them on a new instance externally if they are private.
-
-        // Better approach: Use the settings service to update directly.
-        // We can assume if resolveBusinessAccount worked, the token is valid.
-        // We can fetch details later or just save what we have.
+        // ... (comments removed for brevity)
 
         const settingsService = getUserSettingsService();
         await settingsService.updateInstagramTokens(userId, {
           accessToken: accessToken,
           igUserId: resolvedIgUserId,
-          username: 'Instagram User', // Will be updated on next sync/status check
+          username: resolvedUsername,
           accountType: 'BUSINESS'
         });
 
