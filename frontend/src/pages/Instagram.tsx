@@ -33,6 +33,7 @@ import api from '@/services/api';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { HelpTip } from '@/components/ui/help-tip';
 
 interface InstagramAccount {
     id: string;
@@ -103,6 +104,7 @@ export default function InstagramPage() {
     // Admin config state
     const [appId, setAppId] = useState('');
     const [appSecret, setAppSecret] = useState('');
+    const [accessToken, setAccessToken] = useState('');
     const [savingConfig, setSavingConfig] = useState(false);
     const [isEditingConfig, setIsEditingConfig] = useState(false);
 
@@ -195,16 +197,17 @@ export default function InstagramPage() {
     };
 
     const handleSaveConfig = async () => {
-        if (!appId.trim() || !appSecret.trim()) {
-            toast.error('Preencha App ID e App Secret');
+        if ((!appId.trim() || !appSecret.trim()) && !accessToken.trim()) {
+            toast.error('Preencha App ID e Secret OU Access Token');
             return;
         }
         setSavingConfig(true);
         try {
-            await api.post('/instagram/config', { appId, appSecret });
+            await api.post('/instagram/config', { appId, appSecret, accessToken });
             toast.success('Configuração salva! Atualizando status...');
             setAppId('');
             setAppSecret('');
+            setAccessToken('');
             await fetchStatus();
         } catch (error: any) {
             toast.error(error.response?.data?.error || 'Erro ao salvar configuração');
@@ -428,6 +431,53 @@ export default function InstagramPage() {
                                                             onChange={(e) => setAppSecret(e.target.value)}
                                                         />
                                                     </div>
+                                                    <div className="relative">
+                                                        <div className="absolute inset-0 flex items-center">
+                                                            <span className="w-full border-t border-muted-foreground/20" />
+                                                        </div>
+                                                        <div className="relative flex justify-center text-xs uppercase">
+                                                            <span className="bg-background px-2 text-muted-foreground">Ou</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <div className="flex items-center justify-between">
+                                                            <Label htmlFor="access-token">Manual Access Token (Opcional)</Label>
+                                                            <HelpTip
+                                                                id="manual-token-info"
+                                                                title="Token de Usuário"
+                                                                description="Opção para usuários avançados que geram tokens via Graph API Explorer."
+                                                            />
+                                                        </div>
+                                                        <Input
+                                                            id="access-token"
+                                                            type="password"
+                                                            placeholder="EAALx..."
+                                                            value={accessToken}
+                                                            onChange={(e) => setAccessToken(e.target.value)}
+                                                        />
+
+                                                        {/* Instructions Accordion */}
+                                                        <details className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md border text-xs">
+                                                            <summary className="cursor-pointer font-medium hover:text-primary transition-colors select-none">
+                                                                Como obter um token manual?
+                                                            </summary>
+                                                            <div className="mt-3 space-y-2 pl-2 border-l-2 border-primary/20">
+                                                                <p>1. Acesse o <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Graph API Explorer</a>.</p>
+                                                                <p>2. Selecione seu <strong>Aplicativo</strong>.</p>
+                                                                <p>3. Em <strong>User or Page</strong>, selecione "Get User Access Token".</p>
+                                                                <p>4. Adicione as permissões:</p>
+                                                                <ul className="list-disc pl-4 font-mono text-[10px] text-muted-foreground/80">
+                                                                    <li>pages_show_list</li>
+                                                                    <li>instagram_basic</li>
+                                                                    <li>instagram_content_publish</li>
+                                                                    <li>pages_read_engagement</li>
+                                                                    <li>instagram_manage_messages (opcional)</li>
+                                                                </ul>
+                                                                <p>5. Clique em <strong>Generate Access Token</strong>.</p>
+                                                                <p>6. (Recomendado) Abra no "Access Token Tool" e estenda para longa duração.</p>
+                                                            </div>
+                                                        </details>
+                                                    </div>
                                                 </div>
                                                 <div className="flex gap-2">
                                                     {status?.configured && (
@@ -443,7 +493,7 @@ export default function InstagramPage() {
                                                     <Button
                                                         className="w-full"
                                                         onClick={handleSaveConfig}
-                                                        disabled={savingConfig || !appId.trim() || !appSecret.trim()}
+                                                        disabled={savingConfig || ((!appId.trim() || !appSecret.trim()) && !accessToken.trim())}
                                                     >
                                                         {savingConfig ? (
                                                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />

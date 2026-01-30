@@ -3,6 +3,7 @@ import https from 'https';
 import { logger } from '../../utils/logger';
 import { Offer } from '../../types';
 import { CategoryService } from '../category/CategoryService';
+import { ShopeeAffiliateService, ShopeeApiProduct } from './ShopeeAffiliateService';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
@@ -36,6 +37,7 @@ interface ShopeeConfig {
 
 export class ShopeeService {
   private categoryService: CategoryService;
+  private userId?: string; // For multi-tenant
 
   // Cache de feeds processados (feedUrl -> {products, timestamp})
   private feedCache = new Map<
@@ -50,8 +52,20 @@ export class ShopeeService {
   // TTL do cache: 6 horas
   private readonly FEED_CACHE_TTL = 6 * 60 * 60 * 1000;
 
-  constructor() {
+  /**
+   * Create service instance
+   * @param userId - Optional user ID for multi-tenant (loads credentials from UserSettings)
+   */
+  constructor(userId?: string) {
     this.categoryService = new CategoryService();
+    this.userId = userId;
+  }
+
+  /**
+   * Factory method: Create service for a specific user
+   */
+  static forUser(userId: string): ShopeeService {
+    return new ShopeeService(userId);
   }
 
   /**
@@ -300,11 +314,11 @@ export class ShopeeService {
             : price;
           const discount = record.discount_percentage
             ? parseFloat(
-                record.discount_percentage
-                  .toString()
-                  .replace(/[^\d.,]/g, '')
-                  .replace(',', '.')
-              )
+              record.discount_percentage
+                .toString()
+                .replace(/[^\d.,]/g, '')
+                .replace(',', '.')
+            )
             : 0;
 
           // Calculate discount percentage if not provided
@@ -559,7 +573,8 @@ export class ShopeeService {
   }
 
   /**
-   * Get products from configured feeds
+   * Get products from Shopee
+   * Strategy: API first (if configured), CSV feed fallback
    *
    * @param category - Product category filter
    * @param limit - Maximum products to return
@@ -569,33 +584,90 @@ export class ShopeeService {
     category: string = 'electronics',
     limit: number = 100
   ): Promise<ShopeeProduct[]> {
-    try {
-      const config = this.getConfig();
+    let products: ShopeeProduct[] = [];
+    let source: 'api' | 'csv' = 'csv';
 
-      if (!config.feedUrls || config.feedUrls.length === 0) {
-        logger.warn('No Shopee feed URLs configured');
+    // Try API first (if user has credentials configured)
+    const affiliateService = this.userId
+      ? await ShopeeAffiliateService.forUser(this.userId)
+      : ShopeeAffiliateService.fromEnv();
+
+    if (affiliateService?.isConfigured()) {
+      try {
+        logger.info('📡 Shopee: Trying API first...', { source: 'api', userId: this.userId });
+        const apiProducts = await affiliateService.getAllBrandOffers(limit);
+
+        if (apiProducts.length > 0) {
+          // Convert API products to ShopeeProduct format
+          products = apiProducts.map((p: ShopeeApiProduct) => this.convertApiProduct(p));
+          source = 'api';
+          logger.info(`✅ Shopee API: Fetched ${products.length} products`, { source: 'api' });
+        } else {
+          logger.info('⚠️ Shopee API returned 0 products, falling back to CSV', { source: 'api' });
+        }
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.warn(`⚠️ Shopee API failed, falling back to CSV: ${message}`, {
+          source: 'api',
+        });
+      }
+    }
+
+    // Fallback to CSV if API not configured or returned no products
+    if (products.length === 0) {
+      try {
+        const config = this.getConfig();
+
+        if (!config.feedUrls || config.feedUrls.length === 0) {
+          logger.warn('No Shopee feed URLs configured and API not available');
+          return [];
+        }
+
+        logger.info(`📄 Shopee: Using CSV feeds (${config.feedUrls.length} feeds)`, {
+          source: 'csv',
+        });
+
+        products = await this.downloadMultipleFeeds(config.feedUrls, limit);
+        source = 'csv';
+        logger.info(`✅ Shopee CSV: Fetched ${products.length} products`, { source: 'csv' });
+      } catch (error: any) {
+        logger.error('Error getting Shopee products from CSV:', { error: error.message });
         return [];
       }
-
-      logger.info(`🔍 Fetching products from ${config.feedUrls.length} Shopee feed(s)...`);
-
-      const products = await this.downloadMultipleFeeds(config.feedUrls, limit);
-
-      // Filter by category if specified
-      if (category && category !== 'electronics') {
-        const filtered = products.filter(
-          (p) =>
-            p.global_category1?.toLowerCase().includes(category.toLowerCase()) ||
-            p.global_category2?.toLowerCase().includes(category.toLowerCase())
-        );
-        logger.info(`📦 Filtered to ${filtered.length} products in category "${category}"`);
-        return filtered.slice(0, limit);
-      }
-
-      return products;
-    } catch (error: any) {
-      logger.error('Error getting Shopee products:', error);
-      return [];
     }
+
+    // Filter by category if specified
+    if (category && category !== 'electronics') {
+      const filtered = products.filter(
+        (p) =>
+          p.global_category1?.toLowerCase().includes(category.toLowerCase()) ||
+          p.global_category2?.toLowerCase().includes(category.toLowerCase())
+      );
+      logger.info(`📦 Filtered to ${filtered.length} products in category "${category}"`, {
+        source,
+      });
+      return filtered.slice(0, limit);
+    }
+
+    return products.slice(0, limit);
+  }
+
+  /**
+   * Convert API product to internal ShopeeProduct format
+   */
+  private convertApiProduct(apiProduct: ShopeeApiProduct): ShopeeProduct {
+    return {
+      image_link: apiProduct.imageUrl || '',
+      itemid: '', // API doesn't return itemid directly
+      title: apiProduct.offerName || '',
+      description: apiProduct.offerName || '',
+      price: apiProduct.originalPrice || apiProduct.price || 0,
+      sale_price: apiProduct.price,
+      discount_percentage: apiProduct.discountPercentage,
+      product_link: apiProduct.productUrl || '',
+      product_short_link: apiProduct.productUrl || '',
+      global_category1: apiProduct.category || 'electronics',
+      item_rating: apiProduct.rating,
+    };
   }
 }

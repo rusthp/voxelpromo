@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Loader2, TestTube2, Rss, ExternalLink, RefreshCw, CheckCircle2, XCircle, AlertCircle, Plus, Trash2 } from "lucide-react";
 import { FaAmazon } from "react-icons/fa6";
 import { SiAliexpress, SiMercadopago } from "react-icons/si";
@@ -501,10 +502,63 @@ export function AffiliateSettings({
             {/* Shopee */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Shopee</CardTitle>
-                    <CardDescription>Configure o feed RSS do Shopee</CardDescription>
+                    <CardTitle className="flex items-center gap-2">
+                        <span className="text-[#EE4D2D] font-bold">S</span> Shopee
+                    </CardTitle>
+                    <CardDescription>Configure a integração com Shopee Affiliate</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                    {/* API Configuration */}
+                    <div className="space-y-4 border-b pb-4">
+                        <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                                <Label className="text-base">Integração API (GraphQL)</Label>
+                                <p className="text-xs text-muted-foreground">
+                                    Conecte-se diretamente à API para ofertas em tempo real.
+                                </p>
+                            </div>
+                            <Switch
+                                checked={config.shopee?.apiEnabled || false}
+                                onCheckedChange={(checked) => setConfig({
+                                    ...config,
+                                    shopee: { ...config.shopee, apiEnabled: checked }
+                                })}
+                            />
+                        </div>
+
+                        {(config.shopee?.apiEnabled) && (
+                            <div className="grid gap-4 bg-muted/30 p-4 rounded-lg animation-all duration-200">
+                                <div className="space-y-2">
+                                    <Label htmlFor="shopeeAppId">App ID</Label>
+                                    <Input
+                                        id="shopeeAppId"
+                                        value={config.shopee.appId || ''}
+                                        onChange={(e) => setConfig({
+                                            ...config,
+                                            shopee: { ...config.shopee, appId: e.target.value }
+                                        })}
+                                        placeholder="Ex: 123456"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="shopeeAppSecret">App Secret</Label>
+                                    <Input
+                                        id="shopeeAppSecret"
+                                        type="password"
+                                        value={config.shopee.appSecret || ''}
+                                        onChange={(e) => setConfig({
+                                            ...config,
+                                            shopee: { ...config.shopee, appSecret: e.target.value }
+                                        })}
+                                        placeholder="Sua chave secreta"
+                                    />
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Obtenha em: <a href="https://open-api.affiliate.shopee.com.br/" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">Shopee Open API Portal</a>
+                                </p>
+                            </div>
+                        )}
+                    </div>
                     <div className="space-y-2">
                         <Label htmlFor="shopeeAffiliate">Código de Afiliado</Label>
                         <Input

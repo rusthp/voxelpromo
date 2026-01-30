@@ -114,7 +114,7 @@ export class InstagramService {
 
   // API configuration - Business Login for Instagram endpoints
   private readonly apiVersion = 'v21.0';
-  private readonly graphApiBase = 'https://graph.instagram.com'; // All API calls go here
+  private readonly graphApiBase = 'https://graph.facebook.com'; // Changed to Facebook Graph API for Business features (Publishing)
   private readonly oauthBase = 'https://www.instagram.com'; // OAuth authorization (per Meta docs)
   private readonly tokenApiBase = 'https://api.instagram.com'; // Token exchange
 
@@ -486,6 +486,37 @@ export class InstagramService {
       logger.debug('Instagram credentials saved to config.json');
     } catch (error: any) {
       logger.error(`Error saving Instagram credentials: ${error.message}`);
+    }
+  }
+
+  /**
+   * Resolve Instagram Business Account from Access Token
+   * Checks for linked pages and their Instagram accounts
+   */
+  async resolveBusinessAccount(token: string): Promise<string | null> {
+    try {
+      logger.info('📱 Resolving Instagram Business Account from token...');
+      const response = await axios.get(`${this.graphApiBase}/${this.apiVersion}/me/accounts`, {
+        params: {
+          access_token: token,
+          fields: 'instagram_business_account{id,username},name'
+        }
+      });
+
+      const accounts = response.data.data;
+      for (const page of accounts) {
+        if (page.instagram_business_account?.id) {
+          logger.info(`✅ Found Instagram Business Account: @${page.instagram_business_account.username} (${page.instagram_business_account.id})`);
+          this.igUserId = page.instagram_business_account.id;
+          return this.igUserId;
+        }
+      }
+
+      logger.warn('⚠️ No Instagram Business Account found linked to user pages');
+      return null;
+    } catch (error: any) {
+      logger.error(`Error resolving Instagram account: ${error.message}`);
+      return null;
     }
   }
 

@@ -50,6 +50,9 @@ export interface MercadoLivreConfig {
 }
 
 export interface ShopeeConfig {
+    appId?: string;
+    appSecret?: string;
+    apiEnabled?: boolean;
     feedUrls: string[];
     affiliateCode: string;
     minDiscount: number;

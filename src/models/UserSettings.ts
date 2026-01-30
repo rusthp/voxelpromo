@@ -46,8 +46,14 @@ export interface AwinSettings {
 }
 
 export interface ShopeeSettings {
+  // API Credentials (GraphQL)
+  appId?: string;
+  appSecret?: string;
+  apiEnabled?: boolean; // Toggle API vs CSV-only
+  // CSV Feed Settings
   feedUrls?: string[];
   affiliateCode?: string;
+  // Collection Filters
   minDiscount?: number;
   maxPrice?: number;
   minPrice?: number;
@@ -216,8 +222,14 @@ const AwinSettingsSchema = new Schema(
 
 const ShopeeSettingsSchema = new Schema(
   {
+    // API Credentials (GraphQL)
+    appId: String,
+    appSecret: String,
+    apiEnabled: { type: Boolean, default: false },
+    // CSV Feed Settings
     feedUrls: [String],
     affiliateCode: String,
+    // Collection Filters
     minDiscount: Number,
     maxPrice: Number,
     minPrice: Number,

@@ -40,7 +40,7 @@ export class CollectorService {
     this.amazonService = deps.amazonService ?? new AmazonService();
     this.aliExpressService = deps.aliExpressService ?? new AliExpressService();
     this.mercadoLivreService = deps.mercadoLivreService ?? new MercadoLivreService();
-    this.shopeeService = deps.shopeeService ?? new ShopeeService();
+    this.shopeeService = deps.shopeeService ?? (userId ? ShopeeService.forUser(userId) : new ShopeeService());
     this.rssService = deps.rssService ?? new RSSService();
     this.offerService = deps.offerService ?? new OfferService();
     this.blacklistService = deps.blacklistService ?? new BlacklistService();
@@ -620,9 +620,9 @@ export class CollectorService {
             discount:
               product.original_price && product.price
                 ? (
-                    ((product.original_price - product.price) / product.original_price) *
-                    100
-                  ).toFixed(2) + '%'
+                  ((product.original_price - product.price) / product.original_price) *
+                  100
+                ).toFixed(2) + '%'
                 : 'N/A',
           });
         }
@@ -979,68 +979,68 @@ export class CollectorService {
     const collectPromises = await Promise.all([
       enabledSources.includes('amazon')
         ? this.collectFromAmazon('electronics', 'electronics').catch((error) => {
-            logger.error('Amazon collection failed:', error);
-            return 0;
-          })
+          logger.error('Amazon collection failed:', error);
+          return 0;
+        })
         : Promise.resolve(0),
 
       enabledSources.includes('aliexpress')
         ? this.collectFromAliExpress('electronics').catch((error) => {
-            logger.error('AliExpress collection failed:', error);
-            return 0;
-          })
+          logger.error('AliExpress collection failed:', error);
+          return 0;
+        })
         : Promise.resolve(0),
 
       enabledSources.includes('mercadolivre')
         ? this.collectFromMercadoLivre('electronics').catch((error) => {
-            logger.error('Mercado Livre collection failed:', error);
-            return 0;
-          })
+          logger.error('Mercado Livre collection failed:', error);
+          return 0;
+        })
         : Promise.resolve(0),
 
       enabledSources.includes('shopee')
         ? this.collectFromShopee('electronics').catch((error) => {
-            logger.error('Shopee collection failed:', error);
-            return 0;
-          })
+          logger.error('Shopee collection failed:', error);
+          return 0;
+        })
         : Promise.resolve(0),
 
       enabledSources.includes('awin')
         ? this.collectFromAwin().catch((error) => {
-            logger.error('Awin collection failed:', error);
-            return 0;
-          })
+          logger.error('Awin collection failed:', error);
+          return 0;
+        })
         : Promise.resolve(0),
 
       enabledSources.includes('rss')
         ? (async () => {
-            // Collect from all configured RSS feeds
-            const rssFeeds = config.rssFeeds;
+          // Collect from all configured RSS feeds
+          const rssFeeds = config.rssFeeds;
 
-            if (rssFeeds.length === 0) {
-              logger.info('ℹ️  No RSS feeds configured, skipping RSS collection');
-              return 0;
-            }
+          if (rssFeeds.length === 0) {
+            logger.info('ℹ️  No RSS feeds configured, skipping RSS collection');
+            return 0;
+          }
 
-            let totalCollected = 0;
-            for (const feedUrl of rssFeeds) {
-              try {
-                const count = await this.collectFromRSS(feedUrl, 'rss');
-                totalCollected += count;
-              } catch (error: any) {
-                if (
-                  error.code === 'ECONNREFUSED' ||
-                  error.code === 'ETIMEDOUT' ||
-                  error.code === 'ENOTFOUND'
-                ) {
-                  logger.debug(`RSS feed temporarily unavailable: ${error.message}`);
-                } else {
-                  logger.warn(`RSS collection failed for ${feedUrl}: ${error.message}`);
-                }
+          let totalCollected = 0;
+          for (const feedUrl of rssFeeds) {
+            try {
+              const count = await this.collectFromRSS(feedUrl, 'rss');
+              totalCollected += count;
+            } catch (error: any) {
+              if (
+                error.code === 'ECONNREFUSED' ||
+                error.code === 'ETIMEDOUT' ||
+                error.code === 'ENOTFOUND'
+              ) {
+                logger.debug(`RSS feed temporarily unavailable: ${error.message}`);
+              } else {
+                logger.warn(`RSS collection failed for ${feedUrl}: ${error.message}`);
               }
             }
-            return totalCollected;
-          })()
+          }
+          return totalCollected;
+        })()
         : Promise.resolve(0),
     ]);
 

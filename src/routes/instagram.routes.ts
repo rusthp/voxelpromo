@@ -443,12 +443,62 @@ router.post('/config', authenticate, async (req: AuthRequest, res: Response) => 
 
     // Manual token flow - directly save accessToken and igUserId
     if (accessToken && accessToken !== '***') {
-      config.instagram.accessToken = accessToken;
-      logger.info('✅ Instagram manual access token saved');
+      // Resolve IG User ID if not provided
+      let resolvedIgUserId = igUserId;
+      if (!resolvedIgUserId || resolvedIgUserId === '***') {
+        const tempService = new InstagramService();
+        // Temporarily set token to resolve account
+        // We use a temporary service instance but we need to inject the token logic
+        // Actually resolveBusinessAccount is an instance method, so we can use a fresh instance
+        resolvedIgUserId = await tempService.resolveBusinessAccount(accessToken);
+      }
+
+      if (resolvedIgUserId) {
+        // Get account info to populate username/name
+        // Get account info to populate username/name
+        // We need to override private properties or use a specific constructor/method? 
+        // Since we don't have a public setter, we might need to rely on the fact resolveBusinessAccount sets it internally?
+        // But tempService is new. 
+        // Let's rely on resolveBusinessAccount returning the ID.
+        // And then we can use updateInstagramTokens service.
+
+        // To get username/name, we need getAccountInfo. 
+        // But getAccountInfo relies on this.accessToken and this.igUserId being set.
+        // We can't easily set them on a new instance externally if they are private.
+
+        // Better approach: Use the settings service to update directly.
+        // We can assume if resolveBusinessAccount worked, the token is valid.
+        // We can fetch details later or just save what we have.
+
+        const settingsService = getUserSettingsService();
+        await settingsService.updateInstagramTokens(userId, {
+          accessToken: accessToken,
+          igUserId: resolvedIgUserId,
+          username: 'Instagram User', // Will be updated on next sync/status check
+          accountType: 'BUSINESS'
+        });
+
+        config.instagram.accessToken = accessToken;
+        config.instagram.igUserId = resolvedIgUserId;
+
+        logger.info(`✅ Instagram manual access token saved for user ${userId}`);
+        return res.json({
+          success: true,
+          message: 'Conexão manual realizada com sucesso!',
+          configured: true,
+          authenticated: true
+        });
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: 'Não foi possível encontrar uma conta Instagram Business vinculada a este token.'
+        });
+      }
     }
+
+    // Legacy/App Config saves
     if (igUserId && igUserId !== '***') {
       config.instagram.igUserId = igUserId;
-      logger.info('✅ Instagram IG User ID saved');
     }
 
     writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
