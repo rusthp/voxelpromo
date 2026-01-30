@@ -479,27 +479,31 @@ export class UserSettingsService {
   async updateInstagramTokens(
     userId: string,
     tokens: {
-      accessToken: string;
-      pageAccessToken?: string;
-      pageId?: string;
-      igUserId: string;
+      accessToken?: string;
+      igUserId?: string;
       username?: string;
       accountType?: string;
+      tokenExpiresAt?: Date;
+      tokenStatus?: 'active' | 'expiring' | 'expired';
     }
   ): Promise<IUserSettings> {
     const settings = await this.getSettings(userId);
 
-    settings.instagram.accessToken = tokens.accessToken;
-    settings.instagram.pageAccessToken = tokens.pageAccessToken || '';
-    settings.instagram.pageId = tokens.pageId || '';
-    settings.instagram.igUserId = tokens.igUserId;
-    settings.instagram.username = tokens.username || '';
-    settings.instagram.accountType = tokens.accountType || 'BUSINESS';
+    // Set configured flag
     settings.instagram.isConfigured = true;
-    settings.instagram.pendingOAuth = false; // Clear pending flag after OAuth completes
+
+    if (tokens.accessToken) settings.instagram.accessToken = tokens.accessToken;
+    if (tokens.igUserId) settings.instagram.igUserId = tokens.igUserId;
+    if (tokens.username) settings.instagram.username = tokens.username;
+    if (tokens.accountType) settings.instagram.accountType = tokens.accountType;
+    if (tokens.tokenExpiresAt) settings.instagram.tokenExpiresAt = tokens.tokenExpiresAt;
+    if (tokens.tokenStatus) settings.instagram.tokenStatus = tokens.tokenStatus;
+
+    settings.instagram.isConfigured = true;
+    if (tokens.accessToken) settings.instagram.pendingOAuth = false;
 
     await settings.save();
-    logger.info(`✅ Instagram tokens saved for user: ${userId} (@${tokens.username})`);
+    logger.info(`✅ Instagram tokens saved for user: ${userId} (@${settings.instagram.username})`);
     return settings;
   }
 

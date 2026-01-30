@@ -2,14 +2,22 @@
  * Simple in-memory cache for automation configuration
  * Reduces database queries and improves response time
  */
-class ConfigCache {
-  private cache: Map<string, { data: any; timestamp: number }> = new Map();
-  private TTL = 5 * 60 * 1000; // 5 minutes
+/**
+ * Generic in-memory cache with TTL support
+ */
+class GenericCache {
+  private cache: Map<string, { data: any; timestamp: number; ttl: number }> = new Map();
+  private defaultTTL = 5 * 60 * 1000; // 5 minutes default
 
-  set(key: string, data: any): void {
+  constructor(defaultTTL?: number) {
+    if (defaultTTL) this.defaultTTL = defaultTTL;
+  }
+
+  set(key: string, data: any, ttl?: number): void {
     this.cache.set(key, {
       data,
       timestamp: Date.now(),
+      ttl: ttl || this.defaultTTL,
     });
   }
 
@@ -18,7 +26,7 @@ class ConfigCache {
     if (!cached) return null;
 
     // Check if expired
-    if (Date.now() - cached.timestamp > this.TTL) {
+    if (Date.now() - cached.timestamp > cached.ttl) {
       this.cache.delete(key);
       return null;
     }
@@ -42,4 +50,5 @@ class ConfigCache {
   }
 }
 
-export const configCache = new ConfigCache();
+export const cache = new GenericCache();
+export const configCache = cache; // Alias for backward compatibility

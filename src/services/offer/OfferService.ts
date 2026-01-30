@@ -620,10 +620,48 @@ export class OfferService {
       let success = false;
       const postedChannels: string[] = [];
 
+      // 🌟 LEAN SHORTENER: Generate short link just in time for Shopee
+      if (offer.source === 'shopee') {
+        try {
+          // Check if link is already short (shope.ee or s.shopee.com.br)
+          const isShort =
+            offer.affiliateUrl.includes('shope.ee') ||
+            offer.affiliateUrl.includes('s.shopee') ||
+            offer.productUrl.includes('shope.ee') ||
+            offer.productUrl.includes('s.shopee');
+
+          if (!isShort) {
+            logger.info(`🔗 Generando ShortLink para oferta Shopee: ${offer._id}`);
+            const { ShopeeAffiliateService } = await import('../shopee/ShopeeAffiliateService');
+            // Use env vars automatically via constructor defaults
+            const shopeeService = new ShopeeAffiliateService();
+            const shortLink = await shopeeService.generateShortLink(offer.productUrl);
+
+            if (shortLink && shortLink !== offer.productUrl) {
+              // Update offer with new short link
+              offer.affiliateUrl = shortLink;
+              // We keep productUrl as original for identification/deduplication, 
+              // but some logic might use productUrl for display.
+              // Let's ensure postContent uses the short one.
+
+              // Persist the short link
+              await OfferModel.findByIdAndUpdate(offer._id, {
+                affiliateUrl: shortLink,
+                updatedAt: new Date(),
+              });
+              logger.info(`✅ ShortLink gerado: ${shortLink}`);
+            }
+          }
+        } catch (error) {
+          logger.warn(`⚠️ Falha ao gerar ShortLink Shopee: ${(error as Error).message}`);
+          // Continue with long link
+        }
+      }
+
       // Prepare post content
       const postContent =
         offer.aiGeneratedPost ||
-        `${offer.title}\n\nPreço: R$ ${offer.currentPrice}\nDesconto: ${offer.discountPercentage}%\n\n${offer.productUrl}`;
+        `${offer.title}\n\nPreço: R$ ${offer.currentPrice}\nDesconto: ${offer.discountPercentage}%\n\n${offer.affiliateUrl || offer.productUrl}`;
 
       // Send to Telegram
       if (channels.includes('telegram') && !offer.postedChannels?.includes('telegram')) {
@@ -796,36 +834,54 @@ export class OfferService {
       // Send to Instagram
       if (channels.includes('instagram') && !offer.postedChannels?.includes('instagram')) {
         try {
-          logger.info(`📤 Attempting to post offer ${offerId} to Instagram`);
-          const igResult = await this.getInstagramService().sendOffer(offer);
-          if (igResult.success) {
-            postedChannels.push('instagram');
-            success = true;
-            logger.info(`✅ Successfully posted offer ${offerId} to Instagram`);
+          // 🛡️ SAFETY GUARD: Check Token Expiry
+          const { UserSettingsModel } = await import('../../models/UserSettings');
+          const settings = await UserSettingsModel.findOne({ userId: offer.userId });
 
-            // Save to history
-            await PostHistoryModel.create({
-              offerId,
-              platform: 'instagram',
-              postContent: igResult.caption || postContent,
-              status: 'success',
-              userId: offer.userId,
-              metadata: {
-                mediaId: igResult.mediaId,
-                affiliateUrl: offer.affiliateUrl,
-                caption: igResult.caption,
-              },
-            });
-          } else {
-            logger.warn(`⚠️ Failed to post offer ${offerId} to Instagram - check logs`);
-            // Save failed attempt
+          if (settings?.instagram?.tokenStatus === 'expired') {
+            logger.error(`🛑 BLOCKED: Instagram posting aborted for user ${offer.userId} due to EXPIRED TOKEN.`);
+            // Save failed attempt to history so user sees it in dashboard
             await PostHistoryModel.create({
               offerId,
               platform: 'instagram',
               postContent,
               status: 'failed',
-              error: 'Failed to post to Instagram',
+              error: 'BLOCKED: Instagram Token Expired. Please reconnect.',
+              userId: offer.userId,
             });
+          } else {
+            // Proceed with posting
+            logger.info(`📤 Attempting to post offer ${offerId} to Instagram`);
+            const igResult = await this.getInstagramService().sendOffer(offer);
+            if (igResult.success) { // ... existing success logic (next block)
+              postedChannels.push('instagram');
+              success = true;
+              logger.info(`✅ Successfully posted offer ${offerId} to Instagram`);
+
+              // Save to history
+              await PostHistoryModel.create({
+                offerId,
+                platform: 'instagram',
+                postContent: igResult.caption || postContent,
+                status: 'success',
+                userId: offer.userId,
+                metadata: {
+                  mediaId: igResult.mediaId,
+                  affiliateUrl: offer.affiliateUrl,
+                  caption: igResult.caption,
+                },
+              });
+            } else {
+              logger.warn(`⚠️ Failed to post offer ${offerId} to Instagram - check logs`);
+              // Save failed attempt
+              await PostHistoryModel.create({
+                offerId,
+                platform: 'instagram',
+                postContent,
+                status: 'failed',
+                error: 'Failed to post to Instagram',
+              });
+            }
           }
         } catch (instagramError: unknown) {
           logger.error(

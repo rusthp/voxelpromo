@@ -588,14 +588,36 @@ export class ShopeeService {
     let source: 'api' | 'csv' = 'csv';
 
     // Try API first (if user has credentials configured)
-    const affiliateService = this.userId
-      ? await ShopeeAffiliateService.forUser(this.userId)
-      : ShopeeAffiliateService.fromEnv();
+    // Try API first (if enabled via feature flag or env)
+    const appId = process.env.SHOPEE_APP_ID;
+    const appSecret = process.env.SHOPEE_APP_SECRET;
+    const apiEnabled = process.env.SHOPEE_API_ENABLED !== 'false';
 
-    if (affiliateService?.isConfigured()) {
+    if (appId && appSecret && apiEnabled) {
       try {
+        const affiliateService = new ShopeeAffiliateService({ appId, appSecret });
         logger.info('📡 Shopee: Trying API first...', { source: 'api', userId: this.userId });
-        const apiProducts = await affiliateService.getAllBrandOffers(limit);
+
+        // Fetch matches from API with pagination
+        let currentScrollId: string | undefined = undefined;
+        let fetchedCount = 0;
+        const apiProducts: ShopeeApiProduct[] = [];
+
+        while (fetchedCount < limit) {
+          const batchLimit = Math.min(50, limit - fetchedCount); // Max 50 per page (API limit estimate)
+          const response = await affiliateService.getBrandOffers(batchLimit, currentScrollId);
+
+          if (!response.products || response.products.length === 0) break;
+
+          apiProducts.push(...response.products);
+          fetchedCount += response.products.length;
+          currentScrollId = response.nextScrollId;
+
+          if (!currentScrollId) break; // No more pages
+
+          // Rate limit protection: wait 1s between pages if fetching multiple
+          if (fetchedCount < limit) await new Promise(resolve => setTimeout(resolve, 1000));
+        }
 
         if (apiProducts.length > 0) {
           // Convert API products to ShopeeProduct format
@@ -658,16 +680,16 @@ export class ShopeeService {
   private convertApiProduct(apiProduct: ShopeeApiProduct): ShopeeProduct {
     return {
       image_link: apiProduct.imageUrl || '',
-      itemid: '', // API doesn't return itemid directly
-      title: apiProduct.offerName || '',
-      description: apiProduct.offerName || '',
-      price: apiProduct.originalPrice || apiProduct.price || 0,
+      itemid: apiProduct.itemId,
+      title: apiProduct.name || '',
+      description: apiProduct.name || '', // API doesn't return description, use title
+      price: apiProduct.price || 0,
       sale_price: apiProduct.price,
-      discount_percentage: apiProduct.discountPercentage,
-      product_link: apiProduct.productUrl || '',
-      product_short_link: apiProduct.productUrl || '',
-      global_category1: apiProduct.category || 'electronics',
-      item_rating: apiProduct.rating,
+      discount_percentage: 0, // API doesn't return discount info in this query
+      product_link: apiProduct.productLink || '',
+      product_short_link: apiProduct.productLink || '', // Will be generated later if needed
+      global_category1: 'electronics', // Default to generic, or infer from title later
+      item_rating: 0, // Not available in this query
     };
   }
 }

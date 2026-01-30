@@ -394,6 +394,46 @@ export class InstagramService {
   }
 
   /**
+   * Inspect a token to get its precise expiry date
+   * Uses the /debug_token endpoint which requires App Credentials
+   */
+  async inspectToken(inputToken: string): Promise<{
+    isValid: boolean;
+    expiresAt?: number;
+    scopes?: string[];
+    userId?: string;
+  }> {
+    if (!this.appId || !this.appSecret) {
+      logger.warn('⚠️ Cannot inspect token: App ID or Secret missing');
+      return { isValid: false };
+    }
+
+    try {
+      // Use App Access Token (AppID|AppSecret) query param shortcut
+      const appAccessToken = `${this.appId}|${this.appSecret}`;
+
+      const response = await axios.get(`${this.graphApiBase}/debug_token`, {
+        params: {
+          input_token: inputToken,
+          access_token: appAccessToken,
+        },
+      });
+
+      const data = response.data.data;
+
+      return {
+        isValid: data.is_valid,
+        expiresAt: data.expires_at, // Unix timestamp in seconds
+        scopes: data.scopes,
+        userId: data.user_id,
+      };
+    } catch (error: any) {
+      logger.error(`❌ Token inspection failed: ${error.message}`);
+      return { isValid: false };
+    }
+  }
+
+  /**
    * Refresh a long-lived access token (must be done before expiration)
    * Token must be at least 24 hours old and not expired
    * @see https://developers.facebook.com/docs/instagram/platform/instagram-api/business-login#step-3
@@ -906,6 +946,12 @@ export class InstagramService {
    * Format offer message for Instagram DM
    */
   private async formatMessage(offer: Offer): Promise<string> {
+    // Priority 1: Use AI Generated Post if available
+    if (offer.aiGeneratedPost) {
+      return offer.aiGeneratedPost;
+    }
+
+    // Priority 2: Build default message
     const impactPhrase = await this.getImpactPhrase(offer);
     const priceFormatted = offer.currentPrice.toFixed(2).replace('.', ',');
     const hasDiscount = offer.discountPercentage >= 5 && offer.originalPrice > offer.currentPrice;
@@ -934,6 +980,9 @@ export class InstagramService {
 
     // Link
     parts.push(`\n🛒 Compre aqui: ${offer.affiliateUrl}`);
+
+    // Add hashtags for default template
+    parts.push(`\n\n#oferta #promoção #${offer.source} #${offer.category || 'geral'}`);
 
     return parts.join('');
   }

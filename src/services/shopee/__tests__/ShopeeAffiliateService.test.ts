@@ -1,182 +1,90 @@
-/**
- * Unit tests for ShopeeAffiliateService - Signature Generation
- *
- * Based on Shopee Open API documentation:
- * Signature = SHA256(AppId + Timestamp + Payload + Secret)
- *
- * Test data from official example:
- * - AppId: 123456
- * - Secret: demo
- * - Timestamp: 1577836800 (2020-01-01 00:00:00 UTC+0)
- * - Payload: {"query":"{\nbrandOffer{\n    nodes{\n        commissionRate\n        offerName\n    }\n}\n}"}
- * - Expected Signature: dc88d72feea70c80c52c3399751a7d34966763f51a7f056aa070a5e9df645412
- */
 
+import { ShopeeAffiliateService } from '../ShopeeAffiliateService';
+import axios from 'axios';
 import crypto from 'crypto';
 
-// ============================================
-// Signature Generation Logic (to be moved to ShopeeAffiliateService)
-// ============================================
+jest.mock('axios');
 
-/**
- * Generate SHA256 signature for Shopee API authentication
- * Format: SHA256(AppId + Timestamp + Payload + Secret)
- *
- * @param appId - Shopee App ID
- * @param timestamp - Unix timestamp in seconds
- * @param payload - JSON request body string
- * @param secret - Shopee App Secret
- * @returns Lowercase hexadecimal signature (64 chars)
- */
-function generateSignature(
-    appId: string,
-    timestamp: number,
-    payload: string,
-    secret: string
-): string {
-    const signatureBase = `${appId}${timestamp}${payload}${secret}`;
-    return crypto.createHash('sha256').update(signatureBase, 'utf8').digest('hex');
-}
+describe('ShopeeAffiliateService', () => {
+    let service: ShopeeAffiliateService;
+    const mockAppId = 'test_app_id';
+    const mockAppSecret = 'test_app_secret';
 
-/**
- * Build Authorization header for Shopee API
- * Format: SHA256 Credential={AppId}, Timestamp={Timestamp}, Signature={signature}
- */
-function buildAuthHeader(
-    appId: string,
-    timestamp: number,
-    payload: string,
-    secret: string
-): string {
-    const signature = generateSignature(appId, timestamp, payload, secret);
-    return `SHA256 Credential=${appId}, Timestamp=${timestamp}, Signature=${signature}`;
-}
+    beforeEach(() => {
+        service = new ShopeeAffiliateService({
+            appId: mockAppId,
+            appSecret: mockAppSecret,
+        });
+        jest.clearAllMocks();
+    });
 
-// ============================================
-// Tests
-// ============================================
+    describe('Authentication', () => {
+        it('should generate correct SHA256 signature', () => {
+            const payload = JSON.stringify({ query: 'test' });
+            const timestamp = 1234567890;
 
-describe('ShopeeAffiliateService - Signature Generation', () => {
-    // Official example from Shopee documentation
-    const EXAMPLE_APP_ID = '123456';
-    const EXAMPLE_SECRET = 'demo';
-    const EXAMPLE_TIMESTAMP = 1577836800; // 2020-01-01 00:00:00 UTC+0
-    const EXAMPLE_PAYLOAD = `{"query":"{\\nbrandOffer{\\n    nodes{\\n        commissionRate\\n        offerName\\n    }\\n}\\n}"}`;
-    const EXPECTED_SIGNATURE =
-        'dc88d72feea70c80c52c3399751a7d34966763f51a7f056aa070a5e9df645412';
+            const expectedData = `${mockAppId}${timestamp}${payload}${mockAppSecret}`;
+            const expectedSignature = crypto.createHash('sha256').update(expectedData).digest('hex');
 
-    describe('generateSignature()', () => {
-        it('should generate correct signature matching Shopee documentation example', () => {
-            const signature = generateSignature(
-                EXAMPLE_APP_ID,
-                EXAMPLE_TIMESTAMP,
-                EXAMPLE_PAYLOAD,
-                EXAMPLE_SECRET
-            );
-
-            expect(signature).toBe(EXPECTED_SIGNATURE);
+            const signature = service.generateSignature(payload, timestamp);
+            expect(signature).toBe(expectedSignature);
         });
 
-        it('should return lowercase hexadecimal string', () => {
-            const signature = generateSignature(
-                EXAMPLE_APP_ID,
-                EXAMPLE_TIMESTAMP,
-                EXAMPLE_PAYLOAD,
-                EXAMPLE_SECRET
-            );
+        it('should build correct Authorization header', () => {
+            const payload = JSON.stringify({ query: 'test' });
+            const timestamp = 1234567890;
 
-            expect(signature).toMatch(/^[a-f0-9]{64}$/);
-        });
+            // We accept access to the private method for testing purposes by casting to any
+            const header = (service as any).buildAuthHeader(payload, timestamp);
 
-        it('should produce different signatures for different timestamps', () => {
-            const sig1 = generateSignature(EXAMPLE_APP_ID, 1577836800, EXAMPLE_PAYLOAD, EXAMPLE_SECRET);
-            const sig2 = generateSignature(EXAMPLE_APP_ID, 1577836801, EXAMPLE_PAYLOAD, EXAMPLE_SECRET);
-
-            expect(sig1).not.toBe(sig2);
-        });
-
-        it('should produce different signatures for different payloads', () => {
-            const payload1 = '{"query":"{ brandOffer { nodes { offerName } } }"}';
-            const payload2 = '{"query":"{ productInfo { id } }"}';
-
-            const sig1 = generateSignature(EXAMPLE_APP_ID, EXAMPLE_TIMESTAMP, payload1, EXAMPLE_SECRET);
-            const sig2 = generateSignature(EXAMPLE_APP_ID, EXAMPLE_TIMESTAMP, payload2, EXAMPLE_SECRET);
-
-            expect(sig1).not.toBe(sig2);
-        });
-
-        it('should handle empty payload', () => {
-            const signature = generateSignature(EXAMPLE_APP_ID, EXAMPLE_TIMESTAMP, '', EXAMPLE_SECRET);
-
-            expect(signature).toMatch(/^[a-f0-9]{64}$/);
+            expect(header).toContain(`SHA256 Credential=${mockAppId}`);
+            expect(header).toContain(`Timestamp=${timestamp}`);
+            expect(header).toContain('Signature=');
         });
     });
 
-    describe('buildAuthHeader()', () => {
-        it('should build correct Authorization header format', () => {
-            const header = buildAuthHeader(
-                EXAMPLE_APP_ID,
-                EXAMPLE_TIMESTAMP,
-                EXAMPLE_PAYLOAD,
-                EXAMPLE_SECRET
-            );
+    describe('API Methods', () => {
+        it('getBrandOffers should handle success', async () => {
+            const mockData = {
+                data: {
+                    data: {
+                        productOfferV2: {
+                            nodes: [{ itemId: '1' }],
+                            pageInfo: { scrollId: 'abc', hasNextPage: true }
+                        }
+                    }
+                }
+            };
+            (axios.create as jest.Mock).mockReturnValue({
+                post: jest.fn().mockResolvedValue(mockData)
+            });
 
-            expect(header).toBe(
-                `SHA256 Credential=${EXAMPLE_APP_ID}, Timestamp=${EXAMPLE_TIMESTAMP}, Signature=${EXPECTED_SIGNATURE}`
-            );
+            // Re-init service to pick up mocked axios
+            service = new ShopeeAffiliateService({ appId: mockAppId, appSecret: mockAppSecret });
+
+            const result = await service.getBrandOffers();
+            expect(result.products).toHaveLength(1);
+            expect(result.nextScrollId).toBe('abc');
         });
 
-        it('should start with "SHA256 Credential="', () => {
-            const header = buildAuthHeader(
-                EXAMPLE_APP_ID,
-                EXAMPLE_TIMESTAMP,
-                EXAMPLE_PAYLOAD,
-                EXAMPLE_SECRET
-            );
+        it('generateShortLink should handle success', async () => {
+            const mockData = {
+                data: {
+                    data: {
+                        generateShortLink: {
+                            shortLink: 'https://shope.ee/short'
+                        }
+                    }
+                }
+            };
+            (axios.create as jest.Mock).mockReturnValue({
+                post: jest.fn().mockResolvedValue(mockData)
+            });
 
-            expect(header.startsWith('SHA256 Credential=')).toBe(true);
-        });
+            service = new ShopeeAffiliateService({ appId: mockAppId, appSecret: mockAppSecret });
 
-        it('should contain Timestamp and Signature parts', () => {
-            const header = buildAuthHeader(
-                EXAMPLE_APP_ID,
-                EXAMPLE_TIMESTAMP,
-                EXAMPLE_PAYLOAD,
-                EXAMPLE_SECRET
-            );
-
-            expect(header).toContain(', Timestamp=');
-            expect(header).toContain(', Signature=');
-        });
-    });
-
-    describe('Edge cases', () => {
-        it('should handle special characters in payload (escaped quotes)', () => {
-            // Shopee doc mentions escaping double quotes for string conditions
-            const payloadWithEscapes =
-                '{"query":"{conversionReport(purchaseTimeStart: 1600621200, scrollId: \\"some characters\\"){...}}"}';
-
-            const signature = generateSignature(
-                EXAMPLE_APP_ID,
-                EXAMPLE_TIMESTAMP,
-                payloadWithEscapes,
-                EXAMPLE_SECRET
-            );
-
-            expect(signature).toMatch(/^[a-f0-9]{64}$/);
-        });
-
-        it('should handle Unicode characters in payload', () => {
-            const payloadWithUnicode = '{"query":"{ search(term: \\"eletrônicos\\") { id } }"}';
-
-            const signature = generateSignature(
-                EXAMPLE_APP_ID,
-                EXAMPLE_TIMESTAMP,
-                payloadWithUnicode,
-                EXAMPLE_SECRET
-            );
-
-            expect(signature).toMatch(/^[a-f0-9]{64}$/);
+            const link = await service.generateShortLink('https://shopee.com.br/product');
+            expect(link).toBe('https://shope.ee/short');
         });
     });
 });

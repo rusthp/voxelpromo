@@ -49,6 +49,8 @@ router.get('/status', authenticate, async (req: AuthRequest, res: Response) => {
           username: userSettings.instagram.username || 'Unknown',
           accountType: userSettings.instagram.accountType || 'BUSINESS',
           igUserId: userSettings.instagram.igUserId,
+          tokenStatus: userSettings.instagram.tokenStatus || 'active',
+          tokenExpiresAt: userSettings.instagram.tokenExpiresAt,
         },
         rateLimit: { remaining: 200, limit: 200, resetAt: new Date(Date.now() + 3600000) },
       });
@@ -446,16 +448,37 @@ router.post('/config', authenticate, async (req: AuthRequest, res: Response) => 
       // Resolve IG User ID if not provided
       let resolvedIgUserId = igUserId;
       let resolvedUsername = 'Instagram User';
+      let tokenExpiresAt: Date | undefined;
+      let tokenStatus: 'active' | 'expiring' | 'expired' | undefined;
 
       if (!resolvedIgUserId || resolvedIgUserId === '***') {
         const tempService = new InstagramService();
         // Temporarily set token to resolve account
         // We use a temporary service instance but we need to inject the token logic
         // Actually resolveBusinessAccount is an instance method, so we can use a fresh instance
+
+        // Inspect token for precise expiry
+        const inspection = await tempService.inspectToken(accessToken);
+        if (inspection.isValid && inspection.expiresAt) {
+          tokenExpiresAt = new Date(inspection.expiresAt * 1000);
+          tokenStatus = 'active';
+          logger.info(`✅ Token expiry updated: ${tokenExpiresAt.toISOString()}`);
+        } else {
+          // Fallback: 60 days
+          const fallbackDate = new Date();
+          fallbackDate.setDate(fallbackDate.getDate() + 60);
+          tokenExpiresAt = fallbackDate;
+          tokenStatus = 'active';
+          logger.warn('⚠️ Could not inspect token, using 60-day fallback');
+        }
+
+        // Fetch User ID and Username
         const account = await tempService.resolveBusinessAccount(accessToken);
         if (account) {
           resolvedIgUserId = account.id;
-          resolvedUsername = account.username;
+          resolvedUsername = account.username; // Save correct username
+        } else {
+          resolvedUsername = 'Instagram User'; // Fallback
         }
       }
 
@@ -468,7 +491,9 @@ router.post('/config', authenticate, async (req: AuthRequest, res: Response) => 
           accessToken: accessToken,
           igUserId: resolvedIgUserId,
           username: resolvedUsername,
-          accountType: 'BUSINESS'
+          accountType: 'BUSINESS',
+          tokenExpiresAt: tokenExpiresAt,
+          tokenStatus: tokenStatus
         });
 
         config.instagram.accessToken = accessToken;

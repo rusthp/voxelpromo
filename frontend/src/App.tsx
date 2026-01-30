@@ -12,6 +12,7 @@ import { Loader2 } from "lucide-react";
 // Lazy-loaded pages for code-splitting
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const Index = lazy(() => import("./pages/Index"));
+const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
 const Products = lazy(() => import("./pages/Products"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 const Publications = lazy(() => import("./pages/Publications"));
@@ -67,6 +68,7 @@ const App = () => (
                 <Route path="/verify-email" element={<VerifyEmail />} />
 
                 {/* Protected routes - require authentication */}
+                <Route path="/onboarding" element={<OnboardingPage />} />
                 <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
                 <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
                 <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />

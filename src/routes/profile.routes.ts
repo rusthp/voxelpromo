@@ -110,6 +110,8 @@ router.put('/', authenticate, async (req: AuthRequest, res: Response) => {
       updateData.displayName = displayName;
     }
 
+    // ... imports
+
     if (preferences) {
       if (preferences.theme) {
         updateData['preferences.theme'] = preferences.theme;
@@ -121,14 +123,35 @@ router.put('/', authenticate, async (req: AuthRequest, res: Response) => {
         updateData['preferences.pushNotifications'] = preferences.pushNotifications;
       }
       if (preferences.niche !== undefined) {
-        const validNiches = ['tech', 'fashion', 'health', 'home', 'sports', 'games', 'general', null];
+        // Updated niche list matching NicheService
+        const validNiches = ['diversified', 'tech', 'games', 'fashion', 'home', 'beauty', 'kids', 'general', null];
         if (validNiches.includes(preferences.niche)) {
           updateData['preferences.niche'] = preferences.niche;
+
+          // 🔄 Sync with UserSettings (Collector)
+          try {
+            const { UserSettingsModel } = await import('../models/UserSettings');
+            const settings = await UserSettingsModel.findOne({ userId: req.user!.id });
+
+            if (settings) {
+              const mappedNiche = preferences.niche === 'general' || !preferences.niche
+                ? 'diversified'
+                : preferences.niche;
+
+              settings.collectionSettings.niches = [mappedNiche];
+              await settings.save();
+              logger.info(`🔄 Synced niche preference to UserSettings: ${mappedNiche} for user ${req.user!.id}`);
+            }
+          } catch (syncError) {
+            logger.warn('Failed to sync niche to UserSettings:', syncError);
+            // Don't block the profile update
+          }
         }
       }
     }
 
     if (req.body.billing) {
+      // ... rest of the code
       const { type, document, name, phone, address } = req.body.billing;
       // Minimal validation
       if (type && ['individual', 'company'].includes(type)) updateData['billing.type'] = type;

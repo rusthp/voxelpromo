@@ -3,6 +3,7 @@ import { CollectorService } from '../services/collector/CollectorService';
 import { OfferService } from '../services/offer/OfferService';
 import { logger } from '../utils/logger';
 import { UserModel } from '../models/User';
+import { TokenExpiryJob } from '../services/jobs/TokenExpiryJob';
 
 /**
  * Helper to run a job for all active users
@@ -249,6 +250,11 @@ export function setupCronJobs(): void {
       /* Silent - feed sync is non-critical */
     }
   }, { timezone: 'America/Sao_Paulo' });
+
+  // 8. Token Expiry Check (Daily)
+  // CRITICAL: Checks for expired tokens and alerts admins
+  const tokenExpiryJob = new TokenExpiryJob();
+  tokenExpiryJob.start();
 
   logger.info('✅ Cron jobs scheduled (Multi-Tenant Mode)');
 }

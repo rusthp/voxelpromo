@@ -842,6 +842,7 @@ export class CollectorService {
     sources: string[];
     enabled: boolean;
     rssFeeds: string[];
+    niches: string[];
   }> {
     // 1. Try to get from Database (if userId is present)
     if (this.userId) {
@@ -861,6 +862,7 @@ export class CollectorService {
             ],
             enabled: settings.collectionSettings?.enabled ?? true,
             rssFeeds: settings.rss || [],
+            niches: settings.collectionSettings?.niches || ['diversified'],
           };
         }
       } catch (error) {
@@ -901,6 +903,7 @@ export class CollectorService {
       ],
       enabled: legacyConfig.enabled ?? true,
       rssFeeds,
+      niches: ['diversified'],
     };
   }
 
@@ -966,54 +969,116 @@ export class CollectorService {
     }
 
     const enabledSources = config.sources;
+    const niches = config.niches && config.niches.length > 0 ? config.niches : ['diversified'];
 
     logger.info('🚀 ========================================');
     logger.info('🚀 Starting collection from configured sources');
     logger.info(`📋 Enabled sources: ${enabledSources.join(', ')}`);
+    logger.info(`🎯 Selected Niches: ${niches.join(', ')}`);
     if (this.userId) logger.info(`👤 User Context: ${this.userId}`);
     logger.info('🚀 ========================================');
 
     const startTime = Date.now();
 
-    // Only collect from enabled sources
-    const collectPromises = await Promise.all([
-      enabledSources.includes('amazon')
-        ? this.collectFromAmazon('electronics', 'electronics').catch((error) => {
-          logger.error('Amazon collection failed:', error);
-          return 0;
-        })
-        : Promise.resolve(0),
+    const collectPromises: Promise<number>[] = [];
+    let amazonTotal = 0;
+    let aliexpressTotal = 0;
+    let mercadolivreTotal = 0;
+    let shopeeTotal = 0;
+    let awinTotal = 0;
+    let rssTotal = 0;
 
-      enabledSources.includes('aliexpress')
-        ? this.collectFromAliExpress('electronics').catch((error) => {
-          logger.error('AliExpress collection failed:', error);
+    // --- Amazon ---
+    if (enabledSources.includes('amazon')) {
+      const amazonPromises = niches.map(async (niche) => {
+        const { NicheService } = await import('./NicheService');
+        const nicheConfig = NicheService.getConfig(niche, 'amazon');
+        logger.info(`🔍 Collecting Amazon for niche: ${niche} (${nicheConfig.keywords})`);
+        try {
+          const count = await this.collectFromAmazon(nicheConfig.keywords, nicheConfig.category);
+          amazonTotal += count;
+          return count;
+        } catch (error) {
+          logger.error(`Amazon collection failed for niche ${niche}:`, error);
           return 0;
-        })
-        : Promise.resolve(0),
+        }
+      });
+      collectPromises.push(...amazonPromises);
+    }
 
-      enabledSources.includes('mercadolivre')
-        ? this.collectFromMercadoLivre('electronics').catch((error) => {
-          logger.error('Mercado Livre collection failed:', error);
+    // --- AliExpress ---
+    if (enabledSources.includes('aliexpress')) {
+      const aliexpressPromises = niches.map(async (niche) => {
+        const { NicheService } = await import('./NicheService');
+        const nicheConfig = NicheService.getConfig(niche, 'aliexpress');
+        logger.info(`🔍 Collecting AliExpress for niche: ${niche} (${nicheConfig.keywords})`);
+        try {
+          const count = await this.collectFromAliExpress(nicheConfig.keywords);
+          aliexpressTotal += count;
+          return count;
+        } catch (error) {
+          logger.error(`AliExpress collection failed for niche ${niche}:`, error);
           return 0;
-        })
-        : Promise.resolve(0),
+        }
+      });
+      collectPromises.push(...aliexpressPromises);
+    }
 
-      enabledSources.includes('shopee')
-        ? this.collectFromShopee('electronics').catch((error) => {
-          logger.error('Shopee collection failed:', error);
+    // --- Mercado Livre ---
+    if (enabledSources.includes('mercadolivre')) {
+      const mlPromises = niches.map(async (niche) => {
+        const { NicheService } = await import('./NicheService');
+        const nicheConfig = NicheService.getConfig(niche, 'mercadolivre');
+        logger.info(`🔍 Collecting MercadoLivre for niche: ${niche} (${nicheConfig.keywords})`);
+        try {
+          const count = await this.collectFromMercadoLivre(nicheConfig.keywords);
+          mercadolivreTotal += count;
+          return count;
+        } catch (error) {
+          logger.error(`Mercado Livre collection failed for niche ${niche}:`, error);
           return 0;
-        })
-        : Promise.resolve(0),
+        }
+      });
+      collectPromises.push(...mlPromises);
+    }
 
-      enabledSources.includes('awin')
-        ? this.collectFromAwin().catch((error) => {
-          logger.error('Awin collection failed:', error);
+    // --- Shopee ---
+    if (enabledSources.includes('shopee')) {
+      const shopeePromises = niches.map(async (niche) => {
+        const { NicheService } = await import('./NicheService');
+        const nicheConfig = NicheService.getConfig(niche, 'shopee');
+        logger.info(`🔍 Collecting Shopee for niche: ${niche} (${nicheConfig.keywords})`);
+        try {
+          const count = await this.collectFromShopee(nicheConfig.keywords);
+          shopeeTotal += count;
+          return count;
+        } catch (error) {
+          logger.error(`Shopee collection failed for niche ${niche}:`, error);
           return 0;
-        })
-        : Promise.resolve(0),
+        }
+      });
+      collectPromises.push(...shopeePromises);
+    }
 
-      enabledSources.includes('rss')
-        ? (async () => {
+    // --- Awin (Niche agnostic for now) ---
+    if (enabledSources.includes('awin')) {
+      collectPromises.push(
+        this.collectFromAwin()
+          .then((count) => {
+            awinTotal += count;
+            return count;
+          })
+          .catch((error) => {
+            logger.error('Awin collection failed:', error);
+            return 0;
+          })
+      );
+    }
+
+    // --- RSS (Niche agnostic) ---
+    if (enabledSources.includes('rss')) {
+      collectPromises.push(
+        (async () => {
           // Collect from all configured RSS feeds
           const rssFeeds = config.rssFeeds;
 
@@ -1039,34 +1104,37 @@ export class CollectorService {
               }
             }
           }
+          rssTotal += totalCollected;
           return totalCollected;
         })()
-        : Promise.resolve(0),
-    ]);
+      );
+    }
 
-    const [amazon, aliexpress, mercadolivre, shopee, awin, rss] = collectPromises;
-    const total = amazon + aliexpress + mercadolivre + shopee + awin + rss;
+    // Wait for all collections
+    await Promise.all(collectPromises);
+
+    const total = amazonTotal + aliexpressTotal + mercadolivreTotal + shopeeTotal + awinTotal + rssTotal;
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
     logger.info('🚀 ========================================');
     logger.info(`✅ Collection completed in ${duration}s`);
     logger.info(`📊 Results:`);
-    logger.info(`   - Amazon: ${amazon} offers`);
-    logger.info(`   - AliExpress: ${aliexpress} offers`);
-    logger.info(`   - Mercado Livre: ${mercadolivre} offers`);
-    logger.info(`   - Shopee: ${shopee} offers`);
-    logger.info(`   - Awin: ${awin} offers`);
-    logger.info(`   - RSS: ${rss} offers`);
+    logger.info(`   - Amazon: ${amazonTotal} offers`);
+    logger.info(`   - AliExpress: ${aliexpressTotal} offers`);
+    logger.info(`   - Mercado Livre: ${mercadolivreTotal} offers`);
+    logger.info(`   - Shopee: ${shopeeTotal} offers`);
+    logger.info(`   - Awin: ${awinTotal} offers`);
+    logger.info(`   - RSS: ${rssTotal} offers`);
     logger.info(`   - TOTAL: ${total} offers`);
     logger.info('🚀 ========================================');
 
     return {
-      amazon,
-      aliexpress,
-      mercadolivre,
-      shopee,
-      awin,
-      rss,
+      amazon: amazonTotal,
+      aliexpress: aliexpressTotal,
+      mercadolivre: mercadolivreTotal,
+      shopee: shopeeTotal,
+      awin: awinTotal,
+      rss: rssTotal,
       total,
     };
   }

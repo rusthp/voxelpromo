@@ -86,6 +86,8 @@ export interface InstagramSettings {
   welcomeMessage?: string;
   keywordReplies?: Map<string, string>;
   conversionKeywords?: string[];
+  tokenExpiresAt?: Date;
+  tokenStatus?: 'active' | 'expiring' | 'expired';
   // OAuth State (Temporary)
   _oauthState?: string;
   _oauthRedirectUri?: string;
@@ -115,6 +117,8 @@ export interface XSettings {
   oauth2AccessToken?: string;
   oauth2RefreshToken?: string;
   oauth2TokenExpiresAt?: Date;
+  tokenStatus?: 'active' | 'expiring' | 'expired';
+  username?: string;
   oauth2Scope?: string;
   isConfigured: boolean;
 }
@@ -134,6 +138,7 @@ export interface CollectionSettings {
   enabled: boolean;
   schedule?: string;
   sources: string[];
+  niches?: string[];
 }
 
 // === MAIN INTERFACE ===
@@ -298,6 +303,12 @@ const XSettingsSchema = new Schema(
     oauth2AccessToken: String,
     oauth2RefreshToken: String,
     oauth2TokenExpiresAt: Date,
+    tokenStatus: {
+      type: String,
+      enum: ['active', 'expiring', 'expired'],
+      default: 'active'
+    },
+    username: String,
     oauth2Scope: String,
     isConfigured: { type: Boolean, default: false },
   },
@@ -319,6 +330,7 @@ const CollectionSettingsSchema = new Schema(
     enabled: { type: Boolean, default: true },
     schedule: { type: String, default: '0 */6 * * *' },
     sources: { type: [String], default: ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'rss'] },
+    niches: { type: [String], default: ['diversified'] },
   },
   { _id: false }
 );

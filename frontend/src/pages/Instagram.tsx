@@ -40,6 +40,8 @@ interface InstagramAccount {
     username: string;
     name?: string;
     profile_picture_url?: string;
+    tokenStatus?: 'active' | 'expiring' | 'expired';
+    tokenExpiresAt?: string;
 }
 
 interface InstagramStatus {
@@ -380,6 +382,23 @@ export default function InstagramPage() {
                                                             <CheckCircle2 className="h-3 w-3 mr-1" />
                                                             Conectado
                                                         </Badge>
+                                                        {status.account.tokenStatus === 'expired' && (
+                                                            <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded text-xs text-red-500 flex items-center gap-1">
+                                                                <AlertTriangle className="h-3 w-3" />
+                                                                <span>Token Expirado! Reconecte agora.</span>
+                                                            </div>
+                                                        )}
+                                                        {status.account.tokenStatus === 'expiring' && (
+                                                            <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded text-xs text-amber-500 flex items-center gap-1">
+                                                                <AlertTriangle className="h-3 w-3" />
+                                                                <span>Token expira em breve ({new Date(status.account.tokenExpiresAt!).toLocaleDateString()})</span>
+                                                            </div>
+                                                        )}
+                                                        {status.account.tokenStatus === 'active' && status.account.tokenExpiresAt && (
+                                                            <p className="text-xs text-muted-foreground mt-1">
+                                                                Token válido até {new Date(status.account.tokenExpiresAt).toLocaleDateString()}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                 </div>
                                                 <Button
@@ -885,6 +904,6 @@ export default function InstagramPage() {
                     </TabsContent>
                 </Tabs>
             </div>
-        </Layout>
+        </Layout >
     );
 }
