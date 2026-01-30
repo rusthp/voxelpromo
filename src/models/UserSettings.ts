@@ -132,6 +132,12 @@ export interface AISettings {
   isConfigured: boolean;
 }
 
+// === AUTOMAÇÃO ===
+
+export interface AutomationSettings {
+  enabled: boolean;
+}
+
 // === COLETA ===
 
 export interface CollectionSettings {
@@ -161,6 +167,9 @@ export interface IUserSettings extends Document {
 
   // IA
   ai: AISettings;
+
+  // Automação
+  automation: AutomationSettings;
 
   // Coleta
   rss: string[];
@@ -325,6 +334,13 @@ const AISettingsSchema = new Schema(
   { _id: false }
 );
 
+const AutomationSettingsSchema = new Schema(
+  {
+    enabled: { type: Boolean, default: false },
+  },
+  { _id: false }
+);
+
 const CollectionSettingsSchema = new Schema(
   {
     enabled: { type: Boolean, default: true },
@@ -362,6 +378,9 @@ const UserSettingsSchema = new Schema<IUserSettings>(
 
     // IA
     ai: { type: AISettingsSchema, default: () => ({ provider: 'groq', isConfigured: false }) },
+
+    // Automação
+    automation: { type: AutomationSettingsSchema, default: () => ({ enabled: false }) },
 
     // Coleta
     rss: { type: [String], default: [] },

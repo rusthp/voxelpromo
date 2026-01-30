@@ -18,10 +18,10 @@ interface Plan {
 const PLANS: Plan[] = [
     {
         id: 'trial',
-        name: 'Gratis',
-        displayName: 'Grátis',
+        name: 'Teste Grátis',
+        displayName: 'Teste Grátis',
         price: 0,
-        priceDisplay: 'Sempre Grátis',
+        priceDisplay: '7 dias grátis',
         features: [
             '10 posts por dia',
             '2 regras de automação',
@@ -29,7 +29,7 @@ const PLANS: Plan[] = [
             'Suporte por email',
             'Acesso à comunidade'
         ],
-        trialDays: undefined // It's a free tier now, not just a trial
+        trialDays: 7
     },
     {
         id: 'pro',

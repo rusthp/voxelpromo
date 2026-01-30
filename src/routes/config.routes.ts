@@ -286,12 +286,12 @@ router.post('/', (req, res) => {
         // Preserve tokens - they should only be updated via OAuth endpoints
         accessToken:
           config.mercadolivre?.accessToken !== undefined &&
-          config.mercadolivre.accessToken !== '***'
+            config.mercadolivre.accessToken !== '***'
             ? config.mercadolivre.accessToken
             : existingConfig.mercadolivre?.accessToken || '',
         refreshToken:
           config.mercadolivre?.refreshToken !== undefined &&
-          config.mercadolivre.refreshToken !== '***'
+            config.mercadolivre.refreshToken !== '***'
             ? config.mercadolivre.refreshToken
             : existingConfig.mercadolivre?.refreshToken || '',
         tokenExpiresAt:
@@ -507,7 +507,7 @@ router.post('/', (req, res) => {
             : existingConfig.instagram?.accessToken || '',
         pageAccessToken:
           config.instagram?.pageAccessToken !== undefined &&
-          config.instagram.pageAccessToken !== '***'
+            config.instagram.pageAccessToken !== '***'
             ? config.instagram.pageAccessToken
             : existingConfig.instagram?.pageAccessToken || '',
         pageId:
@@ -1202,18 +1202,54 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
   }
 });
 
-/**
- * GET /api/config/setup-status
- * Get setup status for onboarding checklist
- */
-router.get('/setup-status', async (_req, res) => {
+// Helper to get user-specific status
+router.get('/setup-status', authenticate, async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
+    const settingsService = getUserSettingsService();
+    const userSettings = await settingsService.getSettings(userId);
+
+    // Check offer count for THIS user
+    const offersStatus = await getOffersSetupStatus(userId);
+
+    // Derive status from UserSettings (multi-tenant)
+    // We check both the settings object AND env vars as fallback for some system-wide services if needed
+    // But primarily we look at what the user has configured.
+
+    const telegramConfigured =
+      (userSettings.telegram?.botToken && userSettings.telegram.botToken !== '***') ||
+      !!process.env.TELEGRAM_BOT_TOKEN;
+
+    const aiConfigured =
+      (userSettings.ai?.groqApiKey && userSettings.ai.groqApiKey !== '***') ||
+      (userSettings.ai?.openaiApiKey && userSettings.ai.openaiApiKey !== '***') ||
+      !!process.env.GROQ_API_KEY ||
+      !!process.env.OPENAI_API_KEY;
+
+    const whatsappConfigured =
+      (userSettings.whatsapp?.enabled) ||
+      process.env.WHATSAPP_ENABLED === 'true';
+
+    const automationConfigured = userSettings.automation?.enabled || false;
+
     const status = {
-      telegram: await getTelegramSetupStatus(),
-      ai: getAISetupStatus(),
-      whatsapp: getWhatsAppSetupStatus(),
-      offers: await getOffersSetupStatus(),
-      automation: getAutomationSetupStatus(),
+      telegram: {
+        configured: !!telegramConfigured,
+        botUsername: undefined // We could fetch this if needed, but 'configured' boolean is what UI checks
+      },
+      ai: {
+        configured: !!aiConfigured,
+        provider: userSettings.ai?.provider || process.env.AI_PROVIDER || 'groq'
+      },
+      whatsapp: {
+        configured: !!whatsappConfigured,
+        connected: false // WhatsApp connection status is dynamic, handled by separate status check usually
+      },
+      offers: offersStatus,
+      automation: {
+        configured: !!automationConfigured,
+        enabled: automationConfigured
+      },
     };
 
     return res.json(status);
@@ -1223,59 +1259,10 @@ router.get('/setup-status', async (_req, res) => {
   }
 });
 
-async function getTelegramSetupStatus(): Promise<{ configured: boolean; botUsername?: string }> {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
+// No longer needed as separate exported functions for this route, logic inlined for clarity + user context
+// But we keep getOffersSetupStatus as it's complex DB operation
 
-  if (!botToken || !chatId) {
-    // Check config.json
-    if (existsSync(configPath)) {
-      const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-      if (config.telegram?.botToken && config.telegram?.chatId) {
-        return { configured: true };
-      }
-    }
-    return { configured: false };
-  }
-
-  return { configured: true };
-}
-
-function getAISetupStatus(): { configured: boolean; provider?: string } {
-  const groqKey = process.env.GROQ_API_KEY;
-  const openaiKey = process.env.OPENAI_API_KEY;
-
-  if (groqKey) return { configured: true, provider: 'Groq' };
-  if (openaiKey) return { configured: true, provider: 'OpenAI' };
-
-  // Check config.json
-  if (existsSync(configPath)) {
-    const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-    if (config.ai?.groqApiKey) return { configured: true, provider: 'Groq' };
-    if (config.ai?.openaiApiKey) return { configured: true, provider: 'OpenAI' };
-  }
-
-  return { configured: false };
-}
-
-function getWhatsAppSetupStatus(): { configured: boolean; connected?: boolean } {
-  const enabled = process.env.WHATSAPP_ENABLED === 'true';
-
-  if (!enabled) {
-    // Check config.json
-    if (existsSync(configPath)) {
-      const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-      if (config.whatsapp?.enabled) {
-        return { configured: true, connected: false };
-      }
-    }
-    return { configured: false, connected: false };
-  }
-
-  return { configured: true, connected: false };
-}
-
-async function getOffersSetupStatus(): Promise<{ hasOffers: boolean; count?: number }> {
+async function getOffersSetupStatus(userId: string): Promise<{ hasOffers: boolean; count?: number }> {
   try {
     const mongoose = await import('mongoose');
 
@@ -1283,23 +1270,18 @@ async function getOffersSetupStatus(): Promise<{ hasOffers: boolean; count?: num
       return { hasOffers: false };
     }
 
+    // CRITICAL FIX: Filter by userId to ensure data isolation
     const count = await mongoose.default.connection.db
       ?.collection('offers')
-      .countDocuments({ isActive: true });
+      .countDocuments({
+        isActive: true,
+        userId: userId // Only count offers belonging to this user
+      });
+
     return { hasOffers: (count || 0) > 0, count: count || 0 };
   } catch {
     return { hasOffers: false };
   }
-}
-
-function getAutomationSetupStatus(): { configured: boolean; enabled?: boolean } {
-  if (existsSync(configPath)) {
-    const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-    const enabled = config.automation?.enabled === true;
-    return { configured: enabled, enabled };
-  }
-
-  return { configured: false, enabled: false };
 }
 
 export { router as configRoutes };
