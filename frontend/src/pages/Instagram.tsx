@@ -205,15 +205,19 @@ export default function InstagramPage() {
         try {
             await api.post('/instagram/config', { appId, appSecret, accessToken });
             toast.success('Configuração salva! Atualizando status...');
+
+            // Clear inputs
             setAppId('');
             setAppSecret('');
             setAccessToken('');
+
+            // Force status refresh and close edit mode
             await fetchStatus();
+            setIsEditingConfig(false);
         } catch (error: any) {
             toast.error(error.response?.data?.error || 'Erro ao salvar configuração');
         } finally {
             setSavingConfig(false);
-            setIsEditingConfig(false);
         }
     };
 
