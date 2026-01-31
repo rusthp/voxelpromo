@@ -29,7 +29,7 @@ const ClickSchema = new Schema<ClickDocument>({
 // Índices para queries rápidas
 ClickSchema.index({ offerId: 1, clickedAt: -1 });
 ClickSchema.index({ userId: 1, clickedAt: -1 });
-ClickSchema.index({ shortCode: 1 });
+// ClickSchema.index({ shortCode: 1 }); // Removed to prevent duplicate index warning
 ClickSchema.index({ clickedAt: -1 });
 
 export const ClickModel = mongoose.model<ClickDocument>('Click', ClickSchema);

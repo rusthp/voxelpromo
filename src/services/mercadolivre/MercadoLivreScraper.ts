@@ -149,6 +149,8 @@ export class MercadoLivreScraper {
       const args = [
         '--no-sandbox',
         '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage', // CRITICAL for VPS/Docker
+        '--disable-extensions',
         '--disable-infobars',
         '--window-position=0,0',
         '--ignore-certificate-errors',
