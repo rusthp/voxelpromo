@@ -26,6 +26,12 @@ import {
     X,
     Twitter
 } from "lucide-react";
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion";
 
 const LandingPage = () => {
     const { isAuthenticated } = useAuth();
@@ -416,6 +422,77 @@ const LandingPage = () => {
                                 </CardContent>
                             </Card>
                         ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* FAQ Section */}
+            <section id="faq" className="py-24 bg-card/30">
+                <div className="container mx-auto px-4">
+                    <div className="text-center mb-16">
+                        <Badge variant="outline" className="mb-4">Dúvidas Frequentes</Badge>
+                        <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                            Perguntas <span className="text-gradient">Populares</span>
+                        </h2>
+                        <p className="text-muted-foreground max-w-2xl mx-auto">
+                            Tire suas dúvidas e entenda por que o VoxelPromo é a melhor escolha.
+                        </p>
+                    </div>
+
+                    <div className="max-w-3xl mx-auto">
+                        <Accordion type="single" collapsible className="w-full">
+                            <AccordionItem value="item-1">
+                                <AccordionTrigger>Como funciona o teste grátis?</AccordionTrigger>
+                                <AccordionContent>
+                                    Você tem 7 dias de acesso completo a todas as funcionalidades, sem precisar cadastrar cartão de crédito. Se gostar, pode escolher um plano depois. Se não, o acesso é apenas pausado automaticamente.
+                                </AccordionContent>
+                            </AccordionItem>
+
+                            <AccordionItem value="item-2">
+                                <AccordionTrigger>É seguro conectar minhas contas?</AccordionTrigger>
+                                <AccordionContent>
+                                    Sim, 100% seguro. Usamos a conexão oficial das plataformas (API) e não temos acesso à sua senha. Você pode revogar o acesso a qualquer momento diretamente nas redes sociais.
+                                </AccordionContent>
+                            </AccordionItem>
+
+                            <AccordionItem value="item-3">
+                                <AccordionTrigger>Preciso deixar o computador ligado?</AccordionTrigger>
+                                <AccordionContent>
+                                    Não. O VoxelPromo funciona totalmente na nuvem. Você configura suas regras uma vez e o sistema continua trabalhando 24 horas por dia, mesmo com seu computador desligado.
+                                </AccordionContent>
+                            </AccordionItem>
+
+                            <AccordionItem value="item-4">
+                                <AccordionTrigger>Posso usar meus próprios links de afiliado?</AccordionTrigger>
+                                <AccordionContent>
+                                    Com certeza. O sistema foi feito para isso. Você cadastra seus IDs de afiliado (Amazon, Shopee, Magalu) e nós geramos os links automaticamente com o seu código.
+                                </AccordionContent>
+                            </AccordionItem>
+
+                            <AccordionItem value="item-5">
+                                <AccordionTrigger>Quais redes sociais são aceitas?</AccordionTrigger>
+                                <AccordionContent>
+                                    Atualmente suportamos Instagram, Telegram, WhatsApp e X (Twitter). Você pode publicar em todas elas simultaneamente ou escolher estratégias diferentes para cada uma.
+                                </AccordionContent>
+                            </AccordionItem>
+
+                            <AccordionItem value="item-6">
+                                <AccordionTrigger>Como funcionam os grupos de WhatsApp?</AccordionTrigger>
+                                <AccordionContent>
+                                    O sistema envia as mensagens apenas nos horários que você configurar, respeitando limites de segurança para garantir a integridade da sua conta e a qualidade do seu grupo.
+                                </AccordionContent>
+                            </AccordionItem>
+                        </Accordion>
+
+                        <div className="text-center mt-12">
+                            <p className="text-muted-foreground mb-4">Ficou com alguma dúvida?</p>
+                            <Link to="/register">
+                                <Button variant="outline" className="gap-2">
+                                    Começar teste grátis e explorar
+                                    <ArrowRight className="h-4 w-4" />
+                                </Button>
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </section>
