@@ -73,10 +73,10 @@ export const automationConfigSchema = Joi.object({
         }),
 
     maxPrice: Joi.number()
-        .positive()
+        .min(0)
         .max(1000000)
         .messages({
-            'number.positive': 'Preço máximo deve ser positivo',
+            'number.min': 'Preço máximo deve ser maior ou igual a zero',
             'number.max': 'Preço máximo não pode exceder R$ 1.000.000',
         }),
 
