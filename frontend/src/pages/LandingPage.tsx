@@ -479,7 +479,7 @@ const LandingPage = () => {
 
                     <div className="mt-12 pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4">
                         <p className="text-sm text-muted-foreground">
-                            © 2026 VoxelPromo. Todos os direitos reservados.
+                            © {new Date().getFullYear()} VoxelPromo. Todos os direitos reservados.
                         </p>
                         <div className="flex items-center gap-4">
                             <a href="https://t.me/voxelpromo" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors" title="Telegram">

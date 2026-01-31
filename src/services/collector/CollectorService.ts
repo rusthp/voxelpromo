@@ -80,6 +80,22 @@ export class CollectorService {
   }
 
   /**
+   * Helper to get user niche keywords if available
+   */
+  private async getUserNicheKeywords(): Promise<string | null> {
+    if (!this.userId) return null;
+    try {
+      // Lazy import to avoid circular dependencies if any
+      const { UserModel } = await import('../../models/User');
+      const user = await UserModel.findById(this.userId).select('preferences');
+      return user?.preferences?.niche || null;
+    } catch (error) {
+      logger.warn(`Failed to fetch user niche: ${error}`);
+      return null;
+    }
+  }
+
+  /**
    * Collect offers from Amazon
    */
   async collectFromAmazon(
@@ -87,14 +103,29 @@ export class CollectorService {
     category: string = 'electronics'
   ): Promise<number> {
     try {
+      // 1. Resolve keywords (User Niche > Provided > Default)
+      let searchKeywords = keywords;
+      let searchCategory = category;
+
+      // If using default 'electronics', try to use user niche instead
+      if (keywords === 'electronics' && this.userId) {
+        const userNiche = await this.getUserNicheKeywords();
+        if (userNiche) {
+          logger.info(`👤 Using user niche for Amazon: "${userNiche}"`);
+          searchKeywords = userNiche;
+          // Map niche to category roughly, or keep default
+          searchCategory = userNiche;
+        }
+      }
+
       logger.info(
-        `🔍 Starting Amazon collection - Keywords: "${keywords}", Category: "${category}"`
+        `🔍 Starting Amazon collection - Keywords: "${searchKeywords}", Category: "${searchCategory}"`
       );
-      const products = await this.amazonService.searchProducts(keywords, 20);
+      const products = await this.amazonService.searchProducts(searchKeywords, 20);
       logger.info(`📦 Found ${products.length} products from Amazon`);
 
       const offers = products
-        .map((product: AmazonProduct) => this.amazonService.convertToOffer(product, category))
+        .map((product: AmazonProduct) => this.amazonService.convertToOffer(product, searchCategory))
         .filter((offer: Offer | null) => offer !== null);
 
       logger.info(`✅ Converted ${offers.length} products to offers (filtered by discount)`);
@@ -118,7 +149,19 @@ export class CollectorService {
    */
   async collectFromAliExpress(category: string = 'electronics'): Promise<number> {
     try {
-      logger.info(`🔍 Starting AliExpress collection - Category: "${category}"`);
+      // 1. Resolve category (User Niche > Provided > Default)
+      let searchCategory = category;
+
+      // If using default 'electronics', try to use user niche instead
+      if (category === 'electronics' && this.userId) {
+        const userNiche = await this.getUserNicheKeywords();
+        if (userNiche) {
+          logger.info(`👤 Using user niche for AliExpress: "${userNiche}"`);
+          searchCategory = userNiche;
+        }
+      }
+
+      logger.info(`🔍 Starting AliExpress collection - Category: "${searchCategory}"`);
 
       // Try API methods with retry
       const allProducts: any[] = [];
@@ -485,7 +528,19 @@ export class CollectorService {
    */
   async collectFromMercadoLivre(category: string = 'electronics'): Promise<number> {
     try {
-      logger.info(`🔍 Starting Mercado Livre collection - Category: "${category}"`);
+      // 1. Resolve category (User Niche > Provided > Default)
+      let searchCategory = category;
+
+      // If using default 'electronics', try to use user niche instead
+      if (category === 'electronics' && this.userId) {
+        const userNiche = await this.getUserNicheKeywords();
+        if (userNiche) {
+          logger.info(`👤 Using user niche for Mercado Livre: "${userNiche}"`);
+          searchCategory = userNiche;
+        }
+      }
+
+      logger.info(`🔍 Starting Mercado Livre collection - Category: "${searchCategory}"`);
 
       let totalSaved = 0;
 
@@ -651,7 +706,19 @@ export class CollectorService {
    */
   async collectFromShopee(category: string = 'electronics'): Promise<number> {
     try {
-      logger.info(`🛒 Starting Shopee collection - Category: "${category}"`);
+      // 1. Resolve category (User Niche > Provided > Default)
+      let searchCategory = category;
+
+      // If using default 'electronics', try to use user niche instead
+      if (category === 'electronics' && this.userId) {
+        const userNiche = await this.getUserNicheKeywords();
+        if (userNiche) {
+          logger.info(`👤 Using user niche for Shopee: "${userNiche}"`);
+          searchCategory = userNiche;
+        }
+      }
+
+      logger.info(`🛒 Starting Shopee collection - Category: "${searchCategory}"`);
 
       const products = await this.shopeeService.getProducts(category, 200);
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,18 @@ const ForgotPassword = () => {
     const [email, setEmail] = useState("");
     const [loading, setLoading] = useState(false);
     const [submitted, setSubmitted] = useState(false);
+
+    // Prevent search engine indexing for this page
+    useEffect(() => {
+        const meta = document.createElement('meta');
+        meta.name = "robots";
+        meta.content = "noindex";
+        document.head.appendChild(meta);
+
+        return () => {
+            document.head.removeChild(meta);
+        };
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -128,7 +140,7 @@ const ForgotPassword = () => {
 
                 {/* Footer */}
                 <p className="text-center text-xs text-muted-foreground mt-8">
-                    © 2024 VoxelPromo. Todos os direitos reservados.
+                    © {new Date().getFullYear()} VoxelPromo. Todos os direitos reservados.
                 </p>
             </div>
         </div>

@@ -326,7 +326,7 @@ const TermsOfUse = () => {
             {/* Footer */}
             <footer className="border-t border-border py-8 mt-12">
                 <div className="container mx-auto px-4 text-center text-muted-foreground text-sm">
-                    © 2026 VoxelPromo. Todos os direitos reservados.
+                    © {new Date().getFullYear()} VoxelPromo. Todos os direitos reservados.
                 </div>
             </footer>
         </div>

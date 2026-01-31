@@ -8,6 +8,7 @@ import {
   PrioritizationService,
   SEASONAL_EVENTS,
 } from '../services/automation/PrioritizationService';
+import { checkSubscriptionStatus } from '../middleware/SubscriptionMiddleware';
 
 const router = Router();
 
@@ -108,7 +109,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
  * POST /api/offers
  * Create a new offer for the authenticated user
  */
-router.post('/', async (req: AuthRequest, res: Response) => {
+router.post('/', checkSubscriptionStatus, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const {
@@ -209,7 +210,7 @@ router.post('/:id/generate-post', async (req: AuthRequest, res: Response) => {
  * POST /api/offers/:id/post
  * Post offer to channels (only if owned by user)
  */
-router.post('/:id/post', async (req: AuthRequest, res: Response) => {
+router.post('/:id/post', checkSubscriptionStatus, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { channels } = req.body;
@@ -224,7 +225,7 @@ router.post('/:id/post', async (req: AuthRequest, res: Response) => {
  * POST /api/offers/:id/schedule
  * Schedule offer for posting (only if owned by user)
  */
-router.post('/:id/schedule', async (req: AuthRequest, res: Response) => {
+router.post('/:id/schedule', checkSubscriptionStatus, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { date } = req.body;

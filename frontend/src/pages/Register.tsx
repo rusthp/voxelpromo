@@ -375,7 +375,7 @@ const Register = () => {
 
                 {/* Footer */}
                 <p className="text-center text-xs text-muted-foreground mt-8">
-                    © 2024 VoxelPromo. Todos os direitos reservados.
+                    © {new Date().getFullYear()} VoxelPromo. Todos os direitos reservados.
                 </p>
             </div>
         </div>

@@ -2,11 +2,13 @@ import { Router, Request, Response } from 'express';
 import { CollectorService } from '../services/collector/CollectorService';
 import { logger } from '../utils/logger';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { checkSubscriptionStatus } from '../middleware/SubscriptionMiddleware';
 
 const router = Router();
 
 // Protect all collector routes with authentication
 router.use(authenticate);
+router.use(checkSubscriptionStatus);
 
 /**
  * POST /api/collector/amazon

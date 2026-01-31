@@ -23,11 +23,11 @@ const PLANS: Plan[] = [
         price: 0,
         priceDisplay: '7 dias grátis',
         features: [
-            '10 posts por dia',
-            '2 regras de automação',
+            'Acesso completo por 7 dias',
+            'Até 10 ofertas diárias',
+            'Automação básica (2 regras)',
             'Telegram e WhatsApp',
-            'Suporte por email',
-            'Acesso à comunidade'
+            'Suporte via email'
         ],
         trialDays: 7
     },
@@ -38,12 +38,12 @@ const PLANS: Plan[] = [
         price: 7990,
         priceDisplay: 'R$ 79,90/mês',
         features: [
-            '200 posts por dia',
+            'Alta capacidade (200 ofertas/dia)',
             '10 regras de automação',
-            'Todos os canais disponíveis',
-            'Filtros inteligentes (Whitelist/Blacklist)',
-            'Analytics e relatórios',
-            'Suporte prioritário (Email)'
+            'Todos os canais (inclui Instagram)',
+            'Filtros Seguros (Whitelist/Blacklist)',
+            'Analytics e Relatórios',
+            'Suporte Prioritário'
         ],
         recommended: true
     },
@@ -54,13 +54,13 @@ const PLANS: Plan[] = [
         price: 11990,
         priceDisplay: 'R$ 119,90/mês',
         features: [
-            'Posts ilimitados',
-            'Regras de automação ilimitadas',
-            'Todos os canais disponíveis',
-            'Filtros Avançados',
-            'API de integração',
-            'Suporte dedicado (WhatsApp)',
-            'Consultoria mensal'
+            'Ofertas Ilimitadas',
+            'Automação Ilimitada',
+            'Múltiplas Contas',
+            'Filtros Avançados & Regex',
+            'API de Integração',
+            'Atendimento Dedicado (WhatsApp)',
+            'Consultoria Mensal'
         ]
     }
 ];

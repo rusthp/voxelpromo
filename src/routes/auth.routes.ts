@@ -179,7 +179,8 @@ router.post(
         },
         plan: {
           tier: 'free',
-          status: 'active',
+          status: 'trialing',
+          validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days trial
         },
         // ❌ NOT marking hasUsedTrial here - will be marked in PaymentService when trial is activated
       });
@@ -943,7 +944,8 @@ router.post('/google', authLimiter, async (req: Request, res: Response) => {
         role: 'user',
         plan: {
           tier: 'free',
-          status: 'active',
+          status: 'trialing',
+          validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days trial
         },
       });
 

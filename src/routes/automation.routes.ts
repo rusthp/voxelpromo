@@ -3,6 +3,7 @@ import { AutomationService } from '../services/automation/AutomationService';
 import { logger } from '../utils/logger';
 import { validate } from '../middleware/validate';
 import { automationConfigSchema } from '../validation/automation.validation';
+import { checkSubscriptionStatus } from '../middleware/SubscriptionMiddleware';
 
 const router = Router();
 const automationService = new AutomationService();
@@ -98,7 +99,7 @@ router.get('/status', async (_req: Request, res: Response) => {
  *       200:
  *         description: Automation started
  */
-router.post('/start', async (_req: Request, res: Response) => {
+router.post('/start', checkSubscriptionStatus, async (_req: Request, res: Response) => {
   try {
     const config = await automationService.getActiveConfig();
 
@@ -173,7 +174,7 @@ router.post('/stop', async (_req: Request, res: Response) => {
  *       200:
  *         description: Preview of next posts
  */
-router.post('/test', async (_req: Request, res: Response) => {
+router.post('/test', checkSubscriptionStatus, async (_req: Request, res: Response) => {
   try {
     const config = await automationService.getActiveConfig();
 
