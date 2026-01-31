@@ -1,35 +1,47 @@
 import { Router } from 'express';
 import { TelegramService } from '../services/messaging/TelegramService';
 import { logger } from '../utils/logger';
+import { authenticate, AuthRequest } from '../middleware/auth';
+import { getUserSettingsService } from '../services/user/UserSettingsService';
 
 const router = Router();
-
-// Telegram service instance (singleton pattern)
-let telegramService: TelegramService | null = null;
-
-function getTelegramService(): TelegramService {
-  if (!telegramService) {
-    telegramService = new TelegramService();
-  }
-  return telegramService;
-}
 
 /**
  * GET /api/telegram/chats
  * List all groups/channels where the bot has been added
  * Uses getUpdates to discover available chats
  */
-router.get('/chats', async (_req, res) => {
+router.get('/chats', authenticate, async (req: AuthRequest, res) => {
   try {
-    const service = getTelegramService();
-    const bot = service.getBot();
+    const userId = req.user!.id;
+    const settingsService = getUserSettingsService();
+    const userSettings = await settingsService.getSettings(userId);
 
-    if (!bot) {
+    const botToken = userSettings.telegram?.botToken;
+    const channelId = userSettings.telegram?.channelId; // Note: 'channelId' in DB (mapped to 'chatId' logic)
+
+    if (!botToken || botToken.trim().length === 0) {
       return res.json({
         success: false,
         error: 'Bot não configurado. Verifique o Bot Token nas configurações.',
         chats: [],
         help: 'Para obter o Chat ID: 1) Adicione o bot ao grupo/canal, 2) Envie uma mensagem, 3) Clique em "Atualizar" aqui',
+      });
+    }
+
+    // Instantiate service for this user
+    const service = new TelegramService({
+      botToken,
+      chatId: channelId || ''
+    });
+
+    // Check if bot is valid
+    const bot = service.getBot();
+    if (!bot) {
+      return res.json({
+        success: false,
+        error: 'Falha ao inicializar bot com o token fornecido',
+        chats: []
       });
     }
 
@@ -63,12 +75,16 @@ router.get('/chats', async (_req, res) => {
  * GET /api/telegram/status
  * Check if Telegram bot is configured and working
  */
-router.get('/status', async (_req, res) => {
+router.get('/status', authenticate, async (req: AuthRequest, res) => {
   try {
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_CHAT_ID;
+    const userId = req.user!.id;
+    const settingsService = getUserSettingsService();
+    const userSettings = await settingsService.getSettings(userId);
 
-    if (!botToken) {
+    const botToken = userSettings.telegram?.botToken;
+    const channelId = userSettings.telegram?.channelId;
+
+    if (!botToken || botToken.trim().length === 0) {
       return res.json({
         success: false,
         configured: false,
@@ -76,7 +92,12 @@ router.get('/status', async (_req, res) => {
       });
     }
 
-    const service = getTelegramService();
+    // Instantiate service for this user
+    const service = new TelegramService({
+      botToken,
+      chatId: channelId || ''
+    });
+
     const bot = service.getBot();
 
     if (!bot) {
@@ -95,8 +116,8 @@ router.get('/status', async (_req, res) => {
         configured: true,
         botUsername: me.username,
         botName: me.first_name,
-        chatId: chatId || null,
-        message: chatId ? 'Bot configurado e pronto!' : 'Bot configurado, mas Chat ID não definido',
+        chatId: channelId || null,
+        message: channelId ? 'Bot configurado e pronto!' : 'Bot configurado, mas Chat ID não definido',
       });
     } catch (error: any) {
       return res.json({
