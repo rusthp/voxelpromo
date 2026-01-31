@@ -100,9 +100,9 @@ const LandingPage = () => {
 
     const plans = [
         {
-            name: "Grátis",
+            name: "Teste Grátis",
             price: "R$ 0",
-            period: "/mês",
+            period: "/ 7 dias",
             description: "Para quem está começando",
             features: [
                 "10 posts por dia",
@@ -116,7 +116,7 @@ const LandingPage = () => {
         },
         {
             name: "Performance",
-            price: "R$ 49,90",
+            price: "R$ 79,90",
             period: "/mês",
             description: "Para criadores em crescimento",
             features: [
@@ -132,7 +132,7 @@ const LandingPage = () => {
         },
         {
             name: "Plus",
-            price: "R$ 99,90",
+            price: "R$ 119,90",
             period: "/mês",
             description: "Para operação em escala",
             features: [
@@ -160,7 +160,7 @@ const LandingPage = () => {
         { icon: Send, name: "Telegram", color: "text-blue-400" },
         { icon: MessageCircle, name: "WhatsApp", color: "text-green-400" },
         { icon: Instagram, name: "Instagram", color: "text-pink-400" },
-        { icon: Globe, name: "X (Twitter)", color: "text-sky-400" }
+        { icon: Twitter, name: "X (Twitter)", color: "text-sky-400" }
     ];
 
     return (
