@@ -125,12 +125,15 @@ export function setupCronJobs(): void {
       for (const offer of offers) {
         if (offer._id && !offer.aiGeneratedPost) {
           try {
-            await offerService.generateAIPost(offer._id, 'viral', user.id.toString());
-            generated++;
-            // Basic rate limit
-            await new Promise((r) => setTimeout(r, 1000));
-          } catch (e) {
-            // Ignore individual failures
+            if (offer._id) {
+              await offerService.generateAIPost(offer._id.toString(), 'viral', user.id.toString());
+              generated++;
+              // Basic rate limit
+              await new Promise((r) => setTimeout(r, 1000));
+            }
+          } catch (e: any) {
+            // Log warning but don't crash job
+            logger.warn(`Failed to generate AI post for offer ${offer._id}: ${e.message}`);
           }
         }
       }

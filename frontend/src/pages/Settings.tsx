@@ -168,11 +168,29 @@ const Settings = () => {
         // 1. POPUP LOGIC: Detect if we are the popup with a code
         const urlParams = new URLSearchParams(window.location.search);
         const code = urlParams.get('code');
-        if (code && typeof window !== 'undefined' && window.opener) {
-            console.log("OAuth Code detected in popup. Sending to opener...", code);
-            window.opener.postMessage({ type: 'ML_AUTH_SUCCESS', code }, window.location.origin);
-            window.close();
-            return; // Stop further execution
+
+        if (code) {
+            console.log("OAuth Code detected:", code);
+
+            // Try to find opener
+            if (typeof window !== 'undefined' && window.opener) {
+                console.log("Sending code to opener...");
+                try {
+                    window.opener.postMessage({ type: 'ML_AUTH_SUCCESS', code }, window.location.origin);
+                    window.close();
+                    return; // Stop further execution if successful
+                } catch (e) {
+                    console.warn("Autoclose failed, processing locally:", e);
+                }
+            }
+
+            // FALLBACK: If no opener or error, process here!
+            console.log("No opener found (or lost). Processing locally...");
+            // Clear param to prevent loop
+            window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+            setMlOAuthCode(code);
+            // Use a short timeout to ensure state is settled or UI is ready
+            setTimeout(() => exchangeMlOAuthCode(code), 500);
         }
 
         // 2. OPENER LOGIC: Listen for the code from the popup
@@ -297,18 +315,30 @@ const Settings = () => {
                     clearTimeout(oauthTimeoutRef.current);
                 }
 
-                // Poll for window close
-                oauthCheckIntervalRef.current = setInterval(() => {
+                // Poll for window close or successful auth
+                oauthCheckIntervalRef.current = setInterval(async () => {
                     if (authWindow?.closed) {
                         if (oauthCheckIntervalRef.current) {
                             clearInterval(oauthCheckIntervalRef.current);
                             oauthCheckIntervalRef.current = null;
                         }
                         setMlOAuthLoading(false);
-                        fetchMlAuthStatus();
-                        toast.info("Verifique se a autenticação foi concluída.");
+                        await fetchMlAuthStatus();
+                        toast.info("Janela fechada. Verificando status...");
+                    } else {
+                        // Also check status periodically while window is open (for fallback scenario)
+                        try {
+                            // We can use a lightweight check if available, or just fetch status
+                            // But prevent spamming; check every 2s maybe? 
+                            // For now, let's just let the close handler do it, OR user can click "Refresh"
+                            // Actually, if popup processes it, we want to know ASAP.
+                            // Let's NOT spam the API. The user will see the popup say "Connected".
+                            // They can close it manually, which triggers the check above.
+                        } catch (e) {
+                            // ignore
+                        }
                     }
-                }, 500);
+                }, 1000);
 
                 // Timeout after 5 minutes
                 oauthTimeoutRef.current = setTimeout(() => {
