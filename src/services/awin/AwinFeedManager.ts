@@ -39,11 +39,18 @@ export class AwinFeedManager {
   private cacheIndex: Map<string, FeedCacheEntry> = new Map();
   private cacheDurationMs: number = 6 * 60 * 60 * 1000; // 6 hours default
 
-  constructor() {
-    this.awinService = new AwinService();
-    this.cacheDir = join(process.cwd(), '.cache', 'awin-feeds');
+  constructor(awinService: AwinService, userId: string) {
+    this.awinService = awinService;
+    this.cacheDir = join(process.cwd(), '.cache', 'awin-feeds', userId); // Scope cache by user
     this.cacheIndexPath = join(this.cacheDir, 'index.json');
+    this.ensureCacheDir(); // Ensure dir exists before loading index
     this.loadCacheIndex();
+  }
+
+  static async createForUser(userId: string): Promise<AwinFeedManager> {
+    const { AwinService } = await import('./AwinService');
+    const awinService = await AwinService.createForUser(userId);
+    return new AwinFeedManager(awinService, userId);
   }
 
   /**

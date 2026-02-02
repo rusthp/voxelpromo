@@ -138,6 +138,14 @@ router.put('/', authenticate, async (req: AuthRequest, res: Response) => {
                 ? 'diversified'
                 : preferences.niche;
 
+              if (!settings.collectionSettings) {
+                settings.collectionSettings = {
+                  enabled: true,
+                  schedule: '0 */6 * * *',
+                  sources: ['amazon', 'aliexpress', 'mercadolivre', 'shopee', 'rss'],
+                  niches: []
+                };
+              }
               settings.collectionSettings.niches = [mappedNiche];
               await settings.save();
               logger.info(`🔄 Synced niche preference to UserSettings: ${mappedNiche} for user ${req.user!.id}`);

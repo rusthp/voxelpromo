@@ -1,24 +1,23 @@
 import { Router, Request, Response } from 'express';
 import { InstagramService } from '../services/messaging/InstagramService';
 import { logger } from '../utils/logger';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { join } from 'path';
+
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { getUserSettingsService } from '../services/user/UserSettingsService';
 
 const router = Router();
 
-// Singleton instance
-let instagramService: InstagramService | null = null;
+// Global service instance for webhooks (uses ENV variables)
+let globalInstagramService: InstagramService | null = null;
 
 /**
- * Get Instagram service instance (singleton)
+ * Get global Instagram service instance (for webhooks/admin)
  */
-function getInstagramService(): InstagramService {
-  if (!instagramService) {
-    instagramService = new InstagramService();
+function getGlobalInstagramService(): InstagramService {
+  if (!globalInstagramService) {
+    globalInstagramService = new InstagramService();
   }
-  return instagramService;
+  return globalInstagramService;
 }
 
 /**
@@ -40,24 +39,24 @@ router.get('/status', authenticate, async (req: AuthRequest, res: Response) => {
     const userSettings = await settingsService.getSettings(userId);
 
     // Check if user completed OAuth (has access token)
-    if (userSettings.instagram.isConfigured) {
+    if (userSettings.instagram?.isConfigured) {
       return res.json({
         success: true,
         configured: true,
         authenticated: true,
         account: {
-          username: userSettings.instagram.username || 'Unknown',
-          accountType: userSettings.instagram.accountType || 'BUSINESS',
-          igUserId: userSettings.instagram.igUserId,
-          tokenStatus: userSettings.instagram.tokenStatus || 'active',
-          tokenExpiresAt: userSettings.instagram.tokenExpiresAt,
+          username: userSettings.instagram?.username || 'Unknown',
+          accountType: userSettings.instagram?.accountType || 'BUSINESS',
+          igUserId: userSettings.instagram?.igUserId,
+          tokenStatus: userSettings.instagram?.tokenStatus || 'active',
+          tokenExpiresAt: userSettings.instagram?.tokenExpiresAt,
         },
         rateLimit: { remaining: 200, limit: 200, resetAt: new Date(Date.now() + 3600000) },
       });
     }
 
     // Check if user saved config but hasn't completed OAuth yet
-    if (userSettings.instagram.pendingOAuth) {
+    if (userSettings.instagram?.pendingOAuth) {
       return res.json({
         success: true,
         configured: true, // Config is saved
@@ -99,7 +98,7 @@ router.get('/status', authenticate, async (req: AuthRequest, res: Response) => {
 router.get('/auth/url', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const service = getInstagramService();
+    const service = await InstagramService.createForUser(userId);
 
     if (!service.isConfigured()) {
       return res.status(400).json({
@@ -212,8 +211,8 @@ router.get('/auth/callback', async (req: Request, res: Response) => {
       codePrefix: String(code).substring(0, 20) + '...',
     });
 
-    // Exchange code for token using global service (has appId/appSecret)
-    const service = getInstagramService();
+    // Exchange code for token using user-specific service (handles BYO App credentials)
+    const service = await InstagramService.createForUser(userId);
     const tokenResult = await service.exchangeCodeForToken(String(code), redirectUri!);
 
     // Get account info
@@ -244,9 +243,10 @@ router.get('/auth/callback', async (req: Request, res: Response) => {
  *     security:
  *       - bearerAuth: []
  */
-router.post('/auth/exchange', async (req: Request, res: Response) => {
+router.post('/auth/exchange', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { code, redirectUri } = req.body;
+    const userId = req.user!.id; // Authenticated user
 
     if (!code) {
       return res.status(400).json({
@@ -255,27 +255,44 @@ router.post('/auth/exchange', async (req: Request, res: Response) => {
       });
     }
 
-    const service = getInstagramService();
+    const service = await InstagramService.createForUser(userId);
 
-    // Use provided redirectUri or try to get from config
-    let finalRedirectUri = redirectUri;
-    if (!finalRedirectUri) {
-      const configPath = join(process.cwd(), 'config.json');
-      if (existsSync(configPath)) {
-        const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-        finalRedirectUri = config.instagram?._oauthRedirectUri;
-      }
-    }
-
-    if (!finalRedirectUri) {
+    if (!service.isConfigured()) {
       return res.status(400).json({
         success: false,
-        error: 'Redirect URI is required. Please start OAuth flow first.',
+        error: 'Instagram not configured for this user.',
       });
     }
 
-    const tokenResponse = await service.exchangeCodeForToken(code, finalRedirectUri);
-    service.reloadCredentials();
+    // Use provided redirectUri (required for OAuth security)
+    if (!redirectUri) {
+      return res.status(400).json({
+        success: false,
+        error: 'Redirect URI is required.',
+      });
+    }
+
+    const tokenResponse = await service.exchangeCodeForToken(code, redirectUri);
+    // Tokens are returned but not automatically saved here? 
+    // The previous logic didn't save them to DB, just returned them.
+    // We should probably save them if this is a manual exchange.
+
+    // Save tokens to UserSettings
+    const settingsService = getUserSettingsService();
+    // Fetch account info to get ID
+    // We need to set the access token on the service temporarily to fetch info
+    service['accessToken'] = tokenResponse.access_token; // Hacky but needed if exchangeCodeForToken doesn't set it? 
+    // Actually exchangeCodeForToken sets this.accessToken and this.igUserId
+
+    // But let's be safe and use what we have
+    const accountInfo = await service.getAccountInfo();
+
+    await settingsService.updateInstagramTokens(userId, {
+      accessToken: tokenResponse.access_token,
+      igUserId: service.getIgUserId() || accountInfo?.id || '',
+      username: accountInfo?.username,
+      accountType: accountInfo?.name || 'BUSINESS',
+    });
 
     return res.json({
       success: true,
@@ -300,10 +317,26 @@ router.post('/auth/exchange', async (req: Request, res: Response) => {
  *     security:
  *       - bearerAuth: []
  */
-router.post('/auth/disconnect', async (_req: Request, res: Response) => {
+router.post('/auth/disconnect', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const service = getInstagramService();
-    await service.disconnect();
+    const userId = req.user!.id;
+    // Disconnect = Clear tokens in DB
+    const settingsService = getUserSettingsService();
+    await settingsService.updateInstagramTokens(userId, {
+      accessToken: undefined,
+      igUserId: undefined,
+      username: undefined,
+      accountType: undefined,
+      tokenExpiresAt: undefined,
+      tokenStatus: undefined
+    });
+    // Update config to configured=false? 
+    // updateInstagramTokens might not clear isConfigured if keys exist.
+    // Let's explicitly clear.
+    await settingsService.updateInstagramSettings(userId, {
+      isConfigured: false,
+      pendingOAuth: false
+    });
 
     return res.json({
       success: true,
@@ -330,7 +363,7 @@ router.get('/webhook', (req: Request, res: Response) => {
   const token = req.query['hub.verify_token'] as string;
   const challenge = req.query['hub.challenge'] as string;
 
-  const service = getInstagramService();
+  const service = getGlobalInstagramService();
   const result = service.verifyWebhook(mode, token, challenge);
 
   if (result) {
@@ -349,7 +382,7 @@ router.get('/webhook', (req: Request, res: Response) => {
  */
 router.post('/webhook', async (req: Request, res: Response) => {
   try {
-    const service = getInstagramService();
+    const service = getGlobalInstagramService();
     await service.handleWebhook(req.body);
 
     // Always respond with 200 OK to acknowledge receipt
@@ -421,85 +454,61 @@ router.post('/config', authenticate, async (req: AuthRequest, res: Response) => 
   try {
     const userId = req.user!.id;
     const { appId, appSecret, webhookVerifyToken, accessToken, igUserId } = req.body;
+    const settingsService = getUserSettingsService();
 
-    // Save to global config.json for InstagramService (OAuth requires app-level credentials)
-    const configPath = join(process.cwd(), 'config.json');
-    let config: any = {};
-
-    if (existsSync(configPath)) {
-      config = JSON.parse(readFileSync(configPath, 'utf-8'));
+    // 1. App Credentials Configuration
+    if (appId || appSecret || webhookVerifyToken) {
+      await settingsService.updateInstagramSettings(userId, {
+        ...(appId && appId !== '***' && { appId }),
+        ...(appSecret && appSecret !== '***' && { appSecret }),
+        ...(webhookVerifyToken && { webhookVerifyToken }),
+        pendingOAuth: true // Ready for OAuth
+      });
     }
 
-    config.instagram = config.instagram || {};
-
-    // Only update if provided and not masked
-    if (appId && appId !== '***') {
-      config.instagram.appId = appId;
-    }
-    if (appSecret && appSecret !== '***') {
-      config.instagram.appSecret = appSecret;
-    }
-    if (webhookVerifyToken !== undefined) {
-      config.instagram.webhookVerifyToken = webhookVerifyToken;
-    }
-
-    // Manual token flow - directly save accessToken and igUserId
+    // 2. Manual Token Configuration
     if (accessToken && accessToken !== '***') {
-      // Resolve IG User ID if not provided
+      const tempService = new InstagramService();
+      // We use a temp service to resolve the user info for the provided token
+
       let resolvedIgUserId = igUserId;
       let resolvedUsername = 'Instagram User';
       let tokenExpiresAt: Date | undefined;
-      let tokenStatus: 'active' | 'expiring' | 'expired' | undefined;
+      const tokenStatus: 'active' | 'expiring' | 'expired' | undefined = 'active';
 
       if (!resolvedIgUserId || resolvedIgUserId === '***') {
-        const tempService = new InstagramService();
-        // Temporarily set token to resolve account
-        // We use a temporary service instance but we need to inject the token logic
-        // Actually resolveBusinessAccount is an instance method, so we can use a fresh instance
-
-        // Inspect token for precise expiry
-        const inspection = await tempService.inspectToken(accessToken);
-        if (inspection.isValid && inspection.expiresAt) {
-          tokenExpiresAt = new Date(inspection.expiresAt * 1000);
-          tokenStatus = 'active';
-          logger.info(`✅ Token expiry updated: ${tokenExpiresAt.toISOString()}`);
-        } else {
-          // Fallback: 60 days
-          const fallbackDate = new Date();
-          fallbackDate.setDate(fallbackDate.getDate() + 60);
-          tokenExpiresAt = fallbackDate;
-          tokenStatus = 'active';
-          logger.warn('⚠️ Could not inspect token, using 60-day fallback');
-        }
-
-        // Fetch User ID and Username
         const account = await tempService.resolveBusinessAccount(accessToken);
         if (account) {
           resolvedIgUserId = account.id;
-          resolvedUsername = account.username; // Save correct username
-        } else {
-          resolvedUsername = 'Instagram User'; // Fallback
+          resolvedUsername = account.username;
         }
       }
 
-      if (resolvedIgUserId) {
-        // Get account info to populate username/name
-        // ... (comments removed for brevity)
+      // Inspect token
+      try {
+        // Assuming inspectToken is public or we can use it
+        const inspection = await tempService.inspectToken(accessToken);
+        if (inspection.isValid && inspection.expiresAt) {
+          tokenExpiresAt = new Date(inspection.expiresAt * 1000);
+        } else {
+          const d = new Date(); d.setDate(d.getDate() + 60);
+          tokenExpiresAt = d;
+        }
+      } catch (e) {
+        const d = new Date(); d.setDate(d.getDate() + 60);
+        tokenExpiresAt = d;
+      }
 
-        const settingsService = getUserSettingsService();
+      if (resolvedIgUserId) {
         await settingsService.updateInstagramTokens(userId, {
-          accessToken: accessToken,
+          accessToken,
           igUserId: resolvedIgUserId,
           username: resolvedUsername,
           accountType: 'BUSINESS',
-          tokenExpiresAt: tokenExpiresAt,
-          tokenStatus: tokenStatus
+          tokenExpiresAt,
+          tokenStatus
         });
 
-        config.instagram.accessToken = accessToken;
-        config.instagram.igUserId = resolvedIgUserId;
-
-        logger.info(`✅ Instagram manual access token saved for user ${userId}`);
         return res.json({
           success: true,
           message: 'Conexão manual realizada com sucesso!',
@@ -513,35 +522,6 @@ router.post('/config', authenticate, async (req: AuthRequest, res: Response) => 
         });
       }
     }
-
-    // Legacy/App Config saves
-    if (igUserId && igUserId !== '***') {
-      config.instagram.igUserId = igUserId;
-    }
-
-    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-
-    // Update environment variables for immediate use
-    if (accessToken && accessToken !== '***') {
-      process.env.INSTAGRAM_ACCESS_TOKEN = accessToken;
-    }
-    if (igUserId && igUserId !== '***') {
-      process.env.INSTAGRAM_IG_USER_ID = igUserId;
-    }
-
-    // Reload service credentials
-    const service = getInstagramService();
-    service.reloadCredentials();
-
-    // CRITICAL: Mark user as "pendingOAuth" in UserSettings so /status knows config is saved
-    // This allows the Connect button to appear
-    const settingsService = getUserSettingsService();
-    await settingsService.updateInstagramSettings(userId, {
-      isConfigured: false, // Will become true after OAuth completes
-      pendingOAuth: true, // New flag to indicate config saved, waiting for OAuth
-    });
-
-    logger.info(`✅ Instagram config saved for user ${userId}, pending OAuth`);
 
     return res.json({
       success: true,
@@ -568,7 +548,7 @@ router.post('/config', authenticate, async (req: AuthRequest, res: Response) => 
  */
 router.get('/rate-limit', (_req: Request, res: Response) => {
   try {
-    const service = getInstagramService();
+    const service = getGlobalInstagramService();
     const status = service.getRateLimitStatus();
 
     return res.json({
@@ -707,13 +687,13 @@ router.post('/settings', authenticate, async (req: AuthRequest, res: Response) =
       success: true,
       message: 'Configurações atualizadas com sucesso',
       settings: {
-        autoReplyDM: updatedSettings.instagram.autoReplyDM,
-        welcomeMessage: updatedSettings.instagram.welcomeMessage,
+        autoReplyDM: updatedSettings.instagram?.autoReplyDM,
+        welcomeMessage: updatedSettings.instagram?.welcomeMessage,
         keywordReplies:
-          updatedSettings.instagram.keywordReplies instanceof Map
+          updatedSettings.instagram?.keywordReplies instanceof Map
             ? Object.fromEntries(updatedSettings.instagram.keywordReplies)
-            : updatedSettings.instagram.keywordReplies || {},
-        conversionKeywords: updatedSettings.instagram.conversionKeywords,
+            : updatedSettings.instagram?.keywordReplies || {},
+        conversionKeywords: updatedSettings.instagram?.conversionKeywords,
       },
     });
   } catch (error: any) {

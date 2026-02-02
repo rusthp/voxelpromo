@@ -4,8 +4,7 @@ import { logger } from '../../utils/logger';
 import { Offer } from '../../types';
 import { CategoryService } from '../category/CategoryService';
 import { ShopeeAffiliateService, ShopeeApiProduct } from './ShopeeAffiliateService';
-import { readFileSync, existsSync } from 'fs';
-import { join } from 'path';
+
 
 interface ShopeeProduct {
   image_link: string;
@@ -38,6 +37,7 @@ interface ShopeeConfig {
 export class ShopeeService {
   private categoryService: CategoryService;
   private userId?: string; // For multi-tenant
+  private config?: ShopeeConfig; // Injected config
 
   // Cache de feeds processados (feedUrl -> {products, timestamp})
   private feedCache = new Map<
@@ -54,18 +54,35 @@ export class ShopeeService {
 
   /**
    * Create service instance
-   * @param userId - Optional user ID for multi-tenant (loads credentials from UserSettings)
+   * @param config - Optional configuration (Multi-tenant)
+   * @param userId - Optional user ID for logging/context
    */
-  constructor(userId?: string) {
+  constructor(config?: ShopeeConfig, userId?: string) {
     this.categoryService = new CategoryService();
+    this.config = config;
     this.userId = userId;
   }
 
   /**
    * Factory method: Create service for a specific user
    */
-  static forUser(userId: string): ShopeeService {
-    return new ShopeeService(userId);
+  static async createForUser(userId: string): Promise<ShopeeService> {
+    const { getUserSettingsService } = require('../user/UserSettingsService'); // eslint-disable-line
+    const settingsService = getUserSettingsService();
+    const settings = await settingsService.getSettings(userId);
+
+    // Map UserSettings to ShopeeConfig
+    const config: ShopeeConfig = {
+      feedUrls: settings?.shopee?.feedUrls || [],
+      affiliateCode: settings?.shopee?.affiliateCode,
+      minDiscount: settings?.shopee?.minDiscount,
+      maxPrice: settings?.shopee?.maxPrice,
+      minPrice: settings?.shopee?.minPrice,
+      cacheEnabled: settings?.shopee?.cacheEnabled,
+      validateLinks: false
+    };
+
+    return new ShopeeService(config, userId);
   }
 
   /**
@@ -104,32 +121,17 @@ export class ShopeeService {
   }
 
   /**
-   * Get config from environment or config.json
+   * Get config from injected instance or defaults
    */
   private getConfig(): ShopeeConfig {
-    try {
-      const configPath = join(process.cwd(), 'config.json');
-
-      if (existsSync(configPath)) {
-        const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-        if (config.shopee) {
-          return {
-            feedUrls: config.shopee.feedUrls || [],
-            affiliateCode: config.shopee.affiliateCode,
-            minDiscount: config.shopee.minDiscount,
-            maxPrice: config.shopee.maxPrice,
-            minPrice: config.shopee.minPrice,
-            cacheEnabled: config.shopee.cacheEnabled,
-          };
-        }
-      }
-    } catch (error) {
-      // Fall back to environment variables
+    if (this.config) {
+      return this.config;
     }
 
+    // Default / Fallback (Empty config)
     return {
-      feedUrls: process.env.SHOPEE_FEED_URLS?.split(',') || [],
-      affiliateCode: process.env.SHOPEE_AFFILIATE_CODE,
+      feedUrls: [],
+      affiliateCode: undefined,
     };
   }
 
@@ -658,14 +660,18 @@ export class ShopeeService {
       }
     }
 
-    // Filter by category if specified
+    // Filter by category/keywords if specified
     if (category && category !== 'electronics') {
-      const filtered = products.filter(
-        (p) =>
-          p.global_category1?.toLowerCase().includes(category.toLowerCase()) ||
-          p.global_category2?.toLowerCase().includes(category.toLowerCase())
-      );
-      logger.info(`📦 Filtered to ${filtered.length} products in category "${category}"`, {
+      const keywords = category.toLowerCase().split(' ').filter(k => k.length > 2); // Split by space, ignore short words
+
+      const filtered = products.filter((p) => {
+        const searchText = `${p.title} ${p.description} ${p.global_category1 || ''} ${p.global_category2 || ''}`.toLowerCase();
+
+        // OR logic: match ANY keyword
+        return keywords.some(keyword => searchText.includes(keyword));
+      });
+
+      logger.info(`📦 Filtered to ${filtered.length} products matching keywords: "${keywords.join(', ')}"`, {
         source,
       });
       return filtered.slice(0, limit);

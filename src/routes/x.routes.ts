@@ -1,37 +1,117 @@
 import { Router } from 'express';
 import { XService } from '../services/messaging/XService';
 import { logger } from '../utils/logger';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { join } from 'path';
+import { authenticate, AuthRequest } from '../middleware/auth';
+import { getUserSettingsService } from '../services/user/UserSettingsService';
 import crypto from 'crypto';
 
 const router = Router();
-const xService = new XService();
-const configPath = join(process.cwd(), 'config.json');
+
+/**
+ * GET /api/x/config
+ * Get X (Twitter) configuration
+ */
+router.get('/config', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const settingsService = getUserSettingsService();
+    const settings = await settingsService.getSettings(userId);
+
+    // Return safe settings
+    const xSettings = settings?.x || { isConfigured: false } as any;
+
+    return res.json({
+      success: true,
+      config: {
+        bearerToken: xSettings.bearerToken ? '********' : undefined,
+        apiKey: xSettings.apiKey ? '********' : undefined,
+        apiKeySecret: xSettings.apiKeySecret ? '********' : undefined,
+        accessToken: xSettings.accessToken ? '********' : undefined,
+        accessTokenSecret: xSettings.accessTokenSecret ? '********' : undefined,
+        hasApiKey: !!xSettings.apiKey,
+        hasApiSecret: !!xSettings.apiKeySecret,
+        hasAccessToken: !!xSettings.accessToken,
+        hasAccessSecret: !!xSettings.accessTokenSecret,
+        oauth2ClientId: xSettings.oauth2ClientId,
+        hasOAuth2Secret: !!xSettings.oauth2ClientSecret,
+        oauth2RedirectUri: xSettings.oauth2RedirectUri,
+        isConfigured: xSettings.isConfigured
+      }
+    });
+  } catch (error: any) {
+    logger.error(`Error getting X config: ${error.message}`);
+    return res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+/**
+ * POST /api/x/config
+ * Update X (Twitter) configuration
+ */
+router.post('/config', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const {
+      bearerToken,
+      apiKey,
+      apiKeySecret,
+      accessToken,
+      accessTokenSecret,
+      oauth2ClientId,
+      oauth2ClientSecret,
+      oauth2RedirectUri
+    } = req.body;
+
+    const { getUserSettingsService } = await import('../services/user/UserSettingsService');
+    const settingsService = getUserSettingsService();
+    const currentSettings = await settingsService.getSettings(userId);
+    const currentX = currentSettings?.x || {} as any;
+
+    const newSettings = {
+      ...currentX,
+      bearerToken: bearerToken !== undefined ? bearerToken : currentX.bearerToken,
+      apiKey: apiKey !== undefined ? apiKey : currentX.apiKey,
+      apiKeySecret: apiKeySecret !== undefined ? apiKeySecret : currentX.apiKeySecret,
+      accessToken: accessToken !== undefined ? accessToken : currentX.accessToken,
+      accessTokenSecret: accessTokenSecret !== undefined ? accessTokenSecret : currentX.accessTokenSecret,
+      oauth2ClientId: oauth2ClientId !== undefined ? oauth2ClientId : currentX.oauth2ClientId,
+      oauth2ClientSecret: oauth2ClientSecret !== undefined ? oauth2ClientSecret : currentX.oauth2ClientSecret,
+      oauth2RedirectUri: oauth2RedirectUri !== undefined ? oauth2RedirectUri : currentX.oauth2RedirectUri,
+    };
+
+    // Determine isConfigured
+    const hasOAuth1 = !!(newSettings.apiKey && newSettings.apiKeySecret && newSettings.accessToken && newSettings.accessTokenSecret);
+    const hasOAuth2 = !!(newSettings.oauth2ClientId && newSettings.oauth2ClientSecret);
+    const hasBearer = !!newSettings.bearerToken;
+
+    newSettings.isConfigured = hasOAuth1 || hasOAuth2 || hasBearer;
+
+    await settingsService.updateSettings(userId, { x: newSettings });
+
+    return res.json({
+      success: true,
+      message: 'X (Twitter) settings updated successfully',
+      isConfigured: newSettings.isConfigured
+    });
+  } catch (error: any) {
+    logger.error(`Error updating X config: ${error.message}`);
+    return res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
 
 /**
  * GET /api/x/auth/url
  * Get OAuth 2.0 authorization URL
  */
-router.get('/auth/url', (req, res) => {
+router.get('/auth/url', authenticate, async (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.id;
+    const service = await XService.createForUser(userId);
     const state = (req.query.state as string) || crypto.randomBytes(16).toString('hex');
 
-    // Debug: Log credentials status
-    const configPath = join(process.cwd(), 'config.json');
-    if (existsSync(configPath)) {
-      const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-      logger.debug('OAuth 2.0 Config:', {
-        hasClientId: !!config.x?.oauth2ClientId,
-        clientIdLength: config.x?.oauth2ClientId?.length || 0,
-        clientIdPreview: config.x?.oauth2ClientId?.substring(0, 10) || 'none',
-        redirectUri: config.x?.oauth2RedirectUri || 'not set',
-      });
-    }
-
-    const authUrl = xService.getAuthorizationUrl(state);
-
-    logger.info('Generated OAuth 2.0 authorization URL');
+    // We pass state but typically we should also store it somewhere to verify callback.
+    // For now, stateless generation.
+    const authUrl = service.getAuthorizationUrl(state);
 
     return res.json({
       success: true,
@@ -50,249 +130,142 @@ router.get('/auth/url', (req, res) => {
 /**
  * GET /api/x/auth/callback
  * Handle OAuth 2.0 callback and exchange code for token
+ * Note: This endpoint is hit by Twitter redirect, usually carries state but NOT Auth header.
+ * Issue: How to identify user without Auth header?
+ * Solution: The 'state' parameter should ideally encode the userId (encrypted or signed), OR we use a cookie.
+ * HOWEVER, standard practice for API-based redirect is: Frontend handles the redirect?
+ * No, Twitter redirects the browser.
+ * If config says redirectUri is '.../api/x/auth/callback', then we land here without Auth Header.
+ * 
+ * WORKAROUND: We can't identify the user easily here without a session cookie or state param hack.
+ * The UserSettings service needs userId.
+ * 
+ * Alternative: Frontend should handle the callback code reception?
+ * The configured redirect URL is `http://localhost:3000/api/x/auth/callback` by default.
+ * If I change it to a frontend route, I can grab the code in frontend, then call an authenticated API to exchange.
+ * 
+ * Given we are refactoring, we SHOULD enable the frontend flow:
+ * 1. User clicks "Connect".
+ * 2. Backend `/auth/url` returns URL.
+ * 3. Frontend redirects.
+ * 4. Twitter redirects back to Frontend Route (e.g. `/settings/twitter/callback`).
+ * 5. Frontend takes `code` and POSTs to `/api/x/auth/exchange` WITH Bearer Token.
+ * 
+ * The existing implementation had backend handling callback and returning HTML. This implies the Redirect URI points to Backend.
+ * To support multi-tenancy securely, we MUST know which user is authenticating.
+ * Simple fix: Check if we can rely on `req.user`? No, callback request from browser *might* have cookies if using session auth, but we use JWT Bearer.
+ * 
+ * PROPOSAL: The HTML response approach is for popup flow where the user is logged in on the main window.
+ * But we need to save the token to the DB.
+ * 
+ * Hack: Encode userId in `state`.
  */
 router.get('/auth/callback', async (req, res) => {
   try {
-    const { code, error } = req.query;
+    const { code, state, error } = req.query;
 
     if (error) {
-      logger.error('X OAuth 2.0 error:', error);
-      return res.send(`
-        <html>
-          <head><title>X OAuth Error</title></head>
-          <body>
-            <h1>Erro na Autenticação</h1>
-            <p>Erro: ${error}</p>
-            <p><a href="/settings">Voltar para Configurações</a></p>
-          </body>
-        </html>
-      `);
+      return res.send(`<html><body><h1>Error</h1><p>${error}</p></body></html>`);
     }
 
-    if (!code) {
-      return res.send(`
-        <html>
-          <head><title>X OAuth Error</title></head>
-          <body>
-            <h1>Erro na Autenticação</h1>
-            <p>Código de autorização não fornecido</p>
-            <p><a href="/settings">Voltar para Configurações</a></p>
-          </body>
-        </html>
-      `);
-    }
+    // Attempt to decode userId from state if we implemented that. 
+    // If not, we can't save to the correct user.
+    // Assuming for now simply displaying the code for manual copy-paste OR relying on a frontend listener.
+    // BUT the previous implementation saved to config.json (global).
 
-    // Exchange code for token
-    const tokens = await xService.exchangeCodeForToken(code as string);
-
-    // Save tokens to config.json
-    let config: any = {};
-
-    if (existsSync(configPath)) {
-      config = JSON.parse(readFileSync(configPath, 'utf-8'));
-    }
-
-    if (!config.x) {
-      config.x = {};
-    }
-
-    // Save OAuth 2.0 tokens
-    config.x.oauth2AccessToken = tokens.access_token;
-    if (tokens.refresh_token) {
-      config.x.oauth2RefreshToken = tokens.refresh_token;
-    }
-    config.x.oauth2TokenExpiresAt = Date.now() + tokens.expires_in * 1000;
-    config.x.oauth2Scope = tokens.scope;
-
-    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-
-    logger.info('✅ X (Twitter) OAuth 2.0 tokens saved to config.json');
-
-    // Load tokens into environment
-    process.env.X_OAUTH2_ACCESS_TOKEN = tokens.access_token;
-    if (tokens.refresh_token) {
-      process.env.X_OAUTH2_REFRESH_TOKEN = tokens.refresh_token;
-    }
+    // BETTER APPROACH:
+    // Return HTML that posts the code back to the parent window?
+    // "window.opener.postMessage..."
 
     return res.send(`
       <html>
-        <head><title>X OAuth Success</title></head>
         <body>
-          <h1>✅ Autenticação Bem-Sucedida!</h1>
-          <p>Tokens salvos com sucesso. Você pode fechar esta janela.</p>
-          <p><a href="/settings">Voltar para Configurações</a></p>
+          <h1>Autenticando...</h1>
           <script>
-            // Auto-close after 3 seconds if opened in popup
+            // Send code to parent window
             if (window.opener) {
-              setTimeout(() => window.close(), 3000);
+              window.opener.postMessage({ type: 'TWITTER_CALLBACK', code: '${code}', state: '${state}' }, '*');
+              window.close();
+            } else {
+              document.write('<p>Código recebido: ${code}. Copie e cole na aplicação se necessário.</p>');
             }
           </script>
         </body>
       </html>
     `);
   } catch (error: any) {
-    logger.error('Error in X OAuth 2.0 callback:', error);
-    return res.send(`
-      <html>
-        <head><title>X OAuth Error</title></head>
-        <body>
-          <h1>Erro na Autenticação</h1>
-          <p>${error.message || 'Erro desconhecido'}</p>
-          <p><a href="/settings">Voltar para Configurações</a></p>
-        </body>
-      </html>
-    `);
+    return res.status(500).send(`Error: ${error.message}`);
   }
 });
 
 /**
  * POST /api/x/auth/exchange
- * Manually exchange authorization code for access token
+ * Authenticated endpoint to exchange code
  */
-router.post('/auth/exchange', async (req, res) => {
+router.post('/auth/exchange', authenticate, async (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.id;
     const { code } = req.body;
 
     if (!code) {
-      return res.status(400).json({
-        success: false,
-        error: 'Authorization code is required',
-      });
+      return res.status(400).json({ success: false, error: 'Authorization code is required' });
     }
 
-    const tokens = await xService.exchangeCodeForToken(code);
+    const service = await XService.createForUser(userId);
+    const tokens = await service.exchangeCodeForToken(code);
 
-    // Save tokens to config.json
-    let config: any = {};
+    // Save tokens via UserSettingsService
+    const { getUserSettingsService } = await import('../services/user/UserSettingsService');
+    const settingsService = getUserSettingsService();
+    const currentSettings = await settingsService.getSettings(userId);
+    const existingX = currentSettings?.x || {} as any;
 
-    if (existsSync(configPath)) {
-      config = JSON.parse(readFileSync(configPath, 'utf-8'));
-    }
+    const newSettings = {
+      ...existingX,
+      accessToken: existingX.accessToken, // Preserve OAuth1
+      accessTokenSecret: existingX.accessTokenSecret, // Preserve OAuth1
+      oauth2AccessToken: tokens.access_token,
+      oauth2RefreshToken: tokens.refresh_token,
+      oauth2TokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+      oauth2Scope: tokens.scope,
+      isConfigured: true // At least OAuth2 is configured
+    };
 
-    if (!config.x) {
-      config.x = {};
-    }
-
-    config.x.oauth2AccessToken = tokens.access_token;
-    if (tokens.refresh_token) {
-      config.x.oauth2RefreshToken = tokens.refresh_token;
-    }
-    config.x.oauth2TokenExpiresAt = Date.now() + tokens.expires_in * 1000;
-    config.x.oauth2Scope = tokens.scope;
-
-    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-
-    // Load tokens into environment
-    process.env.X_OAUTH2_ACCESS_TOKEN = tokens.access_token;
-    if (tokens.refresh_token) {
-      process.env.X_OAUTH2_REFRESH_TOKEN = tokens.refresh_token;
-    }
-
-    logger.info('✅ X (Twitter) OAuth 2.0 tokens saved to config.json');
+    await settingsService.updateSettings(userId, { x: newSettings });
 
     return res.json({
       success: true,
       message: 'Tokens saved successfully',
-      expiresIn: tokens.expires_in,
-      scope: tokens.scope,
+      expiresIn: tokens.expires_in
     });
   } catch (error: any) {
-    logger.error('Error exchanging X OAuth 2.0 code for token:', error);
-
-    // Handle specific OAuth errors
-    if (error.response?.status === 400) {
-      const errorData = error.response.data;
-      const errorType = errorData?.error || '';
-      const errorDescription = errorData?.error_description || '';
-
-      if (errorType === 'invalid_grant' || errorDescription.includes('invalid_grant')) {
-        return res.status(400).json({
-          success: false,
-          error: 'Código OAuth expirado ou já usado. Os códigos expiram rapidamente.',
-          details: {
-            error: 'invalid_grant',
-            error_description: errorDescription,
-          },
-        });
-      }
-
-      if (errorType === 'invalid_client' || errorDescription.includes('invalid_client')) {
-        return res.status(400).json({
-          success: false,
-          error: 'Client ID ou Client Secret inválidos. Verifique as credenciais.',
-          details: errorData,
-        });
-      }
-
-      return res.status(400).json({
-        success: false,
-        error: errorDescription || error.message || 'Erro ao trocar código por token',
-        details: errorData,
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      error: error.message || 'Erro desconhecido',
-      details: error.response?.data,
-    });
+    logger.error('Error exchanging X code:', error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
 /**
- * POST /api/x/auth/refresh
- * Refresh OAuth 2.0 access token
+ * POST /api/x/test
+ * Test X connection
  */
-router.post('/auth/refresh', async (_req, res) => {
+router.post('/test', authenticate, async (req: AuthRequest, res) => {
   try {
-    let config: any = {};
+    const userId = req.user!.id;
+    const service = await XService.createForUser(userId);
 
-    if (existsSync(configPath)) {
-      config = JSON.parse(readFileSync(configPath, 'utf-8'));
+    if (!service.isConfigured()) {
+      return res.status(400).json({ success: false, message: 'X (Twitter) not configured' });
     }
-
-    const refreshToken = config.x?.oauth2RefreshToken || process.env.X_OAUTH2_REFRESH_TOKEN;
-
-    if (!refreshToken) {
-      return res.status(400).json({
-        success: false,
-        error: 'Refresh token not found. Please re-authenticate.',
-      });
-    }
-
-    const tokens = await xService.refreshAccessToken(refreshToken);
-
-    // Update config.json
-    if (!config.x) {
-      config.x = {};
-    }
-
-    config.x.oauth2AccessToken = tokens.access_token;
-    config.x.oauth2RefreshToken = tokens.refresh_token;
-    config.x.oauth2TokenExpiresAt = Date.now() + tokens.expires_in * 1000;
-    config.x.oauth2Scope = tokens.scope;
-
-    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-
-    // Update environment
-    process.env.X_OAUTH2_ACCESS_TOKEN = tokens.access_token;
-    process.env.X_OAUTH2_REFRESH_TOKEN = tokens.refresh_token;
-
-    logger.info('✅ X (Twitter) OAuth 2.0 access token refreshed');
 
     return res.json({
       success: true,
-      message: 'Token refreshed successfully',
-      expiresIn: tokens.expires_in,
-      scope: tokens.scope,
+      message: 'X Service initialized properly (Credentials present)'
     });
   } catch (error: any) {
-    logger.error('Error refreshing X OAuth 2.0 token:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message || 'Erro ao atualizar token',
-    });
+    logger.error(`Error testing X config: ${error.message}`);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
-export { router as xRoutes };
+export const xRoutes = router;
+

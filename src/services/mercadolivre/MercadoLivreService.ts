@@ -117,8 +117,21 @@ export class MercadoLivreService {
     return { codeVerifier, codeChallenge };
   }
 
+  private config: MercadoLivreConfig | null = null;
+
+  constructor(config?: MercadoLivreConfig) {
+    if (config) {
+      this.config = config;
+    }
+  }
+
   getConfig(): MercadoLivreConfig {
-    // Try to load from config.json first
+    // If instance config is present (Multi-tenant mode), use it directly
+    if (this.config) {
+      return this.config;
+    }
+
+    // Legacy/Fallback: Try to load from config.json first
     try {
       const configPath = join(process.cwd(), 'config.json');
 

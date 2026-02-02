@@ -2,8 +2,7 @@ import axios from 'axios';
 import { Offer } from '../../types';
 import { logger } from '../../utils/logger';
 import { AIService } from '../ai/AIService';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+
 
 /**
  * Instagram Service - Business Login for Instagram
@@ -125,7 +124,7 @@ export class InstagramService {
 
   constructor(userId?: string) {
     this.userId = userId || null;
-    this.loadCredentials();
+    // No side-effects or file reading in constructor
   }
 
   /**
@@ -141,15 +140,17 @@ export class InstagramService {
 
     // Override with user-specific credentials if available
     if (credentials.isConfigured) {
-      service.accessToken = credentials.accessToken;
-      service.igUserId = credentials.igUserId;
-      service.igUserId = credentials.igUserId;
+      service.appId = credentials.appId || null;
+      service.appSecret = credentials.appSecret || null;
+      service.accessToken = credentials.accessToken || null;
+      service.igUserId = credentials.igUserId || null;
+      service.webhookVerifyToken = credentials.webhookVerifyToken || null;
 
       // Load automation settings
       service.settings = {
         enabled: true,
-        autoReplyDM: credentials.autoReplyDM,
-        welcomeMessage: credentials.welcomeMessage,
+        autoReplyDM: credentials.autoReplyDM ?? true,
+        welcomeMessage: credentials.welcomeMessage || 'Olá! 👋 Obrigado por entrar em contato!\n\nConfira nossas melhores ofertas com descontos imperdíveis! 🔥\n\nDigite "ofertas" para ver as promoções mais recentes.',
         keywordReplies: credentials.keywordReplies instanceof Map
           ? Object.fromEntries(credentials.keywordReplies)
           : (credentials.keywordReplies || {}),
@@ -157,6 +158,8 @@ export class InstagramService {
       };
 
       logger.debug(`📱 Instagram loaded for user ${userId} (@${credentials.username})`);
+    } else {
+      logger.warn(`⚠️ Instagram not configured for user ${userId}`);
     }
 
     return service;
@@ -176,78 +179,7 @@ export class InstagramService {
     return this.igUserId;
   }
 
-  /**
-   * Load credentials from config.json or environment
-   */
-  private loadCredentials(): void {
-    try {
-      const configPath = join(process.cwd(), 'config.json');
-      if (existsSync(configPath)) {
-        const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-        if (config.instagram) {
-          // Business Login for Instagram uses Instagram App ID/Secret (NOT Facebook App ID!)
-          this.appId =
-            config.instagram.instagramAppId ||
-            config.instagram.appId ||
-            process.env.INSTAGRAM_APP_ID ||
-            null;
-          this.appSecret =
-            config.instagram.instagramAppSecret ||
-            config.instagram.appSecret ||
-            process.env.INSTAGRAM_APP_SECRET ||
-            null;
-          this.accessToken =
-            config.instagram.accessToken || process.env.INSTAGRAM_ACCESS_TOKEN || null;
-          this.igUserId = config.instagram.igUserId || process.env.INSTAGRAM_IG_USER_ID || null;
-          this.webhookVerifyToken =
-            config.instagram.webhookVerifyToken ||
-            process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN ||
-            null;
-          // Token expiration tracking
-          if (config.instagram.tokenExpiresAt) {
-            this.tokenExpiresAt = new Date(config.instagram.tokenExpiresAt);
-          }
 
-          // Load settings
-          if (config.instagram.settings) {
-            this.settings = {
-              ...this.settings,
-              ...config.instagram.settings,
-            };
-          } else {
-            // Backward compatibility - load individual fields
-            if (typeof config.instagram.enabled === 'boolean') {
-              this.settings.enabled = config.instagram.enabled;
-            }
-            if (typeof config.instagram.autoReplyDM === 'boolean') {
-              this.settings.autoReplyDM = config.instagram.autoReplyDM;
-            }
-            if (config.instagram.welcomeMessage) {
-              this.settings.welcomeMessage = config.instagram.welcomeMessage;
-            }
-            if (config.instagram.keywordReplies) {
-              this.settings.keywordReplies = config.instagram.keywordReplies;
-            }
-          }
-        }
-      }
-
-      // Fallback to environment variables
-      this.appId = this.appId || process.env.INSTAGRAM_APP_ID || null;
-      this.appSecret = this.appSecret || process.env.INSTAGRAM_APP_SECRET || null;
-      this.accessToken = this.accessToken || process.env.INSTAGRAM_ACCESS_TOKEN || null;
-      this.webhookVerifyToken =
-        this.webhookVerifyToken || process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN || null;
-
-      if (this.appId && this.appSecret) {
-        logger.info('✅ Instagram configured - credentials loaded');
-      } else {
-        logger.debug('⚠️ Instagram not fully configured (missing App ID or App Secret)');
-      }
-    } catch (error: any) {
-      logger.error(`Error loading Instagram credentials: ${error.message}`);
-    }
-  }
 
   /**
    * Check if the service is configured
@@ -365,53 +297,55 @@ export class InstagramService {
       });
 
       this.accessToken = longLivedResponse.data.access_token;
-      const expiresIn = longLivedResponse.data.expires_in || 5184000; // ~60 days
-      this.tokenExpiresAt = new Date(Date.now() + expiresIn * 1000);
+      // Expiry is usually 60 days
+      const expiresIn = longLivedResponse.data.expires_in; // seconds
+      if (expiresIn) {
+        this.tokenExpiresAt = new Date(Date.now() + expiresIn * 1000);
+      } else {
+        // Fallback 60 days
+        const d = new Date();
+        d.setDate(d.getDate() + 60);
+        this.tokenExpiresAt = d;
+      }
 
-      // Save to config
-      await this.saveCredentials();
 
-      logger.info(
-        `✅ Instagram Business Login completed successfully (token expires: ${this.tokenExpiresAt.toISOString()})`
-      );
+
+      logger.info(`✅ Instagram long-lived token obtained`);
 
       return {
         access_token: this.accessToken!,
-        token_type: 'bearer',
-        expires_in: expiresIn,
         user_id: this.igUserId || undefined,
+        expires_in: expiresIn,
+        token_type: 'bearer',
         permissions: tokenData.permissions,
       };
     } catch (error: any) {
-      const errorMsg =
-        error.response?.data?.error?.message ||
-        error.response?.data?.error_message ||
-        error.message;
-      const errorDetails = JSON.stringify(error.response?.data || {});
-      logger.error(`Instagram OAuth error: ${errorMsg}`, { details: errorDetails });
-      throw new Error(`Failed to exchange code for token: ${errorMsg}`);
+      if (error.response) {
+        logger.error('Instagram OAuth Error:', error.response.data);
+        throw new Error(`Instagram OAuth Failed: ${error.response.data.error?.message || JSON.stringify(error.response.data)}`);
+      }
+      throw error;
     }
   }
 
   /**
-   * Inspect a token to get its precise expiry date
-   * Uses the /debug_token endpoint which requires App Credentials
+   * Inspect a token to check validity and expiry
    */
-  async inspectToken(inputToken: string): Promise<{
-    isValid: boolean;
-    expiresAt?: number;
-    scopes?: string[];
-    userId?: string;
-  }> {
-    if (!this.appId || !this.appSecret) {
-      logger.warn('⚠️ Cannot inspect token: App ID or Secret missing');
-      return { isValid: false };
-    }
-
+  async inspectToken(inputToken: string): Promise<{ isValid: boolean; expiresAt?: number; scopes?: string[]; userId?: string }> {
     try {
-      // Use App Access Token (AppID|AppSecret) query param shortcut
-      const appAccessToken = `${this.appId}|${this.appSecret}`;
+      if (!this.appId || !this.appSecret) {
+        // Try to deduce from token? No, debug_token needs app credential
+        // But we can try to call /me with it to see if it works
+        try {
+          const me = await axios.get(`${this.graphApiBase}/me`, { params: { access_token: inputToken } });
+          return { isValid: !!me.data.id, userId: me.data.id };
+        } catch {
+          return { isValid: false };
+        }
+      }
 
+      // precise check with debug_token
+      const appAccessToken = `${this.appId}|${this.appSecret}`;
       const response = await axios.get(`${this.graphApiBase}/debug_token`, {
         params: {
           input_token: inputToken,
@@ -420,16 +354,50 @@ export class InstagramService {
       });
 
       const data = response.data.data;
-
       return {
         isValid: data.is_valid,
-        expiresAt: data.expires_at, // Unix timestamp in seconds
+        expiresAt: data.expires_at,
         scopes: data.scopes,
         userId: data.user_id,
       };
     } catch (error: any) {
-      logger.error(`❌ Token inspection failed: ${error.message}`);
+      logger.error(`Error inspecting token: ${error.message}`);
       return { isValid: false };
+    }
+  }
+
+  /**
+   * Resolve Instagram Business Account from a User Access Token
+   * Used when user manually inputs a token
+   */
+  async resolveBusinessAccount(token: string): Promise<{ id: string; username: string; name?: string } | null> {
+    try {
+      // Get user's pages and their connected IG accounts
+      const response = await axios.get(`${this.graphApiBase}/me/accounts`, {
+        params: {
+          access_token: token,
+          fields: 'name,instagram_business_account{id,username,name,profile_picture_url}',
+        },
+      });
+
+      const pages = response.data.data;
+      if (!pages || !Array.isArray(pages)) return null;
+
+      // Find first page with an IG business account
+      for (const page of pages) {
+        if (page.instagram_business_account) {
+          return {
+            id: page.instagram_business_account.id,
+            username: page.instagram_business_account.username,
+            name: page.instagram_business_account.name || page.name
+          };
+        }
+      }
+
+      return null;
+    } catch (error: any) {
+      logger.error(`Error resolving business account: ${error.message}`);
+      return null;
     }
   }
 
@@ -454,8 +422,6 @@ export class InstagramService {
       this.accessToken = response.data.access_token;
       const expiresIn = response.data.expires_in || 5184000;
       this.tokenExpiresAt = new Date(Date.now() + expiresIn * 1000);
-
-      await this.saveCredentials();
 
       logger.info(`🔄 Instagram token refreshed (expires: ${this.tokenExpiresAt.toISOString()})`);
 
@@ -500,68 +466,7 @@ export class InstagramService {
   // does NOT require Facebook Pages. The igUserId is obtained directly
   // from the token exchange response.
 
-  /**
-   * Save credentials to config.json
-   */
-  private async saveCredentials(): Promise<void> {
-    try {
-      const configPath = join(process.cwd(), 'config.json');
-      let config: any = {};
 
-      if (existsSync(configPath)) {
-        config = JSON.parse(readFileSync(configPath, 'utf-8'));
-      }
-
-      config.instagram = {
-        ...config.instagram,
-        instagramAppId: this.appId, // Renamed for clarity (not Facebook App ID!)
-        instagramAppSecret: this.appSecret,
-        accessToken: this.accessToken,
-        igUserId: this.igUserId,
-        webhookVerifyToken: this.webhookVerifyToken,
-        tokenExpiresAt: this.tokenExpiresAt?.toISOString(),
-      };
-
-      writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-      logger.debug('Instagram credentials saved to config.json');
-    } catch (error: any) {
-      logger.error(`Error saving Instagram credentials: ${error.message}`);
-    }
-  }
-
-  /**
-   * Resolve Instagram Business Account from Access Token
-   * Checks for linked pages and their Instagram accounts
-   */
-  async resolveBusinessAccount(token: string): Promise<{ id: string; username: string } | null> {
-    try {
-      logger.info('📱 Resolving Instagram Business Account from token...');
-      const response = await axios.get(`${this.graphApiBase}/${this.apiVersion}/me/accounts`, {
-        params: {
-          access_token: token,
-          fields: 'instagram_business_account{id,username},name'
-        }
-      });
-
-      const accounts = response.data.data;
-      for (const page of accounts) {
-        if (page.instagram_business_account?.id) {
-          logger.info(`✅ Found Instagram Business Account: @${page.instagram_business_account.username} (${page.instagram_business_account.id})`);
-          this.igUserId = page.instagram_business_account.id;
-          return {
-            id: page.instagram_business_account.id,
-            username: page.instagram_business_account.username
-          };
-        }
-      }
-
-      logger.warn('⚠️ No Instagram Business Account found linked to user pages');
-      return null;
-    } catch (error: any) {
-      logger.error(`Error resolving Instagram account: ${error.message}`);
-      return null;
-    }
-  }
 
   /**
    * Get Instagram account info
@@ -1093,9 +998,7 @@ export class InstagramService {
   /**
    * Reload credentials (useful after config update)
    */
-  reloadCredentials(): void {
-    this.loadCredentials();
-  }
+
 
   /**
    * Get current settings
@@ -1107,35 +1010,15 @@ export class InstagramService {
   /**
    * Update settings
    */
+  /**
+   * Update settings (Memory only - Persistence handled by UserSettingsService)
+   */
   async updateSettings(newSettings: Partial<InstagramSettings>): Promise<void> {
     this.settings = {
       ...this.settings,
       ...newSettings,
     };
-
-    // Save to config.json
-    try {
-      const configPath = join(process.cwd(), 'config.json');
-      let config: any = {};
-
-      if (existsSync(configPath)) {
-        config = JSON.parse(readFileSync(configPath, 'utf-8'));
-      }
-
-      config.instagram = {
-        ...config.instagram,
-        enabled: this.settings.enabled,
-        autoReplyDM: this.settings.autoReplyDM,
-        welcomeMessage: this.settings.welcomeMessage,
-        keywordReplies: this.settings.keywordReplies,
-      };
-
-      writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-      logger.info('✅ Instagram settings updated');
-    } catch (error: any) {
-      logger.error(`Error saving Instagram settings: ${error.message}`);
-      throw error;
-    }
+    logger.debug('Instagram settings updated in memory');
   }
 
   /**
@@ -1154,21 +1037,7 @@ export class InstagramService {
     this.tokenExpiresAt = null;
 
     // Update config
-    try {
-      const configPath = join(process.cwd(), 'config.json');
-      if (existsSync(configPath)) {
-        const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-        if (config.instagram) {
-          delete config.instagram.accessToken;
-
-          delete config.instagram.tokenExpiresAt;
-          delete config.instagram.igUserId;
-          writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-        }
-      }
-    } catch (error: any) {
-      logger.error(`Error clearing Instagram credentials: ${error.message}`);
-    }
+    // config.json update removed - persistence handled by UserSettingsService
 
     logger.info('Instagram disconnected');
   }

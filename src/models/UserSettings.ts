@@ -30,6 +30,7 @@ export interface MercadoLivreSettings {
   accessToken?: string;
   refreshToken?: string;
   tokenExpiresAt?: Date;
+  codeVerifier?: string;
   // Internal API (Phase 1)
   sessionCookies?: string;
   csrfToken?: string;
@@ -37,23 +38,12 @@ export interface MercadoLivreSettings {
   isConfigured: boolean;
 }
 
-export interface AwinSettings {
-  apiToken?: string;
-  publisherId?: string;
-  dataFeedApiKey?: string;
-  enabled?: boolean;
-  isConfigured: boolean;
-}
-
 export interface ShopeeSettings {
-  // API Credentials (GraphQL)
   appId?: string;
   appSecret?: string;
-  apiEnabled?: boolean; // Toggle API vs CSV-only
-  // CSV Feed Settings
+  apiEnabled?: boolean;
   feedUrls?: string[];
   affiliateCode?: string;
-  // Collection Filters
   minDiscount?: number;
   maxPrice?: number;
   minPrice?: number;
@@ -61,136 +51,14 @@ export interface ShopeeSettings {
   isConfigured: boolean;
 }
 
-// === MENSAGEIROS ===
-
-export interface TelegramSettings {
-  botToken?: string;
-  channelId?: string;
-  isConfigured: boolean;
-}
-
-export interface InstagramSettings {
-  appId?: string;
-  appSecret?: string;
-  accessToken?: string;
-  pageAccessToken?: string;
-  pageId?: string;
-  igUserId?: string;
-  username?: string;
-  accountType?: string;
-  webhookVerifyToken?: string;
-  pendingOAuth?: boolean;
-  isConfigured: boolean;
-  // Automation settings
-  autoReplyDM?: boolean;
-  welcomeMessage?: string;
-  keywordReplies?: Map<string, string>;
-  conversionKeywords?: string[];
-  tokenExpiresAt?: Date;
-  tokenStatus?: 'active' | 'expiring' | 'expired';
-  // OAuth State (Temporary)
-  _oauthState?: string;
-  _oauthRedirectUri?: string;
-}
-
-export interface WhatsAppSettings {
-  enabled?: boolean;
-  targetNumber?: string;
-  targetGroups?: string[];
-  library?: string;
-  accessToken?: string;
-  phoneNumberId?: string;
-  businessAccountId?: string;
-  isConfigured: boolean;
-}
-
-export interface XSettings {
-  bearerToken?: string;
-  apiKey?: string;
-  apiKeySecret?: string;
-  accessToken?: string;
-  accessTokenSecret?: string;
-  // OAuth 2.0
-  oauth2ClientId?: string;
-  oauth2ClientSecret?: string;
-  oauth2RedirectUri?: string;
-  oauth2AccessToken?: string;
-  oauth2RefreshToken?: string;
-  oauth2TokenExpiresAt?: Date;
-  tokenStatus?: 'active' | 'expiring' | 'expired';
-  username?: string;
-  oauth2Scope?: string;
-  isConfigured: boolean;
-}
-
-// === IA ===
-
-export interface AISettings {
-  provider?: 'groq' | 'openai';
-  groqApiKey?: string;
-  openaiApiKey?: string;
-  isConfigured: boolean;
-}
-
-// === AUTOMAÇÃO ===
-
-export interface AutomationSettings {
-  enabled: boolean;
-}
-
-// === COLETA ===
-
-export interface CollectionSettings {
-  enabled: boolean;
-  schedule?: string;
-  sources: string[];
-  niches?: string[];
-}
-
-// === MAIN INTERFACE ===
-
-export interface IUserSettings extends Document {
-  userId: mongoose.Types.ObjectId;
-
-  // Afiliados
-  amazon: AmazonSettings;
-  aliexpress: AliExpressSettings;
-  mercadolivre: MercadoLivreSettings;
-  awin: AwinSettings;
-  shopee: ShopeeSettings;
-
-  // Mensageiros
-  telegram: TelegramSettings;
-  instagram: InstagramSettings;
-  whatsapp: WhatsAppSettings;
-  x: XSettings;
-
-  // IA
-  ai: AISettings;
-
-  // Automação
-  automation: AutomationSettings;
-
-  // Coleta
-  rss: string[];
-  collectionSettings: CollectionSettings;
-
-  // Metadados de migração
-  migratedFrom?: string;
-  migratedAt?: Date;
-
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// === SCHEMAS ===
+// ... lines 40-208 skipped ...
 
 const AmazonSettingsSchema = new Schema(
   {
     accessKey: String,
     secretKey: String,
     associateTag: String,
-    region: { type: String, default: 'sa-east-1' },
+    region: String,
     isConfigured: { type: Boolean, default: false },
   },
   { _id: false }
@@ -215,6 +83,7 @@ const MercadoLivreSettingsSchema = new Schema(
     accessToken: String,
     refreshToken: String,
     tokenExpiresAt: Date,
+    codeVerifier: String,
     sessionCookies: String,
     csrfToken: String,
     affiliateTag: String,
@@ -223,16 +92,7 @@ const MercadoLivreSettingsSchema = new Schema(
   { _id: false }
 );
 
-const AwinSettingsSchema = new Schema(
-  {
-    apiToken: String,
-    publisherId: String,
-    dataFeedApiKey: String,
-    enabled: { type: Boolean, default: false },
-    isConfigured: { type: Boolean, default: false },
-  },
-  { _id: false }
-);
+
 
 const ShopeeSettingsSchema = new Schema(
   {
@@ -253,6 +113,12 @@ const ShopeeSettingsSchema = new Schema(
   { _id: false }
 );
 
+export interface TelegramSettings {
+  botToken?: string;
+  channelId?: string;
+  isConfigured: boolean;
+}
+
 const TelegramSettingsSchema = new Schema(
   {
     botToken: String,
@@ -261,6 +127,28 @@ const TelegramSettingsSchema = new Schema(
   },
   { _id: false }
 );
+
+export interface InstagramSettings {
+  appId?: string;
+  appSecret?: string;
+  accessToken?: string;
+  pageAccessToken?: string;
+  pageId?: string;
+  igUserId?: string;
+  username?: string;
+  accountType?: string;
+  webhookVerifyToken?: string;
+  pendingOAuth?: boolean;
+  isConfigured: boolean;
+  autoReplyDM?: boolean;
+  welcomeMessage?: string;
+  keywordReplies?: Map<string, string>;
+  conversionKeywords?: string[];
+  _oauthState?: string;
+  _oauthRedirectUri?: string;
+  tokenStatus?: 'active' | 'expiring' | 'expired';
+  tokenExpiresAt?: Date;
+}
 
 const InstagramSettingsSchema = new Schema(
   {
@@ -284,6 +172,17 @@ const InstagramSettingsSchema = new Schema(
   },
   { _id: false }
 );
+
+export interface WhatsAppSettings {
+  enabled?: boolean;
+  targetNumber?: string;
+  targetGroups?: string[];
+  library?: string;
+  accessToken?: string;
+  phoneNumberId?: string;
+  businessAccountId?: string;
+  isConfigured: boolean;
+}
 
 const WhatsAppSettingsSchema = new Schema(
   {
@@ -351,7 +250,89 @@ const CollectionSettingsSchema = new Schema(
   { _id: false }
 );
 
+// --- Awin Settings ---
+export interface AwinSettings {
+  publisherId?: string;
+  apiToken?: string;
+  dataFeedApiKey?: string;
+  feedId?: string;
+  userLogin?: string; // Stored for manual login reference if needed
+  password?: string;
+  recoveryCode?: string;
+  enabled?: boolean;
+  isConfigured: boolean;
+}
+
+const AwinSettingsSchema = new Schema({
+  publisherId: { type: String },
+  apiToken: { type: String },
+  dataFeedApiKey: { type: String },
+  feedId: { type: String },
+  userLogin: { type: String },
+  password: { type: String },
+  recoveryCode: { type: String },
+  enabled: { type: Boolean, default: false },
+  isConfigured: { type: Boolean, default: false }
+}, { _id: false });
+
+export interface TwitterSettings {
+  bearerToken?: string;
+  apiKey?: string;
+  apiKeySecret?: string;
+  accessToken?: string;
+  accessTokenSecret?: string;
+  oauth2ClientId?: string;
+  oauth2ClientSecret?: string;
+  oauth2RedirectUri?: string;
+  oauth2AccessToken?: string;
+  oauth2RefreshToken?: string;
+  oauth2TokenExpiresAt?: Date;
+  oauth2Scope?: string;
+  tokenStatus?: 'active' | 'expiring' | 'expired';
+  username?: string;
+  isConfigured: boolean;
+}
+
+export interface AISettings {
+  provider: 'groq' | 'openai';
+  groqApiKey?: string;
+  openaiApiKey?: string;
+  isConfigured: boolean;
+}
+
+export interface CollectionSettings {
+  enabled: boolean;
+  schedule: string;
+  sources: string[];
+  niches: string[];
+}
+
 // === MAIN SCHEMA ===
+
+export interface AutomationSettings {
+  enabled: boolean;
+}
+
+export interface IUserSettings extends Document {
+  userId: string; // Changed to string to be consistent with services using string IDs
+  amazon?: AmazonSettings;
+  aliexpress?: AliExpressSettings;
+  mercadolivre?: MercadoLivreSettings;
+  awin?: AwinSettings;
+  shopee?: ShopeeSettings; // Already defined previously
+  telegram?: TelegramSettings; // Ensure this exists or use any if not found, checking...
+  instagram?: InstagramSettings;
+  whatsapp?: WhatsAppSettings;
+  x?: TwitterSettings;
+  ai?: AISettings;
+  automation?: AutomationSettings;
+  rss?: string[];
+  collectionSettings?: CollectionSettings;
+  migratedFrom?: string;
+  migratedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 const UserSettingsSchema = new Schema<IUserSettings>(
   {
@@ -361,7 +342,7 @@ const UserSettingsSchema = new Schema<IUserSettings>(
       required: true,
       unique: true,
       index: true,
-    },
+    } as any,
 
     // Afiliados
     amazon: { type: AmazonSettingsSchema, default: () => ({ isConfigured: false }) },

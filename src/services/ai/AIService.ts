@@ -669,7 +669,7 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
     if (descMatch) result.description = descMatch[1];
 
     // Extract fullPost (may contain newlines, so use multiline match)
-    const fullPostMatch = json.match(/"fullPost"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/s);
+    const fullPostMatch = json.match(/"fullPost"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/);
     if (fullPostMatch) {
       result.fullPost = fullPostMatch[1].replace(/\\n/g, '\n').replace(/\\r/g, '\r');
     }

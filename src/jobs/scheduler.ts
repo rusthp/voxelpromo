@@ -230,7 +230,7 @@ export function setupCronJobs(): void {
 
       if (!awinService.isConfigured()) return;
 
-      const feedManager = new AwinFeedManager();
+      const feedManager = new AwinFeedManager(awinService, 'system');
       const cachedFeeds = feedManager.getCachedFeeds();
 
       if (cachedFeeds.length > 0) {

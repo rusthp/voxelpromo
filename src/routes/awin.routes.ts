@@ -3,12 +3,9 @@ import { AwinService } from '../services/awin/AwinService';
 import { AwinFeedManager } from '../services/awin/AwinFeedManager';
 import { OfferModel } from '../models/Offer';
 import { logger } from '../utils/logger';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { join } from 'path';
 import { authenticate, AuthRequest } from '../middleware/auth';
 
 const router = Router();
-const configPath = join(process.cwd(), 'config.json');
 
 /**
  * @swagger
@@ -20,9 +17,10 @@ const configPath = join(process.cwd(), 'config.json');
  *       200:
  *         description: Connection test result
  */
-router.get('/test', async (_req, res) => {
+router.get('/test', authenticate, async (req: AuthRequest, res) => {
   try {
-    const awinService = new AwinService();
+    const userId = req.user!.id;
+    const awinService = await AwinService.createForUser(userId);
     const result = await awinService.testConnection();
     return res.json(result);
   } catch (error: any) {
@@ -44,12 +42,12 @@ router.get('/test', async (_req, res) => {
 router.post('/collect', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const awinService = new AwinService();
+    const awinService = await AwinService.createForUser(userId);
 
     if (!awinService.isConfigured()) {
       return res.status(400).json({
         success: false,
-        message: 'Awin não está configurado. Configure o API Token e Publisher ID.',
+        message: 'Awin não está configurado. Configure em Configurações > Awin.',
       });
     }
 
@@ -64,13 +62,12 @@ router.post('/collect', authenticate, async (req: AuthRequest, res: Response) =>
       });
     }
 
-    // Save offers to database with userId
+    // Save offers to database
     let savedCount = 0;
     let skippedCount = 0;
 
     for (const offer of offers) {
       try {
-        // Check if offer already exists FOR THIS USER (by productUrl + userId)
         const existing = await OfferModel.findOne({
           userId,
           productUrl: offer.productUrl,
@@ -80,12 +77,10 @@ router.post('/collect', authenticate, async (req: AuthRequest, res: Response) =>
           continue;
         }
 
-        // Create new offer with userId
         await OfferModel.create({ ...offer, userId });
         savedCount++;
       } catch (saveError: any) {
         if (saveError.code === 11000) {
-          // Duplicate key error
           skippedCount++;
         } else {
           logger.warn(`Error saving Awin offer: ${saveError.message}`);
@@ -120,17 +115,25 @@ router.post('/collect', authenticate, async (req: AuthRequest, res: Response) =>
  *       200:
  *         description: Awin configuration
  */
-router.get('/config', (_req, res) => {
+router.get('/config', authenticate, async (req: AuthRequest, res) => {
   try {
-    if (existsSync(configPath)) {
-      const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-      return res.json({
-        enabled: config.awin?.enabled ?? false,
-        apiToken: config.awin?.apiToken ? '***' : '',
-        publisherId: config.awin?.publisherId || '',
-      });
-    }
-    return res.json({ enabled: false, apiToken: '', publisherId: '' });
+    const userId = req.user!.id;
+    const { getUserSettingsService } = await import('../services/user/UserSettingsService');
+    const settingsService = getUserSettingsService();
+    const settings = await settingsService.getSettings(userId);
+    const awin = settings?.awin || { isConfigured: false };
+
+    return res.json({
+      enabled: awin.enabled ?? false,
+      apiToken: awin.apiToken ? '***' : '',
+      publisherId: awin.publisherId || '',
+      dataFeedApiKey: awin.dataFeedApiKey ? '***' : '',
+      feedId: awin.feedId || '',
+      userLogin: awin.userLogin || '',
+      hasPassword: !!awin.password,
+      hasRecoveryCode: !!awin.recoveryCode,
+      isConfigured: awin.isConfigured
+    });
   } catch (error: any) {
     logger.error('Error reading Awin config:', error);
     return res.status(500).json({ error: error.message });
@@ -160,42 +163,47 @@ router.get('/config', (_req, res) => {
  *       200:
  *         description: Configuration saved
  */
-router.post('/config', (req, res) => {
+router.post('/config', authenticate, async (req: AuthRequest, res) => {
   try {
-    const { enabled, apiToken, publisherId, dataFeedApiKey } = req.body;
+    const userId = req.user!.id;
+    const {
+      enabled,
+      apiToken,
+      publisherId,
+      dataFeedApiKey,
+      feedId,
+      userLogin,
+      password,
+      recoveryCode
+    } = req.body;
 
-    // Load existing config
-    let existingConfig: any = {};
-    if (existsSync(configPath)) {
-      existingConfig = JSON.parse(readFileSync(configPath, 'utf-8'));
-    }
+    const { getUserSettingsService } = await import('../services/user/UserSettingsService');
+    const settingsService = getUserSettingsService();
+    const currentSettings = await settingsService.getSettings(userId);
+    const currentAwin = currentSettings?.awin || {} as any;
 
-    // Update Awin config
-    existingConfig.awin = {
-      enabled: enabled ?? existingConfig.awin?.enabled ?? false,
-      apiToken: apiToken && apiToken !== '***' ? apiToken : existingConfig.awin?.apiToken || '',
-      publisherId: publisherId || existingConfig.awin?.publisherId || '',
-      dataFeedApiKey:
-        dataFeedApiKey && dataFeedApiKey !== '***'
-          ? dataFeedApiKey
-          : existingConfig.awin?.dataFeedApiKey || '',
+    const newSettings = {
+      ...currentAwin,
+      enabled: enabled ?? currentAwin.enabled ?? false,
+      apiToken: apiToken && apiToken !== '***' ? apiToken : currentAwin.apiToken,
+      publisherId: publisherId || currentAwin.publisherId,
+      dataFeedApiKey: dataFeedApiKey && dataFeedApiKey !== '***' ? dataFeedApiKey : currentAwin.dataFeedApiKey,
+      feedId: feedId || currentAwin.feedId,
+      userLogin: userLogin || currentAwin.userLogin,
+      password: password && password !== '***' ? password : currentAwin.password,
+      recoveryCode: recoveryCode && recoveryCode !== '***' ? recoveryCode : currentAwin.recoveryCode,
     };
 
-    // Also update environment for immediate use
-    if (existingConfig.awin.apiToken) {
-      process.env.AWIN_API_TOKEN = existingConfig.awin.apiToken;
-    }
-    if (existingConfig.awin.publisherId) {
-      process.env.AWIN_PUBLISHER_ID = existingConfig.awin.publisherId;
-    }
-    if (existingConfig.awin.dataFeedApiKey) {
-      process.env.AWIN_DATA_FEED_API_KEY = existingConfig.awin.dataFeedApiKey;
-    }
-    process.env.AWIN_ENABLED = String(existingConfig.awin.enabled);
+    // Determine isConfigured
+    // Valid if we have minimal info: apiToken + publisherId OR login + (password or something)
+    // Actually the standard API needs token+publisherId.
+    // The feed logic needs feedId or dataFeedApiKey.
+    const hasApi = !!(newSettings.apiToken && newSettings.publisherId);
+    newSettings.isConfigured = hasApi; // or other condition
 
-    // Save config
-    writeFileSync(configPath, JSON.stringify(existingConfig, null, 2));
-    logger.info('✅ Awin config saved');
+    await settingsService.updateSettings(userId, { awin: newSettings });
+
+    logger.info(`✅ Awin config saved for user ${userId}`);
 
     return res.json({ success: true, message: 'Configuração Awin salva' });
   } catch (error: any) {
@@ -214,14 +222,19 @@ router.post('/config', (req, res) => {
  *       200:
  *         description: List of available feeds with download URLs
  */
-router.get('/feeds', async (_req, res) => {
+router.get('/feeds', authenticate, async (req: AuthRequest, res) => {
   try {
-    const awinService = new AwinService();
+    const userId = req.user!.id;
+    const awinService = await AwinService.createForUser(userId);
+
+    // Note: AwinService has a specific method check? hasDataFeedApiKey()
+    // Since we removed 'hasDataFeedApiKey' from public interface in Refactor? No, it's inherited from NetworkApiAbstract probably?
+    // Let's check NetworkApiAbstract... It has 'hasDataFeedApiKey()'.
 
     if (!awinService.hasDataFeedApiKey()) {
       return res.status(400).json({
         success: false,
-        message: 'Data Feed API Key não configurada. Configure em Awin → Create-a-Feed.',
+        message: 'Data Feed API Key (ou Token) não configurado.',
       });
     }
 
@@ -243,26 +256,6 @@ router.get('/feeds', async (_req, res) => {
  *   post:
  *     summary: Download and import products from a feed URL (USER-SCOPED)
  *     tags: [Awin]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [feedUrl]
- *             properties:
- *               feedUrl:
- *                 type: string
- *                 description: Full download URL from feed list
- *               maxProducts:
- *                 type: number
- *                 default: 100
- *               save:
- *                 type: boolean
- *                 default: false
- *     responses:
- *       200:
- *         description: Products downloaded and optionally saved
  */
 router.post('/feeds/download', authenticate, async (req: AuthRequest, res: Response) => {
   try {
@@ -276,7 +269,7 @@ router.post('/feeds/download', authenticate, async (req: AuthRequest, res: Respo
       });
     }
 
-    const awinService = new AwinService();
+    const awinService = await AwinService.createForUser(userId);
     const offers = await awinService.downloadFeed(feedUrl, maxProducts);
 
     if (offers.length === 0) {
@@ -337,13 +330,11 @@ router.post('/feeds/download', authenticate, async (req: AuthRequest, res: Respo
  *   get:
  *     summary: Get list of advertisers/accounts the publisher has access to
  *     tags: [Awin]
- *     responses:
- *       200:
- *         description: List of Awin accounts
  */
-router.get('/advertisers', async (_req, res) => {
+router.get('/advertisers', authenticate, async (req: AuthRequest, res) => {
   try {
-    const awinService = new AwinService();
+    const userId = req.user!.id;
+    const awinService = await AwinService.createForUser(userId);
 
     if (!awinService.isConfigured()) {
       return res.status(400).json({
@@ -369,28 +360,6 @@ router.get('/advertisers', async (_req, res) => {
  *   post:
  *     summary: Fetch products from an advertiser's product feed (USER-SCOPED)
  *     tags: [Awin]
- *     parameters:
- *       - in: path
- *         name: advertiserId
- *         required: true
- *         schema:
- *           type: string
- *         description: Awin Advertiser ID
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               locale:
- *                 type: string
- *                 default: pt_BR
- *               save:
- *                 type: boolean
- *                 default: false
- *     responses:
- *       200:
- *         description: Products fetched from advertiser feed
  */
 router.post('/products/:advertiserId', authenticate, async (req: AuthRequest, res: Response) => {
   try {
@@ -398,7 +367,7 @@ router.post('/products/:advertiserId', authenticate, async (req: AuthRequest, re
     const { advertiserId } = req.params;
     const { locale = 'pt_BR', save = false } = req.body;
 
-    const awinService = new AwinService();
+    const awinService = await AwinService.createForUser(userId);
 
     if (!awinService.isConfigured()) {
       return res.status(400).json({
@@ -468,42 +437,14 @@ router.post('/products/:advertiserId', authenticate, async (req: AuthRequest, re
  *   get:
  *     summary: Get products with caching and filters
  *     tags: [Awin]
- *     parameters:
- *       - in: path
- *         name: advertiserId
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: minPrice
- *         schema:
- *           type: number
- *       - in: query
- *         name: maxPrice
- *         schema:
- *           type: number
- *       - in: query
- *         name: minDiscount
- *         schema:
- *           type: number
- *       - in: query
- *         name: maxProducts
- *         schema:
- *           type: number
- *       - in: query
- *         name: forceRefresh
- *         schema:
- *           type: boolean
- *     responses:
- *       200:
- *         description: Filtered products from cache or fresh download
  */
-router.get('/cached-products/:advertiserId', async (req, res) => {
+router.get('/cached-products/:advertiserId', authenticate, async (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.id;
     const { advertiserId } = req.params;
     const { minPrice, maxPrice, minDiscount, maxProducts, forceRefresh, locale } = req.query;
 
-    const feedManager = new AwinFeedManager();
+    const feedManager = await AwinFeedManager.createForUser(userId);
     const products = await feedManager.getProducts(advertiserId, {
       minPrice: minPrice ? parseFloat(minPrice as string) : undefined,
       maxPrice: maxPrice ? parseFloat(maxPrice as string) : undefined,
@@ -530,13 +471,11 @@ router.get('/cached-products/:advertiserId', async (req, res) => {
  *   get:
  *     summary: Get feed cache statistics
  *     tags: [Awin]
- *     responses:
- *       200:
- *         description: Cache statistics
  */
-router.get('/cache/stats', (_req, res) => {
+router.get('/cache/stats', authenticate, async (req: AuthRequest, res) => {
   try {
-    const feedManager = new AwinFeedManager();
+    const userId = req.user!.id;
+    const feedManager = await AwinFeedManager.createForUser(userId);
     const stats = feedManager.getStats();
     const cachedFeeds = feedManager.getCachedFeeds();
 
@@ -563,23 +502,12 @@ router.get('/cache/stats', (_req, res) => {
  *   delete:
  *     summary: Clear feed cache
  *     tags: [Awin]
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               advertiserId:
- *                 type: string
- *                 description: Optional - clear only this advertiser's cache
- *     responses:
- *       200:
- *         description: Cache cleared
  */
-router.delete('/cache/clear', (req, res) => {
+router.delete('/cache/clear', authenticate, async (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.id;
     const { advertiserId } = req.body;
-    const feedManager = new AwinFeedManager();
+    const feedManager = await AwinFeedManager.createForUser(userId);
 
     if (advertiserId) {
       feedManager.clearAdvertiserCache(advertiserId);

@@ -1,8 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { Offer } from '../../types';
 import { logger } from '../../utils/logger';
-import { readFileSync, existsSync } from 'fs';
-import { join } from 'path';
+import { AwinSettings } from '../../models/UserSettings';
 import {
   NetworkApiAbstract,
   NetworkApiConfig,
@@ -37,11 +36,26 @@ export class AwinService extends NetworkApiAbstract {
   private client: AxiosInstance;
   private enabled: boolean = false;
 
-  constructor() {
-    // Load config and create instance
-    const { config, metadata, enabled } = AwinService.loadConfiguration();
+  constructor(settings?: AwinSettings, userId?: string) {
+    // Map settings to metadata
+    const metadata: NetworkMetadata = {
+      token: settings?.apiToken,
+      publisherId: settings?.publisherId,
+      dataFeedApiKey: settings?.dataFeedApiKey,
+    };
+
+    // Use default config for URLs or allow override if we stored it
+    const config = DEFAULT_AWIN_API_CONFIG;
+
     super(config, metadata);
-    this.enabled = enabled;
+
+    this.enabled = settings?.enabled || false;
+
+    if (this.enabled && metadata.token && metadata.publisherId) {
+      logger.info(`✅ Awin service initialized for user ${userId || 'unknown'}`);
+    } else {
+      logger.debug(`⚠️ Awin service not fully configured for user ${userId || 'unknown'}`);
+    }
 
     this.client = axios.create({
       baseURL: 'https://api.awin.com',
@@ -53,63 +67,15 @@ export class AwinService extends NetworkApiAbstract {
   }
 
   /**
-   * Load Awin configuration from config.json or environment variables
+   * Factory method to create AwinService for a specific user
    */
-  private static loadConfiguration(): {
-    config: NetworkApiConfig;
-    metadata: NetworkMetadata;
-    enabled: boolean;
-  } {
-    let metadata: NetworkMetadata = {};
-    let config: NetworkApiConfig = { ...DEFAULT_AWIN_API_CONFIG };
-    let enabled = false;
+  static async createForUser(userId: string): Promise<AwinService> {
+    const { getUserSettingsService } = await import('../user/UserSettingsService');
+    const settingsService = getUserSettingsService();
+    const settings = await settingsService.getSettings(userId);
 
-    // Try environment variables first
-    const envToken = process.env.AWIN_API_TOKEN;
-    const envPublisherId = process.env.AWIN_PUBLISHER_ID;
-    const envEnabled = process.env.AWIN_ENABLED === 'true';
-    const envDataFeedKey = process.env.AWIN_DATA_FEED_API_KEY;
-
-    if (envToken && envPublisherId) {
-      metadata = {
-        token: envToken,
-        publisherId: envPublisherId,
-        dataFeedApiKey: envDataFeedKey,
-      };
-      enabled = envEnabled;
-      logger.debug('✅ Awin config loaded from environment variables');
-    }
-
-    // Try config.json (can override env vars)
-    try {
-      const configPath = join(process.cwd(), 'config.json');
-      if (existsSync(configPath)) {
-        const fileConfig = JSON.parse(readFileSync(configPath, 'utf-8'));
-        if (fileConfig.awin?.apiToken && fileConfig.awin?.publisherId) {
-          metadata = {
-            token: fileConfig.awin.apiToken,
-            publisherId: fileConfig.awin.publisherId,
-            dataFeedApiKey: fileConfig.awin.dataFeedApiKey,
-          };
-          enabled = fileConfig.awin.enabled ?? false;
-
-          // Load custom API URLs if provided
-          if (fileConfig.awin.apiLinks) {
-            config = { ...config, ...fileConfig.awin.apiLinks };
-          }
-
-          logger.debug('✅ Awin config loaded from config.json');
-        }
-      }
-    } catch (error) {
-      logger.warn('⚠️ Could not load Awin config from config.json');
-    }
-
-    if (!metadata.token || !metadata.publisherId) {
-      logger.warn('⚠️ Awin not configured - set AWIN_API_TOKEN and AWIN_PUBLISHER_ID');
-    }
-
-    return { config, metadata, enabled };
+    // settings.awin matches AwinSettings interface
+    return new AwinService(settings?.awin, userId);
   }
 
   /**

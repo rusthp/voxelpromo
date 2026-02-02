@@ -18,9 +18,10 @@ export class OfferService {
   private telegramService: TelegramService | null = null;
   private whatsappService: IWhatsAppService | null = null;
   private xService: XService | null = null;
-  private instagramService: InstagramService | null = null;
+
   private vectorizerService: VectorizerService | null = null;
   private telegramServices: Map<string, TelegramService> = new Map();
+  private instagramServices: Map<string, InstagramService> = new Map();
 
   constructor() {
     // Lazy initialization - only create services when needed
@@ -99,11 +100,27 @@ export class OfferService {
     return this.xService;
   }
 
-  private getInstagramService(): InstagramService {
-    if (!this.instagramService) {
-      this.instagramService = new InstagramService();
+
+
+  /**
+   * Get Instagram service for specific user (Multi-tenant)
+   */
+  private async getInstagramServiceForUser(userId: string): Promise<InstagramService | null> {
+    if (!userId) return null;
+
+    if (this.instagramServices.has(userId)) {
+      return this.instagramServices.get(userId)!;
     }
-    return this.instagramService;
+
+    try {
+      // Use the static factory method
+      const service = await InstagramService.createForUser(userId);
+      this.instagramServices.set(userId, service);
+      return service;
+    } catch (e) {
+      logger.error(`Failed to load instagram settings for user ${userId}`, e);
+      return null;
+    }
   }
 
   private getVectorizerService(): VectorizerService {
@@ -852,7 +869,13 @@ export class OfferService {
           } else {
             // Proceed with posting
             logger.info(`📤 Attempting to post offer ${offerId} to Instagram`);
-            const igResult = await this.getInstagramService().sendOffer(offer);
+            const igService = await this.getInstagramServiceForUser(offer.userId!);
+            if (!igService) {
+              logger.warn(`⚠️ Failed to load Instagram service for user ${offer.userId}`);
+              throw new Error('Instagram service could not be initialized for user');
+            }
+
+            const igResult = await igService.sendOffer(offer);
             if (igResult.success) { // ... existing success logic (next block)
               postedChannels.push('instagram');
               success = true;

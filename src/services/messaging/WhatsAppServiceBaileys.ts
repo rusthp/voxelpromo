@@ -8,9 +8,10 @@ import { IWhatsAppService } from './IWhatsAppService';
 import QRCode from 'qrcode';
 import { JIDValidator } from './whatsapp/utils/JIDValidator';
 import { RetryHelper } from './whatsapp/utils/RetryHelper';
-import { readdirSync, unlinkSync, rmdirSync, existsSync, readFileSync } from 'fs';
+import { readdirSync, unlinkSync, rmdirSync, existsSync } from 'fs';
 import { join } from 'path';
-import { loadConfigFromFile } from '../../utils/loadConfig';
+import { UserSettingsModel } from '../../models/UserSettings';
+
 
 /**
  * WhatsApp Service usando Baileys (recomendado - mais leve e rápido)
@@ -30,43 +31,48 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
   private messagesSent = 0;
   private messagesFailed = 0;
 
-  constructor() {
-    // Load target number from environment or config
-    this.loadTargetNumber();
+  private userId?: string; // For multi-tenancy
+  private authFolder: string = 'auth_info_baileys'; // Default, will be overridden for valid users
+
+  constructor(userId?: string) {
+    this.userId = userId;
+    if (this.userId) {
+      this.authFolder = `auth_info_baileys_${this.userId}`;
+    }
   }
 
   /**
-   * Load target number and groups from environment or config.json
+   * Factory method: Create service for a specific user
    */
-  private loadTargetNumber(forceReload: boolean = false): void {
-    // Use loadConfigFromFile to ensure env vars are up to date
-    loadConfigFromFile(forceReload);
+  static async createForUser(userId: string): Promise<WhatsAppServiceBaileys> {
+    const service = new WhatsAppServiceBaileys(userId);
+    await service.loadSettings();
+    return service;
+  }
 
-    // Read from environment (which was set by loadConfigFromFile)
-    this.targetNumber = process.env.WHATSAPP_TARGET_NUMBER || '';
+  /**
+   * Load settings from UserSettings
+   */
+  private async loadSettings(): Promise<void> {
+    if (!this.userId) return;
 
-    // Load targetGroups from config.json directly
     try {
-      const configPath = join(process.cwd(), 'config.json');
-      if (existsSync(configPath)) {
-        const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-        this.targetGroups = config.whatsapp?.targetGroups || [];
+      const settings = await UserSettingsModel.findOne({ userId: this.userId }).select('whatsapp');
+      if (settings?.whatsapp) {
+        this.targetNumber = settings.whatsapp.targetNumber || '';
+        this.targetGroups = settings.whatsapp.targetGroups || [];
+
+        // Backward compatibility: use targetNumber as single group if no groups defined
+        if (this.targetGroups.length === 0 && this.targetNumber) {
+          this.targetGroups = [this.targetNumber];
+        }
       }
     } catch (error) {
-      logger.warn('Could not load targetGroups from config.json:', error);
-      this.targetGroups = [];
-    }
-
-    // Retrocompatibilidade: se targetGroups vazio, usar targetNumber
-    if (this.targetGroups.length === 0 && this.targetNumber) {
-      this.targetGroups = [this.targetNumber];
-      if (forceReload) {
-        logger.debug(`Using targetNumber as single target: ${this.targetNumber}`);
-      }
-    } else if (this.targetGroups.length > 0 && forceReload) {
-      logger.debug(`Loaded ${this.targetGroups.length} target groups from config`);
+      logger.error(`Error loading WhatsApp settings for user ${this.userId}:`, error);
     }
   }
+
+
 
   /**
    * Generate QR code as Data URL (base64-encoded PNG image)
@@ -116,8 +122,8 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
       const makeWASocket = baileys.default;
       const { useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = baileys;
 
-      logger.debug('🔐 Loading auth state...');
-      const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+      logger.debug(`🔐 Loading auth state from ${this.authFolder}...`);
+      const { state, saveCreds } = await useMultiFileAuthState(this.authFolder);
 
       logger.debug('📡 Fetching latest Baileys version...');
       const { version } = await fetchLatestBaileysVersion();
@@ -308,9 +314,8 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
             this.lastError = 'Dispositivo removido do WhatsApp. Escaneie o QR code novamente.';
             this.sock = null;
 
-            // Clear auth files to force new QR code
             try {
-              const authDir = join(process.cwd(), 'auth_info_baileys');
+              const authDir = join(process.cwd(), this.authFolder);
 
               if (existsSync(authDir)) {
                 logger.info('Limpando arquivos de autenticação após remoção do dispositivo...');
@@ -361,9 +366,8 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
             this.qrCodeTimestamp = 0; // Clear timestamp
             this.sock = null; // Clear socket to allow fresh start
 
-            // Clear authentication files to force new QR code on next initialization
             try {
-              const authDir = join(process.cwd(), 'auth_info_baileys');
+              const authDir = join(process.cwd(), this.authFolder);
 
               if (existsSync(authDir)) {
                 logger.info('Clearing authentication files after logout...');
@@ -389,6 +393,7 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
               // Continue anyway
             }
           }
+
         }
 
         // Handle connection open (successful connection)
@@ -403,6 +408,7 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
           logger.info('📱 WhatsApp (Baileys) está pronto para enviar mensagens!');
           logger.debug(`   Target: ${this.targetNumber || 'not configured'}`);
         }
+
       });
 
       // Listen for messages to help identify group IDs
@@ -497,44 +503,19 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
    * Initialize service
    */
   async initialize(force = false): Promise<void> {
-    // Reload config before checking (force reload only if explicitly requested)
-    this.loadTargetNumber(force);
-
-    // Check enabled from env or config
-    let enabled = process.env.WHATSAPP_ENABLED === 'true';
-
-    // Always check config.json to ensure we have the latest
-    try {
-      const configPath = join(process.cwd(), 'config.json');
-
-      if (existsSync(configPath)) {
-        const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-        if (config.whatsapp?.enabled !== undefined) {
-          // Config overrides env unless env is explicitly 'true' (forced enabled)
-          if (process.env.WHATSAPP_ENABLED !== 'true') {
-            enabled = config.whatsapp.enabled === true;
-          }
-          process.env.WHATSAPP_ENABLED = enabled.toString();
-          logger.debug(`WhatsApp enabled status loaded from config: ${enabled}`);
-        }
-        if (config.whatsapp?.targetNumber && !this.targetNumber) {
-          this.targetNumber = config.whatsapp.targetNumber;
-          process.env.WHATSAPP_TARGET_NUMBER = this.targetNumber;
-          logger.debug(`WhatsApp target number loaded from config: ${this.targetNumber}`);
-        }
-      }
-    } catch (error) {
-      logger.warn('Error loading WhatsApp config:', error);
+    // For multi-tenant, settings are already loaded in constructor/factory
+    if (this.userId) {
+      await this.loadSettings();
     }
 
-    if (!enabled || !this.targetNumber) {
-      const reason = !enabled ? 'not enabled' : 'target number not configured';
-      logger.warn(
-        `⚠️ WhatsApp (Baileys) ${reason}. Enabled: ${enabled}, Target: ${this.targetNumber || 'empty'}`
-      );
-      logger.debug(
-        `   To enable: Set WHATSAPP_ENABLED=true and WHATSAPP_TARGET_NUMBER in config.json or .env`
-      );
+    // For legacy single-tenant (if userId is missing)
+    if (!this.userId) {
+      // Fallback to env vars if needed, but we encourage multi-tenant
+      this.targetNumber = process.env.WHATSAPP_TARGET_NUMBER || '';
+    }
+
+    if (!this.targetNumber && !this.targetGroups.length) {
+      logger.warn(`⚠️ WhatsApp (Baileys) target number not configured for user ${this.userId || 'system'}`);
       return;
     }
 
@@ -569,7 +550,7 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
 
       // Clear authentication files to force new QR code generation
       try {
-        const authDir = join(process.cwd(), 'auth_info_baileys');
+        const authDir = join(process.cwd(), this.authFolder);
 
         if (existsSync(authDir)) {
           logger.info('Clearing old Baileys authentication files to generate new QR code...');

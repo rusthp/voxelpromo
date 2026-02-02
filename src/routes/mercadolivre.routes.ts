@@ -1,55 +1,65 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import crypto from 'crypto';
-import { MercadoLivreService } from '../services/mercadolivre/MercadoLivreService';
+import { MercadoLivreService, MercadoLivreProduct } from '../services/mercadolivre/MercadoLivreService';
 import { logger } from '../utils/logger';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { join } from 'path';
-import axios from 'axios';
-import { authenticate } from '../middleware/auth';
+import { authenticate, AuthRequest } from '../middleware/auth';
+import { getUserSettingsService } from '../services/user/UserSettingsService';
 
 const router = Router();
-const mercadoLivreService = new MercadoLivreService();
 
-// Helper to get Mercado Livre credentials
-const getMercadoLivreConfig = () => {
-  const configPath = join(process.cwd(), 'config.json');
-  if (!existsSync(configPath)) {
-    throw new Error('Config file not found');
+// Helper to get ML service for a specific user
+const getServiceForUser = async (userId: string): Promise<MercadoLivreService> => {
+  const userSettingsService = getUserSettingsService();
+  const settings = await userSettingsService.getSettings(userId);
+
+  if (!settings || !settings.mercadolivre) {
+    throw new Error('Mercado Livre settings not found for user');
   }
 
-  const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-
-  if (!config.mercadolivre) {
-    throw new Error('Mercado Livre config not found');
-  }
-
-  return {
-    clientId: config.mercadolivre.clientId,
-    clientSecret: config.mercadolivre.clientSecret,
-    accessToken: config.mercadolivre.accessToken,
-    refreshToken: config.mercadolivre.refreshToken,
-    tokenExpiresAt: config.mercadolivre.tokenExpiresAt,
-  };
+  // Inject user specific config
+  return new MercadoLivreService({
+    clientId: settings.mercadolivre.clientId || '',
+    clientSecret: settings.mercadolivre.clientSecret || '',
+    redirectUri: settings.mercadolivre.redirectUri || '',
+    accessToken: settings.mercadolivre.accessToken,
+    refreshToken: settings.mercadolivre.refreshToken,
+    tokenExpiresAt: settings.mercadolivre.tokenExpiresAt ? new Date(settings.mercadolivre.tokenExpiresAt).getTime() : undefined,
+    affiliateCode: settings.mercadolivre.affiliateCode,
+    codeVerifier: settings.mercadolivre.codeVerifier,
+    sessionCookies: settings.mercadolivre.sessionCookies,
+    csrfToken: settings.mercadolivre.csrfToken,
+    affiliateTag: settings.mercadolivre.affiliateTag
+  });
 };
 
 /**
  * GET /api/mercadolivre/status
  * Diagnostic route to test token and check user status
  */
-router.get('/status', async (_req: Request, res: Response) => {
+router.get('/status', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const config = getMercadoLivreConfig();
+    const userId = req.user!.id;
+    const userSettingsService = getUserSettingsService();
+    const settings = await userSettingsService.getSettings(userId);
 
-    if (!config.accessToken) {
+    const mlSettings = settings?.mercadolivre;
+
+    if (!mlSettings?.accessToken) {
       return res.json({
         success: false,
         error: 'No access token configured',
-        configured: false,
+        configured: !!(mlSettings?.clientId && mlSettings?.clientSecret),
       });
     }
 
-    // Test token by calling /users/me
+    // Isolate service for this user
+    const mercadoLivreService = await getServiceForUser(userId);
+    const config = mercadoLivreService.getConfig();
+
+    // Test token by calling /users/me via the service (or direct axios if preferred, but service is cleaner if it had a getUser method)
+    // We'll keep the direct axios call here for diagnostic clarity, but use the USER'S access token
     try {
+      const { default: axios } = await import('axios');
       const userResponse = await axios.get('https://api.mercadolibre.com/users/me', {
         headers: {
           Authorization: `Bearer ${config.accessToken} `,
@@ -82,12 +92,11 @@ router.get('/status', async (_req: Request, res: Response) => {
           userType: userData.user_type,
         },
         permissions: {
-          canRead: true, // If we got here, read permission works
-          canWrite: userData.status === 'active', // Only active users can write
+          canRead: true,
+          canWrite: userData.status === 'active',
         },
       });
     } catch (apiError: any) {
-      // Token is configured but API call failed
       const status = apiError.response?.status;
       const errorData = apiError.response?.data;
 
@@ -102,10 +111,7 @@ router.get('/status', async (_req: Request, res: Response) => {
         diagnosis: {
           403: status === 403 ? 'Token sem permissão (verificar scopes ou usuário inativo)' : null,
           401: status === 401 ? 'Token inválido ou expirado (renovar autenticação)' : null,
-          other:
-            status && status !== 403 && status !== 401
-              ? `Erro ${status}: ${errorData?.message} `
-              : null,
+          other: `Erro ${status}: ${errorData?.message} `
         },
       });
     }
@@ -122,25 +128,35 @@ router.get('/status', async (_req: Request, res: Response) => {
  * GET /api/mercadolivre/auth/url
  * Get authorization URL for OAuth flow
  */
-router.get('/auth/url', (req, res) => {
+router.get('/auth/url', authenticate, async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
+    const mercadoLivreService = await getServiceForUser(userId);
+
+    // Check if client ID is configured
+    const config = mercadoLivreService.getConfig();
+    if (!config.clientId || !config.redirectUri) {
+      return res.status(400).json({
+        success: false,
+        error: 'Client ID and Redirect URI must be configured in settings first.'
+      });
+    }
+
     const state = (req.query.state as string) || crypto.randomBytes(16).toString('hex');
+    // Encode userId in state to verify later if needed, though we rely on auth middleware
     const { url: authUrl, codeVerifier } = mercadoLivreService.getAuthorizationUrl(state);
 
-    // Save codeVerifier to config.json for later use in exchange
-    const configPath = join(process.cwd(), 'config.json');
-    let config: any = {};
+    // Save codeVerifier to UserSettings (DB)
+    const userSettingsService = getUserSettingsService();
+    const currentSettings = await userSettingsService.getSettings(userId);
 
-    if (existsSync(configPath)) {
-      config = JSON.parse(readFileSync(configPath, 'utf-8'));
-    }
-
-    if (!config.mercadolivre) {
-      config.mercadolivre = {};
-    }
-
-    config.mercadolivre.codeVerifier = codeVerifier;
-    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+    await userSettingsService.updateSettings(userId, {
+      mercadolivre: {
+        ...currentSettings?.mercadolivre,
+        codeVerifier: codeVerifier,
+        isConfigured: !!currentSettings?.mercadolivre?.isConfigured // Preserve or update based on logic
+      }
+    });
 
     return res.json({
       success: true,
@@ -160,9 +176,10 @@ router.get('/auth/url', (req, res) => {
  * POST /api/mercadolivre/auth/exchange
  * Exchange authorization code for access token (manual)
  */
-router.post('/auth/exchange', async (req, res) => {
+router.post('/auth/exchange', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { code } = req.body;
+    const userId = req.user!.id;
 
     if (!code) {
       return res.status(400).json({
@@ -171,28 +188,27 @@ router.post('/auth/exchange', async (req, res) => {
       });
     }
 
+    const mercadoLivreService = await getServiceForUser(userId);
+
     // Exchange code for token
+    // Service will use the codeVerifier injected from UserSettings in getServiceForUser
     const tokens = await mercadoLivreService.exchangeCodeForToken(code);
 
-    // Save tokens to config.json
-    const configPath = join(process.cwd(), 'config.json');
-    let config: any = {};
+    // Save tokens to UserSettings
+    const userSettingsService = getUserSettingsService();
+    const currentSettings = await userSettingsService.getSettings(userId);
 
-    if (existsSync(configPath)) {
-      config = JSON.parse(readFileSync(configPath, 'utf-8'));
-    }
+    await userSettingsService.updateSettings(userId, {
+      mercadolivre: {
+        ...currentSettings?.mercadolivre,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+        isConfigured: true
+      }
+    });
 
-    if (!config.mercadolivre) {
-      config.mercadolivre = {};
-    }
-
-    config.mercadolivre.accessToken = tokens.access_token;
-    config.mercadolivre.refreshToken = tokens.refresh_token;
-    config.mercadolivre.tokenExpiresAt = Date.now() + tokens.expires_in * 1000;
-
-    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-
-    logger.info('✅ Mercado Livre tokens saved to config.json');
+    logger.info(`✅ Mercado Livre tokens saved for user ${userId}`);
 
     return res.json({
       success: true,
@@ -208,49 +224,6 @@ router.post('/auth/exchange', async (req, res) => {
     });
   } catch (error: any) {
     logger.error('Error exchanging code for token:', error);
-
-    // Handle specific OAuth errors
-    if (error.response?.status === 400) {
-      const errorData = error.response.data;
-      const errorType = errorData?.error || '';
-      const errorDescription = errorData?.error_description || '';
-
-      // OAuth specific errors
-      if (errorType === 'invalid_grant' || errorDescription.includes('invalid_grant')) {
-        return res.status(400).json({
-          success: false,
-          error: 'Código OAuth expirado ou já usado. Os códigos expiram em 10 minutos.',
-          details: {
-            error: 'invalid_grant',
-            error_description: errorDescription,
-          },
-        });
-      }
-
-      if (errorType === 'invalid_client' || errorDescription.includes('invalid_client')) {
-        return res.status(400).json({
-          success: false,
-          error: 'Client ID ou Client Secret inválidos. Verifique as credenciais.',
-          details: errorData,
-        });
-      }
-
-      return res.status(400).json({
-        success: false,
-        error: errorDescription || error.message || 'Erro ao trocar código por token',
-        details: errorData,
-      });
-    }
-
-    // Handle missing credentials
-    if (error.message?.includes('Client ID or Client Secret not configured')) {
-      return res.status(400).json({
-        success: false,
-        error: 'Client Secret não configurado. Por favor, salve o Client Secret primeiro.',
-        details: { error: 'missing_credentials' },
-      });
-    }
-
     return res.status(500).json({
       success: false,
       error: error.message || 'Failed to exchange code for token',
@@ -263,9 +236,10 @@ router.post('/auth/exchange', async (req, res) => {
  * GET /api/mercadolivre/auth/callback
  * Handle OAuth callback and exchange code for token
  */
-router.get('/auth/callback', async (req, res) => {
+router.get('/auth/callback', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { code, error } = req.query;
+    const userId = req.user!.id;
 
     if (error) {
       logger.error('OAuth error:', error);
@@ -282,28 +256,26 @@ router.get('/auth/callback', async (req, res) => {
       });
     }
 
+    const mercadoLivreService = await getServiceForUser(userId);
+
     // Exchange code for token
     const tokens = await mercadoLivreService.exchangeCodeForToken(code as string);
 
-    // Save tokens to config.json
-    const configPath = join(process.cwd(), 'config.json');
-    let config: any = {};
+    // Save tokens to UserSettings
+    const userSettingsService = getUserSettingsService();
+    const currentSettings = await userSettingsService.getSettings(userId);
 
-    if (existsSync(configPath)) {
-      config = JSON.parse(readFileSync(configPath, 'utf-8'));
-    }
+    await userSettingsService.updateSettings(userId, {
+      mercadolivre: {
+        ...currentSettings?.mercadolivre,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+        isConfigured: true
+      }
+    });
 
-    if (!config.mercadolivre) {
-      config.mercadolivre = {};
-    }
-
-    config.mercadolivre.accessToken = tokens.access_token;
-    config.mercadolivre.refreshToken = tokens.refresh_token;
-    config.mercadolivre.tokenExpiresAt = Date.now() + tokens.expires_in * 1000;
-
-    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-
-    logger.info('✅ Mercado Livre tokens saved to config.json');
+    logger.info(`✅ Mercado Livre tokens saved for user ${userId}`);
 
     return res.json({
       success: true,
@@ -324,29 +296,27 @@ router.get('/auth/callback', async (req, res) => {
  * POST /api/mercadolivre/auth/refresh
  * Manually refresh access token
  */
-router.post('/auth/refresh', async (_req, res) => {
+router.post('/auth/refresh', authenticate, async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
+    const mercadoLivreService = await getServiceForUser(userId);
+
     const tokens = await mercadoLivreService.refreshAccessToken();
 
-    // Save tokens to config.json
-    const configPath = join(process.cwd(), 'config.json');
-    let config: any = {};
+    // Save tokens to UserSettings
+    const userSettingsService = getUserSettingsService();
+    const currentSettings = await userSettingsService.getSettings(userId);
 
-    if (existsSync(configPath)) {
-      config = JSON.parse(readFileSync(configPath, 'utf-8'));
-    }
+    await userSettingsService.updateSettings(userId, {
+      mercadolivre: {
+        ...currentSettings?.mercadolivre,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+      }
+    });
 
-    if (!config.mercadolivre) {
-      config.mercadolivre = {};
-    }
-
-    config.mercadolivre.accessToken = tokens.access_token;
-    config.mercadolivre.refreshToken = tokens.refresh_token;
-    config.mercadolivre.tokenExpiresAt = Date.now() + tokens.expires_in * 1000;
-
-    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-
-    logger.info('✅ Mercado Livre tokens refreshed and saved');
+    logger.info(`✅ Mercado Livre tokens refreshed for user ${userId}`);
 
     return res.json({
       success: true,
@@ -371,9 +341,12 @@ router.post('/auth/refresh', async (_req, res) => {
  * GET /api/mercadolivre/auth/status
  * Check authentication status
  */
-router.get('/auth/status', async (_req, res) => {
+router.get('/auth/status', authenticate, async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
+    const mercadoLivreService = await getServiceForUser(userId);
     const config = mercadoLivreService.getConfig();
+
     const now = Date.now();
     const expiresAt = config.tokenExpiresAt || 0;
     const isExpired = expiresAt && now >= expiresAt;
@@ -398,60 +371,42 @@ router.get('/auth/status', async (_req, res) => {
 /**
  * POST /api/mercadolivre/scrape-url
  * Scrape products from a custom Mercado Livre URL
- * Useful for specific offers pages like /ofertas?container_id=MLB779362-1
  */
-router.post('/scrape-url', authenticate, async (req: any, res) => {
+router.post('/scrape-url', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { url, saveToDatabase = true } = req.body;
-    const userId = req.user?.id;
+    const userId = req.user!.id;
 
     if (!url) {
-      return res.status(400).json({
-        success: false,
-        error: 'URL is required',
-      });
+      return res.status(400).json({ success: false, error: 'URL is required' });
     }
 
-    // Validate it's a Mercado Livre URL
     if (!url.includes('mercadolivre.com.br') && !url.includes('mercadolibre.com')) {
-      return res.status(400).json({
-        success: false,
-        error: 'URL must be from Mercado Livre',
-      });
+      return res.status(400).json({ success: false, error: 'URL must be from Mercado Livre' });
     }
 
     logger.info(`🕷️ Starting custom URL scrape: ${url}`);
 
-    // Use singleton instance to avoid concurrency issues
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { MercadoLivreScraper } = require('../services/mercadolivre/MercadoLivreScraper');
+    // Dynamic import to avoid circular dependency / load on demand
+    const { MercadoLivreScraper } = await import('../services/mercadolivre/MercadoLivreScraper');
     const scraper = MercadoLivreScraper.getInstance();
-
-    // Note: Don't call closeSession() - the singleton manages its own session lifecycle
     const products = await scraper.scrapeSearchResults(url);
 
-    logger.info(`✅ Scraped ${products.length} products from custom URL`);
-
     if (products.length === 0) {
-      return res.json({
-        success: true,
-        message: 'No products found on this page',
-        products: [],
-        saved: 0,
-      });
+      return res.json({ success: true, message: 'No products found', products: [], saved: 0 });
     }
 
     let savedCount = 0;
-
     if (saveToDatabase) {
-      // Convert and save to database
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { OfferService } = require('../services/offer/OfferService');
+      // We need the service instantiated for THIS user to get their affiliate code
+      const mercadoLivreService = await getServiceForUser(userId);
+      const { OfferService } = await import('../services/offer/OfferService');
       const offerService = new OfferService();
 
       const offers = await Promise.all(
         products.map(async (product: any) => {
           try {
+            // Bind context to user-specific service
             return await mercadoLivreService.convertToOffer(product, 'ofertas');
           } catch (e) {
             return null;
@@ -459,67 +414,49 @@ router.post('/scrape-url', authenticate, async (req: any, res) => {
         })
       );
 
-      const validOffers = offers.filter((o: any) => o !== null);
-      // Add userId to each offer before saving
-      validOffers.forEach((offer: any) => {
-        if (offer && !offer.userId && userId) {
-          offer.userId = userId;
-        }
+      const validOffers = offers.filter((o: any) => o !== null) as any[];
+      // Cast to Offer[] for the service call
+      const cleanOffers = validOffers as any as import('../types').Offer[];
+
+      cleanOffers.forEach((offer) => {
+        if (offer) offer.userId = userId;
       });
-      savedCount = await offerService.saveOffers(validOffers, userId);
-      logger.info(`💾 Saved ${savedCount} offers to database`);
+
+      savedCount = await offerService.saveOffers(cleanOffers, userId);
     }
 
     return res.json({
       success: true,
       message: `Scraped ${products.length} products`,
-      products: products.slice(0, 10), // Return first 10 for preview
+      products: products.slice(0, 10),
       totalFound: products.length,
       saved: savedCount,
     });
   } catch (error: any) {
     logger.error('Error scraping custom URL:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
 /**
  * GET /api/mercadolivre/collect-daily-offers
- * Collect offers from the default ML offers page (one-click collection)
- * Uses: https://www.mercadolivre.com.br/ofertas#nav-header
  */
-router.get('/collect-daily-offers', authenticate, async (req: any, res) => {
+router.get('/collect-daily-offers', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user!.id;
     const DEFAULT_OFFERS_URL = 'https://www.mercadolivre.com.br/ofertas#nav-header';
 
-    logger.info(`🔥 Collecting daily offers from default page: ${DEFAULT_OFFERS_URL}`);
-
-    // Use singleton instance to avoid concurrency issues
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { MercadoLivreScraper } = require('../services/mercadolivre/MercadoLivreScraper');
+    const { MercadoLivreScraper } = await import('../services/mercadolivre/MercadoLivreScraper');
     const scraper = MercadoLivreScraper.getInstance();
-
-    // Note: Don't call closeSession() - the singleton manages its own session lifecycle
     const products = await scraper.scrapeDailyDeals();
 
-    logger.info(`✅ Collected ${products.length} offers from daily deals page`);
-
     if (products.length === 0) {
-      return res.json({
-        success: true,
-        message: 'No offers found on the page',
-        products: [],
-        saved: 0,
-      });
+      return res.json({ success: true, message: 'No offers found', products: [], saved: 0 });
     }
 
-    // Convert and save to database
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { OfferService } = require('../services/offer/OfferService');
+    // Get user specific service for conversion
+    const mercadoLivreService = await getServiceForUser(userId);
+    const { OfferService } = await import('../services/offer/OfferService');
     const offerService = new OfferService();
 
     const offers = await Promise.all(
@@ -532,62 +469,42 @@ router.get('/collect-daily-offers', authenticate, async (req: any, res) => {
       })
     );
 
-    const validOffers = offers.filter((o: any) => o !== null);
-    // Add userId to each offer before saving
-    validOffers.forEach((offer: any) => {
-      if (offer && !offer.userId && userId) {
-        offer.userId = userId;
-      }
-    });
-    const savedCount = await offerService.saveOffers(validOffers, userId);
+    const validOffers = offers.filter((o: any) => o !== null) as any[]; // Cast to any[] first to avoid detailed type checks here, or imply Offer[] if we had the type.
+    // Better yet, knowing saveOffers expects Offer[], let's trust the runtime check
+    const cleanOffers = validOffers as any as import('../types').Offer[];
 
-    logger.info(`💾 Saved ${savedCount} offers to database`);
+    cleanOffers.forEach((offer) => {
+      if (offer) offer.userId = userId;
+    });
+
+    const savedCount = await offerService.saveOffers(cleanOffers, userId);
 
     return res.json({
       success: true,
-      message: `Collected ${products.length} offers, saved ${savedCount} to database`,
+      message: `Collected ${products.length} offers`,
       url: DEFAULT_OFFERS_URL,
-      products: products.slice(0, 5), // Preview first 5
+      products: products.slice(0, 5),
       totalFound: products.length,
       saved: savedCount,
     });
   } catch (error: any) {
     logger.error('Error collecting daily offers:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
 /**
  * POST /api/mercadolivre/generate-affiliate-link
- * Generate affiliate link for a single product URL
- * Body: { url: string }
- * Returns: { success: boolean, originalUrl: string, affiliateUrl: string }
  */
-router.post('/generate-affiliate-link', async (req, res) => {
+router.post('/generate-affiliate-link', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { url } = req.body;
+    const userId = req.user!.id;
 
-    if (!url) {
-      return res.status(400).json({
-        success: false,
-        error: 'URL is required',
-      });
-    }
+    if (!url) return res.status(400).json({ success: false, error: 'URL is required' });
 
-    // Validate it's a Mercado Livre URL
-    if (!url.includes('mercadolivre.com.br') && !url.includes('mercadolibre.com')) {
-      return res.status(400).json({
-        success: false,
-        error: 'URL must be from Mercado Livre',
-      });
-    }
-
-    logger.info(`🔗 Generating affiliate link for: ${url.substring(0, 60)}...`);
-
-    // Try internal API first (generates short links like mercadolivre.com/sec/...)
+    // Use user specific service
+    const mercadoLivreService = await getServiceForUser(userId);
     const internalLink = await mercadoLivreService.generateAffiliateLink(url);
 
     if (internalLink) {
@@ -600,21 +517,16 @@ router.post('/generate-affiliate-link', async (req, res) => {
       });
     }
 
-    // Fallback: Build affiliate link using Social Link params
-    // This requires affiliateCode to be configured
+    // Fallback: Check if affiliate code is configured in user settings
     const config = mercadoLivreService.getConfig();
-
     if (!config.affiliateCode) {
       return res.status(400).json({
         success: false,
-        error: 'Affiliate code not configured. Please set your Social Link in settings.',
-        help: 'Go to Settings > Affiliate > Mercado Livre and paste your Social Link URL',
+        error: 'Affiliate code not configured.',
       });
     }
 
-    // Use the service's internal method via a workaround
-    // Create a fake product to get the affiliate link
-    const fakeProduct = {
+    const fakeProduct: MercadoLivreProduct = {
       id: 'TEMP',
       title: 'Temp',
       price: 0,
@@ -637,16 +549,10 @@ router.post('/generate-affiliate-link', async (req, res) => {
       });
     }
 
-    return res.status(500).json({
-      success: false,
-      error: 'Failed to generate affiliate link',
-    });
+    return res.status(500).json({ success: false, error: 'Failed to generate affiliate link' });
   } catch (error: any) {
     logger.error('Error generating affiliate link:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 

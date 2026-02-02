@@ -134,6 +134,7 @@ export class UserSettingsService {
 
     // Amazon
     if (payload.amazon) {
+      if (!settings.amazon) settings.amazon = { isConfigured: false };
       settings.amazon.accessKey = updateIfNotMasked(
         settings.amazon.accessKey,
         payload.amazon.accessKey
@@ -149,6 +150,7 @@ export class UserSettingsService {
 
     // AliExpress
     if (payload.aliexpress) {
+      if (!settings.aliexpress) settings.aliexpress = { isConfigured: false };
       settings.aliexpress.appKey = updateIfNotMasked(
         settings.aliexpress.appKey,
         payload.aliexpress.appKey
@@ -166,6 +168,7 @@ export class UserSettingsService {
 
     // Mercado Livre
     if (payload.mercadolivre) {
+      if (!settings.mercadolivre) settings.mercadolivre = { isConfigured: false };
       settings.mercadolivre.clientId =
         payload.mercadolivre.clientId ?? settings.mercadolivre.clientId;
       settings.mercadolivre.clientSecret = updateIfNotMasked(
@@ -203,6 +206,7 @@ export class UserSettingsService {
 
     // Awin
     if (payload.awin) {
+      if (!settings.awin) settings.awin = { isConfigured: false };
       settings.awin.apiToken = updateIfNotMasked(settings.awin.apiToken, payload.awin.apiToken);
       settings.awin.publisherId = payload.awin.publisherId ?? settings.awin.publisherId;
       settings.awin.dataFeedApiKey = updateIfNotMasked(
@@ -215,6 +219,7 @@ export class UserSettingsService {
 
     // Shopee
     if (payload.shopee) {
+      if (!settings.shopee) settings.shopee = { isConfigured: false };
       settings.shopee.feedUrls = payload.shopee.feedUrls ?? settings.shopee.feedUrls;
       settings.shopee.affiliateCode = payload.shopee.affiliateCode ?? settings.shopee.affiliateCode;
       settings.shopee.minDiscount = payload.shopee.minDiscount ?? settings.shopee.minDiscount;
@@ -228,6 +233,7 @@ export class UserSettingsService {
 
     // Telegram
     if (payload.telegram) {
+      if (!settings.telegram) settings.telegram = { isConfigured: false };
       settings.telegram.botToken = updateIfNotMasked(
         settings.telegram.botToken,
         payload.telegram.botToken
@@ -240,6 +246,7 @@ export class UserSettingsService {
 
     // Instagram
     if (payload.instagram) {
+      if (!settings.instagram) settings.instagram = { isConfigured: false };
       settings.instagram.appId = updateIfNotMasked(
         settings.instagram.appId,
         payload.instagram.appId
@@ -267,6 +274,7 @@ export class UserSettingsService {
 
     // WhatsApp
     if (payload.whatsapp) {
+      if (!settings.whatsapp) settings.whatsapp = { isConfigured: false };
       settings.whatsapp.enabled = payload.whatsapp.enabled ?? settings.whatsapp.enabled;
       settings.whatsapp.targetNumber =
         payload.whatsapp.targetNumber ?? settings.whatsapp.targetNumber;
@@ -281,6 +289,7 @@ export class UserSettingsService {
 
     // X (Twitter)
     if (payload.x) {
+      if (!settings.x) settings.x = { isConfigured: false };
       settings.x.bearerToken = updateIfNotMasked(settings.x.bearerToken, payload.x.bearerToken);
       settings.x.apiKey = updateIfNotMasked(settings.x.apiKey, payload.x.apiKey);
       settings.x.apiKeySecret = updateIfNotMasked(settings.x.apiKeySecret, payload.x.apiKeySecret);
@@ -318,6 +327,7 @@ export class UserSettingsService {
 
     // AI
     if (payload.ai) {
+      if (!settings.ai) settings.ai = { isConfigured: false, provider: 'groq' };
       settings.ai.provider = payload.ai.provider ?? settings.ai.provider;
       settings.ai.groqApiKey = updateIfNotMasked(settings.ai.groqApiKey, payload.ai.groqApiKey);
       settings.ai.openaiApiKey = updateIfNotMasked(
@@ -438,33 +448,34 @@ export class UserSettingsService {
     }>
   ): Promise<IUserSettings> {
     const settings = await this.getSettings(userId);
+    if (!settings.instagram) settings.instagram = { isConfigured: false };
 
     if (updates.isConfigured !== undefined) {
-      settings.instagram.isConfigured = updates.isConfigured;
+      settings.instagram!.isConfigured = updates.isConfigured;
     }
     if (updates.pendingOAuth !== undefined) {
-      settings.instagram.pendingOAuth = updates.pendingOAuth;
+      settings.instagram!.pendingOAuth = updates.pendingOAuth;
     }
     if (updates.appId !== undefined) {
-      settings.instagram.appId = updates.appId;
+      settings.instagram!.appId = updates.appId;
     }
     if (updates.appSecret !== undefined) {
-      settings.instagram.appSecret = updates.appSecret;
+      settings.instagram!.appSecret = updates.appSecret;
     }
     if (updates.webhookVerifyToken !== undefined) {
-      settings.instagram.webhookVerifyToken = updates.webhookVerifyToken;
+      settings.instagram!.webhookVerifyToken = updates.webhookVerifyToken;
     }
     if (updates.autoReplyDM !== undefined) {
-      settings.instagram.autoReplyDM = updates.autoReplyDM;
+      settings.instagram!.autoReplyDM = updates.autoReplyDM;
     }
     if (updates.welcomeMessage !== undefined) {
-      settings.instagram.welcomeMessage = updates.welcomeMessage;
+      settings.instagram!.welcomeMessage = updates.welcomeMessage;
     }
     if (updates.keywordReplies !== undefined) {
-      settings.instagram.keywordReplies = updates.keywordReplies;
+      settings.instagram!.keywordReplies = updates.keywordReplies;
     }
     if (updates.conversionKeywords !== undefined) {
-      settings.instagram.conversionKeywords = updates.conversionKeywords;
+      settings.instagram!.conversionKeywords = updates.conversionKeywords;
     }
 
     await settings.save();
@@ -488,22 +499,23 @@ export class UserSettingsService {
     }
   ): Promise<IUserSettings> {
     const settings = await this.getSettings(userId);
+    if (!settings.instagram) settings.instagram = { isConfigured: false };
 
     // Set configured flag
-    settings.instagram.isConfigured = true;
+    settings.instagram!.isConfigured = true;
 
-    if (tokens.accessToken) settings.instagram.accessToken = tokens.accessToken;
-    if (tokens.igUserId) settings.instagram.igUserId = tokens.igUserId;
-    if (tokens.username) settings.instagram.username = tokens.username;
-    if (tokens.accountType) settings.instagram.accountType = tokens.accountType;
-    if (tokens.tokenExpiresAt) settings.instagram.tokenExpiresAt = tokens.tokenExpiresAt;
-    if (tokens.tokenStatus) settings.instagram.tokenStatus = tokens.tokenStatus;
+    if (tokens.accessToken) settings.instagram!.accessToken = tokens.accessToken;
+    if (tokens.igUserId) settings.instagram!.igUserId = tokens.igUserId;
+    if (tokens.username) settings.instagram!.username = tokens.username;
+    if (tokens.accountType) settings.instagram!.accountType = tokens.accountType;
+    if (tokens.tokenExpiresAt) settings.instagram!.tokenExpiresAt = tokens.tokenExpiresAt;
+    if (tokens.tokenStatus) settings.instagram!.tokenStatus = tokens.tokenStatus;
 
-    settings.instagram.isConfigured = true;
-    if (tokens.accessToken) settings.instagram.pendingOAuth = false;
+    settings.instagram!.isConfigured = true;
+    if (tokens.accessToken) settings.instagram!.pendingOAuth = false;
 
     await settings.save();
-    logger.info(`✅ Instagram tokens saved for user: ${userId} (@${settings.instagram.username})`);
+    logger.info(`✅ Instagram tokens saved for user: ${userId} (@${settings.instagram!.username})`);
     return settings;
   }
 
@@ -549,6 +561,7 @@ export class UserSettingsService {
     redirectUri: string
   ): Promise<void> {
     const settings = await this.getSettings(userId);
+    if (!settings.instagram) settings.instagram = { isConfigured: false };
 
     // Store temporarily in instagram settings (will be cleared after OAuth)
     (settings.instagram as any)._oauthState = state;
@@ -566,6 +579,7 @@ export class UserSettingsService {
     state: string
   ): Promise<{ valid: boolean; redirectUri: string | null }> {
     const settings = await this.getSettings(userId);
+    if (!settings.instagram) return { valid: false, redirectUri: null };
 
     const savedState = (settings.instagram as any)?._oauthState;
     const redirectUri = (settings.instagram as any)?._oauthRedirectUri;

@@ -257,7 +257,7 @@ describe('CollectorService', () => {
 
       const result = await collectorService.collectFromShopee('electronics');
 
-      expect(mocks.shopeeService.getProducts).toHaveBeenCalledWith('electronics', 200);
+      expect(mocks.shopeeService.getProducts).toHaveBeenCalledWith('electronics', 100);
       expect(result).toBe(2);
     });
 
