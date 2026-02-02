@@ -1,9 +1,10 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, TestTube2, Rss, ExternalLink, RefreshCw, CheckCircle2, XCircle, AlertCircle, Plus, Trash2 } from "lucide-react";
+import { Loader2, TestTube2, Rss, ExternalLink, RefreshCw, CheckCircle2, XCircle, AlertCircle, Plus, Trash2, Copy, Check } from "lucide-react";
 import { FaAmazon } from "react-icons/fa6";
 import { SiAliexpress, SiMercadopago } from "react-icons/si";
 import { ConfigState, MlAuthStatus } from "@/types/settings";
@@ -425,14 +426,34 @@ export function AffiliateSettings({
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="mlRedirectUri">Redirect URI (Callback)</Label>
-                        <Input
-                            id="mlRedirectUri"
-                            value={config.mercadolivre.redirectUri || ""}
-                            onChange={(e) => setConfig({ ...config, mercadolivre: { ...config.mercadolivre, redirectUri: e.target.value } })}
-                            placeholder="https://voxelpromo.com ou https://proplaynews.com.br/"
-                        />
+                        <div className="flex gap-2">
+                            <Input
+                                id="mlRedirectUri"
+                                value={config.mercadolivre.redirectUri || `${typeof window !== 'undefined' ? window.location.origin : ''}/settings?tab=affiliate`}
+                                readOnly
+                                className="bg-muted text-muted-foreground font-mono text-xs"
+                            />
+                            <Button
+                                size="icon"
+                                variant="outline"
+                                onClick={() => {
+                                    const uri = config.mercadolivre.redirectUri || `${window.location.origin}/settings?tab=affiliate`;
+                                    navigator.clipboard.writeText(uri);
+                                    toast.success("URL copiada! Cole no seu aplicativo do Mercado Livre.");
+
+                                    // Ensure it's set in state if not already (safeguard)
+                                    if (!config.mercadolivre.redirectUri) {
+                                        setConfig({ ...config, mercadolivre: { ...config.mercadolivre, redirectUri: uri } });
+                                    }
+                                }}
+                                title="Copiar URL"
+                            >
+                                <Copy className="w-4 h-4" />
+                            </Button>
+                        </div>
                         <p className="text-xs text-muted-foreground">
-                            Deve ser idêntica à URL configurada no seu aplicativo do Mercado Livre.
+                            1. Copie esta URL acima. <br />
+                            2. Cole no campo "Redirect URI" dentro do seu <a href="https://developers.mercadolibre.com.br/devcenter" target="_blank" rel="noreferrer" className="underline hover:text-primary">painel de aplicativos do Mercado Livre</a>.
                         </p>
                     </div>
                     <div className="space-y-2">
