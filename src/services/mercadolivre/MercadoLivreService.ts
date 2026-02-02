@@ -885,8 +885,8 @@ export class MercadoLivreService {
           // Pass offerId if we have it, although we are creating the offer now so we might not have the ID yet if it's new.
           // But we can update it later or just track the source.
           const shortLinkDoc = await shortener.createShortLink(affiliateLink, {
-            source: 'mercadolivre_fallback',
-            offerId: product.id, // Use product ID as reference for now
+            source: `mercadolivre_fallback:${product.id}`,
+            // offerId: product.id, // REMOVED: product.id is a string (MLB...), but model expects ObjectId.
           });
 
           if (shortLinkDoc && shortLinkDoc.shortUrl) {
