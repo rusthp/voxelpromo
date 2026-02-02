@@ -32,6 +32,9 @@ async function runJobForActiveUsers(jobName: string, action: (user: any) => Prom
       try {
         await action(user);
         successCount++;
+
+        // Prevent event loop starvation: Yield for 2s between users to allow other requests (like login)
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       } catch (userError: any) {
         errorCount++;
         logger.error(

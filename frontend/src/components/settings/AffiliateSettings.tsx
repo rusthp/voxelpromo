@@ -424,6 +424,18 @@ export function AffiliateSettings({
                         />
                     </div>
                     <div className="space-y-2">
+                        <Label htmlFor="mlRedirectUri">Redirect URI (Callback)</Label>
+                        <Input
+                            id="mlRedirectUri"
+                            value={config.mercadolivre.redirectUri || ""}
+                            onChange={(e) => setConfig({ ...config, mercadolivre: { ...config.mercadolivre, redirectUri: e.target.value } })}
+                            placeholder="https://voxelpromo.com ou https://proplaynews.com.br/"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Deve ser idêntica à URL configurada no seu aplicativo do Mercado Livre.
+                        </p>
+                    </div>
+                    <div className="space-y-2">
                         <Label htmlFor="mlAffiliateCode">Social Link (Recomendado)</Label>
                         <Input
                             id="mlAffiliateCode"

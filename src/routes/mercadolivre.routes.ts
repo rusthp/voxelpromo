@@ -20,7 +20,7 @@ const getServiceForUser = async (userId: string): Promise<MercadoLivreService> =
   return new MercadoLivreService({
     clientId: settings.mercadolivre.clientId || '',
     clientSecret: settings.mercadolivre.clientSecret || '',
-    redirectUri: settings.mercadolivre.redirectUri || '',
+    redirectUri: settings.mercadolivre.redirectUri || process.env.MERCADOLIVRE_REDIRECT_URI || 'https://proplaynews.com.br/',
     accessToken: settings.mercadolivre.accessToken,
     refreshToken: settings.mercadolivre.refreshToken,
     tokenExpiresAt: settings.mercadolivre.tokenExpiresAt ? new Date(settings.mercadolivre.tokenExpiresAt).getTime() : undefined,

@@ -239,6 +239,19 @@ const Settings = () => {
     const startMlOAuth = async () => {
         try {
             setMlOAuthLoading(true);
+
+            // Auto-save settings first to ensure backend has the latest Client ID
+            try {
+                // We only need to save the main config for ML
+                await api.post('/config', config);
+                toast.success("Configurações salvas automaticamente.");
+            } catch (saveError) {
+                console.error("Auto-save failed:", saveError);
+                toast.error("Erro ao salvar configurações antes da conexão.");
+                setMlOAuthLoading(false);
+                return;
+            }
+
             const response = await api.get('/mercadolivre/auth/url');
 
             if (response.data?.authUrl) {
