@@ -29,11 +29,41 @@ export interface IUser extends Document {
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
-  // Billing & Plan
-  billing?: {
+
+  // =================================================================
+  // ACCESS CONTROL (Business Logic)
+  // Source of Truth for App Permissions
+  // =================================================================
+  access: {
+    plan: 'FREE' | 'TRIAL' | 'PRO' | 'AGENCY';
+    status: 'ACTIVE' | 'PAST_DUE' | 'CANCELED';
+    trialEndsAt?: Date;
+    validUntil?: Date; // For fixed payments (Pix/Boleto)
+    limits?: {
+      postsPerDay: number;
+    };
+  };
+
+  // =================================================================
+  // BILLING DATA (Provider Details)
+  // Source of Truth for Financials
+  // =================================================================
+  billing: {
+    // Current active provider
+    provider?: 'STRIPE' | 'MERCADOPAGO';
+
+    // Stripe Details
+    stripeCustomerId?: string;
+    stripeSubscriptionId?: string;
+
+    // Mercado Pago Details
+    mpSubscriptionId?: string; // For recurring
+    mpPaymentId?: string; // For one-off checks
+
+    // Legal / Invoice Data
     type: 'individual' | 'company';
     document: string; // CPF or CNPJ
-    name: string; // Legal Name
+    name: string;
     phone?: string;
     address?: {
       street: string;
@@ -45,27 +75,11 @@ export interface IUser extends Document {
       zipCode: string;
     };
   };
-  plan?: {
-    tier: 'free' | 'pro' | 'agency';
-    status: 'active' | 'trialing' | 'past_due' | 'canceled';
-    validUntil?: Date;
-    limits?: {
-      postsPerDay: number;
-    };
-  };
-  subscription?: {
-    planId: string; // 'trial', 'basic-monthly', 'pro', 'agency', 'premium-annual'
-    status: 'active' | 'authorized' | 'pending' | 'paused' | 'cancelled';
-    accessType: 'recurring' | 'fixed'; // recurring = card, fixed = pix/boleto
-    startDate: Date;
-    nextBillingDate?: Date;
-    endDate?: Date; // Only for annual plans
-    mpSubscriptionId?: string; // MP subscription ID (for recurring)
-    mpPaymentId?: string; // Last payment ID
-    paymentMethod?: 'card' | 'pix' | 'boleto';
-    lastPaymentDate?: Date;
-    failedAttempts?: number; // Failed billing attempts
-  };
+
+  // Legacy fields to be migrated/removed
+  plan?: any;
+  subscription?: any;
+
   // Email Verification
   emailVerified: boolean;
   emailVerificationToken?: string;
@@ -163,8 +177,36 @@ const UserSchema = new Schema<IUser>(
       whitelist: [{ type: String, trim: true }],
       blacklist: [{ type: String, trim: true }],
     },
-    // Billing & Plan
+    // Access Control
+    access: {
+      plan: {
+        type: String,
+        enum: ['FREE', 'TRIAL', 'PRO', 'AGENCY'],
+        default: 'FREE',
+      },
+      status: {
+        type: String,
+        enum: ['ACTIVE', 'PAST_DUE', 'CANCELED'],
+        default: 'ACTIVE', // Free is active by default
+      },
+      trialEndsAt: Date,
+      validUntil: Date,
+      limits: {
+        postsPerDay: { type: Number, default: 10 },
+      },
+    },
+
+    // Billing Data
     billing: {
+      provider: {
+        type: String,
+        enum: ['STRIPE', 'MERCADOPAGO'],
+      },
+      stripeCustomerId: String,
+      stripeSubscriptionId: String,
+      mpSubscriptionId: String,
+      mpPaymentId: String,
+
       type: {
         type: String,
         enum: ['individual', 'company'],
@@ -183,46 +225,10 @@ const UserSchema = new Schema<IUser>(
         zipCode: String,
       },
     },
-    plan: {
-      tier: {
-        type: String,
-        enum: ['free', 'pro', 'agency'],
-        default: 'free',
-      },
-      status: {
-        type: String,
-        enum: ['active', 'trialing', 'past_due', 'canceled'],
-        default: 'active',
-      },
-      validUntil: Date,
-      limits: {
-        postsPerDay: { type: Number, default: 10 },
-      },
-    },
-    subscription: {
-      planId: String,
-      status: {
-        type: String,
-        enum: ['active', 'authorized', 'pending', 'paused', 'cancelled'],
-        default: 'pending',
-      },
-      accessType: {
-        type: String,
-        enum: ['recurring', 'fixed'],
-        default: 'recurring',
-      },
-      startDate: Date,
-      nextBillingDate: Date,
-      endDate: Date,
-      mpSubscriptionId: String,
-      mpPaymentId: String,
-      paymentMethod: {
-        type: String,
-        enum: ['card', 'pix', 'boleto'],
-      },
-      lastPaymentDate: Date,
-      failedAttempts: { type: Number, default: 0 },
-    },
+
+    // Legacy support (to be deprecated)
+    plan: { type: Schema.Types.Mixed }, // Weak type to allow migration
+    subscription: { type: Schema.Types.Mixed },
     // Email Verification
     emailVerified: {
       type: Boolean,

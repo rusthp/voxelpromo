@@ -85,6 +85,24 @@ export function SubscriptionManager() {
         fetchSubscription();
     }, []);
 
+    const handlePortalSession = async () => {
+        setActionLoading('portal');
+        try {
+            const response = await api.post('/payments/portal-session');
+            if (response.data.url) {
+                window.location.href = response.data.url;
+            }
+        } catch (error: any) {
+            toast({
+                variant: 'destructive',
+                title: 'Erro',
+                description: error.response?.data?.error || 'Erro ao abrir portal de faturamento.'
+            });
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
     const handleCancel = async () => {
         setActionLoading('cancel');
         try {
@@ -183,6 +201,7 @@ export function SubscriptionManager() {
     const { subscription, hasAccess, daysRemaining, isRecurring, canCancel } = data;
     const planConfig = PLAN_CONFIG[subscription.planId] || PLAN_CONFIG['basic-monthly'];
     const PlanIcon = planConfig.icon;
+    const provider = (subscription as any).provider || 'mercadopago'; // or 'stripe'
 
     const normalizedStatus = subscription.status === 'active' ? 'authorized' : subscription.status;
     const statusConfig = STATUS_CONFIG[normalizedStatus] || STATUS_CONFIG.pending;
@@ -305,6 +324,24 @@ export function SubscriptionManager() {
 
                     {/* Actions */}
                     <div className="flex flex-wrap gap-3 pt-4 border-t border-white/5">
+
+                        {/* Stripe Portal Button */}
+                        {provider === 'stripe' && isRecurring && (
+                            <Button
+                                onClick={handlePortalSession}
+                                disabled={actionLoading === 'portal'}
+                                className="bg-white/10 hover:bg-white/20 text-white border-0"
+                            >
+                                {actionLoading === 'portal' ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                    <ArrowUpRight className="w-4 h-4 mr-2" />
+                                )}
+                                Gerenciar Assinatura (Portal)
+                            </Button>
+                        )}
+
+
                         {!isRecurring && hasAccess && (
                             <Button
                                 onClick={() => window.location.href = `/checkout/${subscription.planId}`}
@@ -315,7 +352,8 @@ export function SubscriptionManager() {
                             </Button>
                         )}
 
-                        {isRecurring && (subscription.status === 'authorized' || subscription.status === 'active') && (
+                        {/* Legacy / Manual Actions for Non-Stripe */}
+                        {provider !== 'stripe' && isRecurring && (subscription.status === 'authorized' || subscription.status === 'active') && (
                             <Button
                                 variant="outline"
                                 onClick={handlePause}
@@ -331,7 +369,7 @@ export function SubscriptionManager() {
                             </Button>
                         )}
 
-                        {subscription.status === 'paused' && (
+                        {provider !== 'stripe' && subscription.status === 'paused' && (
                             <Button
                                 onClick={handleReactivate}
                                 disabled={actionLoading === 'reactivate'}
@@ -355,7 +393,7 @@ export function SubscriptionManager() {
                             Mudar Plano
                         </Button>
 
-                        {canCancel && !showCancelConfirm && (
+                        {provider !== 'stripe' && canCancel && !showCancelConfirm && (
                             <Button
                                 variant="ghost"
                                 onClick={() => setShowCancelConfirm(true)}
@@ -415,7 +453,13 @@ export function SubscriptionManager() {
 
                 <a
                     href="#"
-                    className="group p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/[0.08] transition-all flex items-center gap-4"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        if (provider === 'stripe' && isRecurring) {
+                            handlePortalSession();
+                        }
+                    }}
+                    className="group p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/[0.08] transition-all flex items-center gap-4 cursor-pointer"
                 >
                     <div className="p-3 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/20">
                         <Receipt className="w-5 h-5 text-cyan-400" />

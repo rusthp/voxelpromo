@@ -36,12 +36,17 @@ router.delete('/me', authenticate, async (req: AuthRequest, res: Response) => {
     logger.info(`User account deletion requested: ${userId} (${user.email})`);
 
     // 1. Cancel active subscription (if exists)
-    if (user.subscription?.mpSubscriptionId && user.subscription?.status === 'authorized') {
+    if (user.subscription?.status === 'authorized') {
       try {
-        const { getPaymentService } = await import('../services/PaymentService');
-        const paymentService = getPaymentService();
-        await paymentService.cancelSubscription(user.subscription.mpSubscriptionId);
-        logger.info(`Subscription cancelled for deleted user: ${userId}`);
+        const { PaymentFactory } = await import('../services/payment/PaymentFactory');
+        const provider = user.subscription.provider || 'mercadopago';
+        const subId = provider === 'stripe' ? user.subscription.stripeSubscriptionId : user.subscription.mpSubscriptionId;
+
+        if (subId) {
+          const paymentService = PaymentFactory.getService(provider as any);
+          await paymentService.cancelSubscription(subId);
+          logger.info(`Subscription cancelled for deleted user: ${userId}`);
+        }
       } catch (error) {
         logger.warn(`Failed to cancel subscription for user ${userId}:`, error);
         // Continue with deletion even if subscription cancel fails

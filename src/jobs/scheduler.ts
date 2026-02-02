@@ -173,11 +173,11 @@ export function setupCronJobs(): void {
     try {
       // Import dynamically to avoid circular dependencies with User
       const { UserModel: User } = await import('../models/User'); // Re-import to be safe or use global
-      const { getPaymentService } = await import('../services/PaymentService');
+      const { PaymentFactory } = await import('../services/payment/PaymentFactory');
 
       let paymentService;
       try {
-        paymentService = getPaymentService();
+        paymentService = PaymentFactory.getService('mercadopago');
       } catch {
         logger.debug('⏭️ PaymentService not configured, skipping subscription sync');
         return;

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { initMercadoPago, CardPayment } from '@mercadopago/sdk-react';
+import { initMercadoPago } from '@mercadopago/sdk-react';
 import { Loader2, Check, Shield, ArrowLeft, CreditCard, QrCode, Barcode, Tag, Sparkles, Copy, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -161,38 +161,30 @@ export default function Checkout() {
         }
     };
 
-    // Handle CardPayment submission
-    const handleCardPaymentSubmit = useCallback(async (formData: any) => {
+    // Handle Card Payment (Stripe Redirect)
+    const handleCardPaymentSubmit = useCallback(async (_formData: any) => {
         setStep('processing');
         setErrorMessage(null);
 
         try {
-            const response = await api.post('/payments/process-subscription', {
+            // Call create-checkout endpoint
+            const response = await api.post('/payments/create-checkout', {
                 planId,
-                token: formData.token,
-                paymentMethodId: formData.payment_method_id,
-                issuerId: formData.issuer_id,
-                installments: formData.installments,
-                payerEmail: formData.payer?.email,
-                payerIdentification: formData.payer?.identification,
+                provider: 'stripe'
             });
 
-            if (response.data.success) {
-                setStep('success');
-                toast({
-                    title: "Assinatura ativada!",
-                    description: "Bem-vindo ao VoxelPromo."
-                });
-                setTimeout(() => navigate('/'), 2500);
+            if (response.data.success && response.data.initPoint) {
+                // Redirect to Stripe Checkout
+                window.location.href = response.data.initPoint;
             } else {
-                throw new Error(response.data.error || 'Erro ao processar');
+                throw new Error(response.data.error || 'Erro ao iniciar checkout');
             }
         } catch (error: any) {
             console.error('Payment error:', error);
             setStep('error');
             setErrorMessage(error.response?.data?.error || error.message || 'Erro ao processar pagamento.');
         }
-    }, [planId, navigate, toast]);
+    }, [planId]);
 
     // Handle Pix payment
     const handlePixPayment = async () => {
@@ -498,23 +490,28 @@ export default function Checkout() {
                                     </div>
                                 )}
 
-                                {/* Card Payment Form */}
-                                {paymentMethod === 'card' && MP_PUBLIC_KEY && (
-                                    <div className="border border-zinc-800 rounded-xl overflow-hidden">
-                                        <CardPayment
-                                            initialization={{ amount: totalAfterTrial / 100 }}
-                                            customization={{
-                                                paymentMethods: { maxInstallments: 1 },
-                                                visual: {
-                                                    style: { theme: 'dark', customVariables: { formBackgroundColor: '#18181b', baseColor: '#06b6d4' } },
-                                                    hidePaymentButton: false,
-                                                    texts: { formSubmit: 'Iniciar teste grátis' }
-                                                },
-                                            }}
-                                            onSubmit={handleCardPaymentSubmit}
-                                            onReady={() => console.log('CardPayment ready')}
-                                            onError={(err) => console.error('CardPayment error:', err)}
-                                        />
+                                {/* Card Payment Form (Stripe) */}
+                                {paymentMethod === 'card' && (
+                                    <div className="space-y-4">
+                                        <div className="p-4 bg-cyan-500/10 border border-cyan-500/30 rounded-xl mb-4">
+                                            <div className="flex items-start gap-3">
+                                                <CreditCard className="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" />
+                                                <div>
+                                                    <p className="text-sm font-medium text-cyan-400">Checkout Seguro via Stripe</p>
+                                                    <p className="text-xs text-zinc-400 mt-1">
+                                                        Você será redirecionado para a página segura de pagamento da Stripe para concluir sua assinatura.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <Button
+                                            onClick={() => handleCardPaymentSubmit({})}
+                                            className="w-full h-12 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-semibold rounded-xl border-0 shadow-lg hover:shadow-cyan-500/20 transition-all duration-300 transform hover:-translate-y-0.5"
+                                        >
+                                            <CreditCard className="w-4 h-4 mr-2" />
+                                            Ir para Pagamento Seguro
+                                        </Button>
                                     </div>
                                 )}
 

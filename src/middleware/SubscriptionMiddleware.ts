@@ -24,54 +24,81 @@ export const checkSubscriptionStatus = async (
         }
 
         // Fetch fresh user data (to get current plan status)
-        const user = await UserModel.findById(req.user.id).select('plan');
+        // We select 'access' as it is now the SSOT
+        const user = await UserModel.findById(req.user.id).select('access');
 
         if (!user) {
             return res.status(404).json({ error: 'Usuário não encontrado' });
         }
 
-        const { plan } = user;
+        const { access } = user;
 
-        // 1. Active Plan - Allow
-        if (plan?.status === 'active') {
+        // 1. FREE Plan - Allow? 
+        // Logic: Is this middleware meant to guard PAID features? 
+        // If so, Free should probably be blocked if feature flag not checked.
+        // Assuming this middleware blocks "Subscription Required" features.
+        // But some features might be valid for FREE.
+        // Let's assume standard behavior:
+        // If route requires subscription (using this middleware), FREE is NOT sufficient unless feature flags say otherwise.
+        // BUT wait, looking at validation/previous logic:
+        // "Blocks access to critical actions... if no valid plan"
+        // If Plan is FREE, is it valid? Yes, but maybe limited.
+        // Let's stick to: Must be ACTIVE or TRIAL.
+        // And Plan must be > FREE ? Or just "STATUS IS VALID".
+        // Let's check status first.
+
+        // 2. Check Status
+        if (access.status === 'ACTIVE') {
             return next();
         }
 
-        // 2. Trialing Plan
-        if (plan?.status === 'trialing') {
+        // 3. Check Trial
+        if (access.plan === 'TRIAL') {
             const now = new Date();
-            const validUntil = plan.validUntil ? new Date(plan.validUntil) : null;
+            const trialEndsAt = access.trialEndsAt ? new Date(access.trialEndsAt) : null;
 
-            // Check if trial is expired
-            if (validUntil && validUntil < now) {
-                logger.warn(`⏳ Trial expired for user ${user._id}. Updating status to past_due.`);
+            if (trialEndsAt && trialEndsAt < now) {
+                // Trial Expired
+                // Update status to PAST_DUE or FREE?
+                // Logic: If trial ends, usually functionality stops.
+                logger.warn(`⏳ Trial expired for user ${user._id}.`);
 
-                // Side-effect: Update status to past_due
-                user.plan!.status = 'past_due';
-                await user.save();
+                // We should ideally update DB here, but maybe lazily or via separate job.
+                // For middleware speed, we block.
 
                 return res.status(403).json({
                     error: 'TRIAL_EXPIRED',
-                    message: 'Seu período de teste expirou. Faça o upgrade para continuar aproveitando todos os recursos.',
+                    message: 'Seu período de teste expirou. Faça o upgrade para continuar.',
                 });
             }
-
-            // Valid trial - Allow
             return next();
         }
 
-        // 3. Past Due or Canceled or Unknown - Block
-        if (plan?.status === 'past_due' || plan?.status === 'canceled') {
+        // 4. Block Past Due / Canceled
+        if (access.status === 'PAST_DUE' || access.status === 'CANCELED') {
             return res.status(403).json({
-                error: 'TRIAL_EXPIRED',
-                message: 'Seu plano está inativo. Faça o upgrade para continuar.',
+                error: 'SUBSCRIPTION_INACTIVE',
+                message: 'Assinatura inativa. Verifique seu status de faturamento.',
             });
         }
 
-        // Default catch-all (safety)
+        // 5. Default Block (e.g. FREE user on PRO feature)
+        // If user is FREE and status ACTIVE, but this middleware guards a PRO route...
+        // This middleware name is `checkSubscriptionStatus`, it doesn't specify PLAN level.
+        // Usually it implies "Is account in good standing?".
+        // If I want to gate PRO features, I usually typically use `requirePlan('PRO')` or similar.
+        // But looking at existing code: "Blocks access ... if no valid plan". 
+        // I will allow FREE if status is ACTIVE. Feature limits should be checked elsewhere or here if needed.
+        // Actually, previous code: if plan?.status === 'active' return next.
+        // So if FREE users have status 'active', they pass.
+
+        if (access.plan === 'FREE' && access.status === 'ACTIVE') {
+            return next();
+        }
+
         return res.status(403).json({
             error: 'SUBSCRIPTION_REQUIRED',
-            message: 'Assinatura ativa necessária para realizar esta ação.',
+            message: 'Erro ao validar assinatura.',
         });
 
     } catch (error) {
