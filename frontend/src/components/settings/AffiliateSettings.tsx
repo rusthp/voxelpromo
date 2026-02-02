@@ -1,3 +1,4 @@
+import { useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -68,6 +69,26 @@ export function AffiliateSettings({
     onAddShopeeFeed,
     onRemoveShopeeFeed,
 }: AffiliateSettingsProps) {
+
+    // Enforce correct Redirect URI
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const correctUri = `${window.location.origin}/settings?tab=affiliate`;
+            // If uri is not set, or is set but is just the domain origin (common error), or is different from standard
+            // We want to standardise it to ensure the auto-auth flow works.
+            if (config.mercadolivre.redirectUri !== correctUri) {
+                console.log("Auto-correcting Redirect URI to:", correctUri);
+                setConfig(prev => ({
+                    ...prev,
+                    mercadolivre: {
+                        ...prev.mercadolivre,
+                        redirectUri: correctUri
+                    }
+                }));
+            }
+        }
+    }, []); // Run once on mount
+
     return (
         <div className="space-y-6">
             {/* Amazon */}
