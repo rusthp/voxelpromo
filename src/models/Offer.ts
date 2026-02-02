@@ -44,7 +44,7 @@ const OfferSchema = new Schema<OfferDocument>(
     postedChannels: [{ type: String }],
     aiGeneratedPost: { type: String },
     scheduledAt: { type: Date, index: true },
-    shortCode: { type: String, unique: true, sparse: true, index: true },
+    shortCode: { type: String, unique: true, sparse: true },
     clicks: { type: Number, default: 0 },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },

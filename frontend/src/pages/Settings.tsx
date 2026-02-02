@@ -165,27 +165,31 @@ const Settings = () => {
         fetchAutomationStatus();
         fetchMlAuthStatus();
 
-        // Check for OAuth code in URL (Automatic Flow)
-        const params = new URLSearchParams(window.location.search);
-        const urlCode = params.get('code');
-        const state = params.get('state');
-
-        // Only auto-exchange if it looks like an ML callback (has code and not already processing)
-        if (urlCode && !oauthCheckIntervalRef.current) {
-            console.log("Auto-detecting OAuth code from URL...");
-            // Clear param from URL to prevent loop/refresh issues
-            window.history.replaceState({}, '', window.location.pathname + window.location.hash);
-
-            // Set code and trigger exchange
-            setMlOAuthCode(urlCode);
-            // Wait a tick for state update
-            setTimeout(() => {
-                exchangeMlOAuthCode(urlCode);
-            }, 100);
+        // 1. POPUP LOGIC: Detect if we are the popup with a code
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        if (code && typeof window !== 'undefined' && window.opener) {
+            console.log("OAuth Code detected in popup. Sending to opener...", code);
+            window.opener.postMessage({ type: 'ML_AUTH_SUCCESS', code }, window.location.origin);
+            window.close();
+            return; // Stop further execution
         }
 
-        // Cleanup timers on unmount
+        // 2. OPENER LOGIC: Listen for the code from the popup
+        const handleMessage = (event: MessageEvent) => {
+            if (event.origin !== window.location.origin) return;
+            if (event.data?.type === 'ML_AUTH_SUCCESS' && event.data.code) {
+                console.log("Received OAuth Code from popup:", event.data.code);
+                setMlOAuthCode(event.data.code);
+                // Trigger exchange automatically
+                exchangeMlOAuthCode(event.data.code);
+            }
+        };
+        window.addEventListener('message', handleMessage);
+
+        // Cleanup function
         return () => {
+            window.removeEventListener('message', handleMessage);
             if (oauthCheckIntervalRef.current) {
                 clearInterval(oauthCheckIntervalRef.current);
             }

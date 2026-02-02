@@ -199,6 +199,8 @@ export class UserSettingsService {
       );
       settings.mercadolivre.affiliateTag =
         payload.mercadolivre.affiliateTag ?? settings.mercadolivre.affiliateTag;
+      settings.mercadolivre.codeVerifier =
+        payload.mercadolivre.codeVerifier ?? settings.mercadolivre.codeVerifier;
       settings.mercadolivre.isConfigured = !!(
         settings.mercadolivre.accessToken || settings.mercadolivre.affiliateCode
       );
