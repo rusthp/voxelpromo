@@ -165,6 +165,25 @@ const Settings = () => {
         fetchAutomationStatus();
         fetchMlAuthStatus();
 
+        // Check for OAuth code in URL (Automatic Flow)
+        const params = new URLSearchParams(window.location.search);
+        const urlCode = params.get('code');
+        const state = params.get('state');
+
+        // Only auto-exchange if it looks like an ML callback (has code and not already processing)
+        if (urlCode && !oauthCheckIntervalRef.current) {
+            console.log("Auto-detecting OAuth code from URL...");
+            // Clear param from URL to prevent loop/refresh issues
+            window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+
+            // Set code and trigger exchange
+            setMlOAuthCode(urlCode);
+            // Wait a tick for state update
+            setTimeout(() => {
+                exchangeMlOAuthCode(urlCode);
+            }, 100);
+        }
+
         // Cleanup timers on unmount
         return () => {
             if (oauthCheckIntervalRef.current) {
@@ -364,8 +383,8 @@ const Settings = () => {
         return input.trim();
     };
 
-    const exchangeMlOAuthCode = async () => {
-        const code = extractOAuthCode(mlOAuthCode);
+    const exchangeMlOAuthCode = async (directCode?: string) => {
+        const code = directCode || extractOAuthCode(mlOAuthCode);
 
         if (!code) {
             toast.error("Cole a URL completa ou o código de autorização.");
