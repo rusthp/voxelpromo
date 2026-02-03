@@ -4,7 +4,7 @@ import Joi from 'joi';
  * Validation schemas for Payment endpoints
  */
 
-const validPlans = ['free', 'performance', 'plus', 'trial', 'pro', 'agency'];
+const validPlans = ['trial', 'pro', 'agency'];
 const validPaymentMethods = ['credit_card', 'pix', 'boleto'];
 
 export const createCheckoutSchema = Joi.object({

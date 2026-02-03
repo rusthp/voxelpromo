@@ -43,81 +43,35 @@ export const PLANS: Record<string, PlanConfig> = {
     trialDays: 7,
   },
 
-  'basic-monthly': {
-    id: 'basic-monthly',
-    name: 'Basic Monthly',
-    displayName: 'Básico Mensal',
-    price: 2990, // R$ 29.90
-    priceDisplay: 'R$ 29,90/mês',
-    billingCycle: 'monthly',
-    limits: {
-      postsPerDay: 50,
-      automationRules: 5,
-      channelsAllowed: ['telegram', 'whatsapp', 'instagram', 'x'],
-    },
-    features: [
-      '50 posts por dia',
-      '5 regras de automação',
-      'Todos os canais disponíveis',
-      'Analytics básico',
-      'Suporte por email',
-    ],
-  },
-
-  'premium-annual': {
-    id: 'premium-annual',
-    name: 'Premium Annual',
-    displayName: 'Premium Anual',
-    price: 99900, // R$ 999.00 (anual - desconto de ~20%)
-    priceDisplay: 'R$ 999,00/ano',
-    billingCycle: 'yearly',
-    limits: {
-      postsPerDay: 200,
-      automationRules: 20,
-      channelsAllowed: ['telegram', 'whatsapp', 'instagram', 'x'],
-    },
-    features: [
-      '200 posts por dia',
-      '20 regras de automação',
-      'Todos os canais disponíveis',
-      'Analytics avançado',
-      'Exportação de dados',
-      'Suporte prioritário',
-      "Sem marca d'água",
-      '2 meses grátis (economia de R$ 200)',
-    ],
-    recommended: true,
-  },
-
   pro: {
     id: 'pro',
-    name: 'Pro',
-    displayName: 'Profissional',
-    price: 4990, // R$ 49.90
-    priceDisplay: 'R$ 49,90/mês',
+    name: 'Performance',
+    displayName: 'Performance',
+    price: 7990, // R$ 79.90
+    priceDisplay: 'R$ 79,90/mês',
     billingCycle: 'monthly',
     limits: {
-      postsPerDay: 100,
+      postsPerDay: 200,
       automationRules: 10,
       channelsAllowed: ['telegram', 'whatsapp', 'instagram', 'x'],
     },
     features: [
-      '100 posts por dia',
+      '200 posts por dia',
       '10 regras de automação',
-      'Todos os canais disponíveis',
-      'Analytics e relatórios',
-      'Suporte prioritário',
-      "Sem marca d'água",
+      'Todos os canais (inclui Instagram)',
+      'Filtros Seguros (Whitelist/Blacklist)',
+      'Analytics e Relatórios',
+      'Suporte Prioritário',
     ],
     recommended: true,
   },
 
   agency: {
     id: 'agency',
-    name: 'Agency',
-    displayName: 'Agência',
-    price: 19990, // R$ 199.90
-    priceDisplay: 'R$ 199,90/mês',
+    name: 'Plus',
+    displayName: 'Plus',
+    price: 11990, // R$ 119.90
+    priceDisplay: 'R$ 119,90/mês',
     billingCycle: 'monthly',
     limits: {
       postsPerDay: -1, // unlimited
@@ -125,14 +79,13 @@ export const PLANS: Record<string, PlanConfig> = {
       channelsAllowed: ['telegram', 'whatsapp', 'instagram', 'x'],
     },
     features: [
-      'Posts ilimitados',
-      'Regras de automação ilimitadas',
-      'Todos os canais disponíveis',
-      'White-label (sua marca)',
-      'API de integração',
-      'Multi-usuários (até 5)',
-      'Suporte dedicado (WhatsApp)',
-      'Consultoria mensal',
+      'Ofertas Ilimitadas',
+      'Automação Ilimitada',
+      'Múltiplas Contas',
+      'Filtros Avançados & Regex',
+      'API de Integração',
+      'Atendimento Dedicado (WhatsApp)',
+      'Consultoria Mensal',
     ],
   },
 };
