@@ -245,11 +245,12 @@ export function SubscriptionManager() {
                                     </span>
                                     <span className="flex items-center gap-1.5">
                                         <Calendar className="w-4 h-4" />
-                                        Desde {new Date(subscription.startDate).toLocaleDateString('pt-BR')}
+                                        Desde {subscription.startDate ? new Date(subscription.startDate).toLocaleDateString('pt-BR') : '-'}
                                     </span>
                                 </div>
                             </div>
                         </div>
+
 
                         {/* Access Badge */}
                         <div className={cn(
@@ -276,7 +277,7 @@ export function SubscriptionManager() {
                             <p className="text-xl font-bold text-white">
                                 {subscription.nextBillingDate
                                     ? new Date(subscription.nextBillingDate).toLocaleDateString('pt-BR')
-                                    : 'N/A'}
+                                    : (subscription.status === 'active' || subscription.status === 'authorized') ? 'Renovação Automática' : 'Indefinido'}
                             </p>
                         </div>
 
@@ -471,7 +472,7 @@ export function SubscriptionManager() {
                     </div>
                 </a>
             </div>
-        </div>
+        </div >
     );
 }
 

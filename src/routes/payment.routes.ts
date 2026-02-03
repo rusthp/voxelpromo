@@ -620,7 +620,7 @@ router.get('/status/:preferenceId', authenticate, async (req: AuthRequest, res: 
 router.get('/subscription', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const user = await UserModel.findById(userId).select('access billing email');
+    const user = await UserModel.findById(userId).select('access billing email createdAt');
 
     if (!user) {
       res.status(404).json({ success: false, error: 'User not found' });
