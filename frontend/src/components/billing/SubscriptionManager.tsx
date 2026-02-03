@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import api from '@/services/api';
 import { cn } from '@/lib/utils';
+import { getPlanById } from '@/config/plans.config';
 
 interface Subscription {
     planId: string;
@@ -346,7 +347,10 @@ export function SubscriptionManager() {
 
                         {!isRecurring && hasAccess && (
                             <Button
-                                onClick={() => window.location.href = `/checkout/${subscription.planId}`}
+                                onClick={() => {
+                                    const planExists = getPlanById(subscription.planId);
+                                    window.location.href = planExists ? `/checkout/${subscription.planId}` : '/pricing';
+                                }}
                                 className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white border-0"
                             >
                                 <ArrowUpRight className="w-4 h-4 mr-2" />
