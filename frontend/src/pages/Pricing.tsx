@@ -4,66 +4,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from "@/components/ui/badge";
 import { useNavigate, Link } from "react-router-dom";
 
-interface Plan {
-    id: string;
-    name: string;
-    displayName: string;
-    price: number;
-    priceDisplay: string;
-    features: string[];
-    recommended?: boolean;
-    trialDays?: number;
-}
+import { PLANS } from "@/config/plans.config";
 
-const PLANS: Plan[] = [
-    {
-        id: 'trial',
-        name: 'Teste Grátis',
-        displayName: 'Teste Grátis',
-        price: 0,
-        priceDisplay: '7 dias grátis',
-        features: [
-            'Acesso completo por 7 dias',
-            'Até 10 ofertas diárias',
-            'Automação básica (2 regras)',
-            'Telegram e WhatsApp',
-            'Suporte via email'
-        ],
-        trialDays: 7
-    },
-    {
-        id: 'pro',
-        name: 'Performance',
-        displayName: 'Performance',
-        price: 7990,
-        priceDisplay: 'R$ 79,90/mês',
-        features: [
-            'Alta capacidade (200 ofertas/dia)',
-            '10 regras de automação',
-            'Todos os canais (inclui Instagram)',
-            'Filtros Seguros (Whitelist/Blacklist)',
-            'Analytics e Relatórios',
-            'Suporte Prioritário'
-        ],
-        recommended: true
-    },
-    {
-        id: 'agency',
-        name: 'Plus',
-        displayName: 'Plus',
-        price: 11990,
-        priceDisplay: 'R$ 119,90/mês',
-        features: [
-            'Ofertas Ilimitadas',
-            'Automação Ilimitada',
-            'Múltiplas Contas',
-            'Filtros Avançados & Regex',
-            'API de Integração',
-            'Atendimento Dedicado (WhatsApp)',
-            'Consultoria Mensal'
-        ]
-    }
-];
+type Plan = typeof PLANS[0];
+
 
 export default function Pricing() {
     const navigate = useNavigate();

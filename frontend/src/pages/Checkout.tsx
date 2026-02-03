@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import api from "@/services/api";
+import { getPlanById } from "@/config/plans.config";
 
 // Initialize Mercado Pago SDK
 const MP_PUBLIC_KEY = import.meta.env.VITE_MP_PUBLIC_KEY;
@@ -14,16 +15,7 @@ if (MP_PUBLIC_KEY) {
     initMercadoPago(MP_PUBLIC_KEY, { locale: 'pt-BR' });
 }
 
-interface Plan {
-    id: string;
-    displayName: string;
-    description: string;
-    price: number;
-    priceDisplay: string;
-    billingCycle: string;
-    features: string[];
-    trialDays?: number;
-}
+// Plan interface defined in config
 
 const PixIcon = ({ className }: { className?: string }) => (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -31,38 +23,7 @@ const PixIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
-const PLANS_INFO: Record<string, Plan> = {
-    trial: {
-        id: 'trial',
-        displayName: 'Teste Grátis',
-        description: 'Experimente o VoxelPromo',
-        price: 0,
-        priceDisplay: 'R$ 0,00',
-        billingCycle: '7 dias grátis',
-        features: ['10 posts/dia', 'Telegram e WhatsApp', 'Suporte por email'],
-        trialDays: 7
-    },
-    pro: {
-        id: 'pro',
-        displayName: 'Performance',
-        description: 'Para afiliados profissionais',
-        price: 7990,
-        priceDisplay: 'R$ 79,90',
-        billingCycle: 'por mês',
-        features: ['200 posts/dia', 'Todos os canais', 'Analytics', 'Filtros inteligentes', 'Suporte prioritário'],
-        trialDays: 7
-    },
-    agency: {
-        id: 'agency',
-        displayName: 'Plus',
-        description: 'Para times e empresas',
-        price: 11990,
-        priceDisplay: 'R$ 119,90',
-        billingCycle: 'por mês',
-        features: ['Posts ilimitados', 'White-label', 'API', 'Suporte dedicado'],
-        trialDays: 7
-    }
-};
+// Plans defined in config
 
 type PaymentMethod = 'card' | 'pix' | 'boleto';
 type PaymentStep = 'selection' | 'pix_form' | 'boleto_form' | 'processing' | 'awaiting' | 'success' | 'error';
@@ -93,7 +54,7 @@ export default function Checkout() {
     const [boletoBarcode, setBoletoBarcode] = useState<string | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-    const plan = planId ? PLANS_INFO[planId] : null;
+    const plan = planId ? getPlanById(planId) : null;
 
     useEffect(() => {
         if (!plan) {
@@ -499,16 +460,16 @@ export default function Checkout() {
 
                                 <div className="text-center pt-8">
                                     <p className="text-xs text-zinc-400 mb-2">Ambiente seguro verificado</p>
-                                    <div className="flex justify-center gap-3 opacity-90 hover:opacity-100 transition-all duration-500">
-                                        {/* Simple icons representation or SVGs could go here */}
-                                        <div className="h-6 w-10 bg-zinc-800 rounded flex items-center justify-center border border-zinc-700">
-                                            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                                    <div className="flex justify-center gap-3">
+                                        {/* Security icons */}
+                                        <div className="h-8 w-12 bg-zinc-800 rounded flex items-center justify-center border border-zinc-700">
+                                            <ShieldCheck className="w-5 h-5 text-emerald-500" />
                                         </div>
-                                        <div className="h-6 w-10 bg-zinc-800 rounded flex items-center justify-center border border-zinc-700">
-                                            <Lock className="w-3 h-3 text-zinc-300" />
+                                        <div className="h-8 w-12 bg-zinc-800 rounded flex items-center justify-center border border-zinc-700">
+                                            <Lock className="w-4 h-4 text-zinc-300" />
                                         </div>
-                                        <div className="h-6 w-10 bg-zinc-800 rounded flex items-center justify-center border border-zinc-700">
-                                            <CreditCard className="w-3 h-3 text-zinc-300" />
+                                        <div className="h-8 w-12 bg-zinc-800 rounded flex items-center justify-center border border-zinc-700">
+                                            <CreditCard className="w-4 h-4 text-zinc-300" />
                                         </div>
                                     </div>
                                 </div>
