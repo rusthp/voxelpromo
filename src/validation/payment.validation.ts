@@ -4,7 +4,7 @@ import Joi from 'joi';
  * Validation schemas for Payment endpoints
  */
 
-const validPlans = ['free', 'performance', 'plus'];
+const validPlans = ['free', 'performance', 'plus', 'trial', 'pro', 'agency'];
 const validPaymentMethods = ['credit_card', 'pix', 'boleto'];
 
 export const createCheckoutSchema = Joi.object({
@@ -21,6 +21,10 @@ export const createCheckoutSchema = Joi.object({
         .messages({
             'any.only': `Método de pagamento inválido. Opções: ${validPaymentMethods.join(', ')}`,
         }),
+
+    provider: Joi.string()
+        .valid('stripe', 'mercadopago')
+        .optional(),
 });
 
 export const createPixSchema = Joi.object({

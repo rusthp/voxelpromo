@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { initMercadoPago } from '@mercadopago/sdk-react';
-import { Loader2, Check, Shield, ArrowLeft, CreditCard, QrCode, Barcode, Tag, Sparkles, Copy, Clock } from "lucide-react";
+import { Loader2, Check, Shield, ArrowLeft, CreditCard, QrCode, Barcode, Tag, Sparkles, Copy, Clock, Star, Zap, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
@@ -24,6 +24,12 @@ interface Plan {
     features: string[];
     trialDays?: number;
 }
+
+const PixIcon = ({ className }: { className?: string }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+        <path d="M18.1776 6.03541C17.5195 5.37728 16.4526 5.37728 15.7944 6.03541L12.0001 9.82977L8.20573 6.03541C7.54761 5.37728 6.48074 5.37728 5.82261 6.03541L2.03125 9.82677L5.82261 13.6181C6.48074 14.2763 7.54761 14.2763 8.20573 13.6181L12.0001 9.82377L15.7944 13.6181C16.4526 14.2763 17.5195 14.2763 18.1776 13.6181L21.9689 9.82677L18.1776 6.03541ZM12.0001 14.1738C10.875 14.1738 9.96291 15.0858 9.96291 16.2109C9.96291 17.336 10.875 18.2481 12.0001 18.2481C13.1251 18.2481 14.0372 17.336 14.0372 16.2109C14.0372 15.0858 13.1251 14.1738 12.0001 14.1738Z" />
+    </svg>
+);
 
 const PLANS_INFO: Record<string, Plan> = {
     trial: {
@@ -59,15 +65,19 @@ const PLANS_INFO: Record<string, Plan> = {
 };
 
 type PaymentMethod = 'card' | 'pix' | 'boleto';
-type PaymentStep = 'form' | 'processing' | 'awaiting' | 'success' | 'error';
+type PaymentStep = 'selection' | 'pix_form' | 'boleto_form' | 'processing' | 'awaiting' | 'success' | 'error';
 
 export default function Checkout() {
     const { planId } = useParams<{ planId: string }>();
     const navigate = useNavigate();
     const { toast } = useToast();
 
-    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
-    const [step, setStep] = useState<PaymentStep>('form');
+    const [step, setStep] = useState<PaymentStep>('selection');
+
+    // For One-Time payments (Pix/Boleto)
+    const [pixEmail, setPixEmail] = useState('');
+    const [pixCpf, setPixCpf] = useState('');
+
     const [promoCode, setPromoCode] = useState('');
     const [promoApplied, setPromoApplied] = useState(false);
     const [discount, setDiscount] = useState(0);
@@ -82,10 +92,6 @@ export default function Checkout() {
     const [boletoUrl, setBoletoUrl] = useState<string | null>(null);
     const [boletoBarcode, setBoletoBarcode] = useState<string | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
-
-    // Pix form
-    const [pixEmail, setPixEmail] = useState('');
-    const [pixCpf, setPixCpf] = useState('');
 
     const plan = planId ? PLANS_INFO[planId] : null;
 
@@ -116,10 +122,7 @@ export default function Checkout() {
                 setPixTimeLeft(diff);
 
                 if (diff <= 0) {
-                    // Timer expired
-                    if (timerRef.current) {
-                        clearInterval(timerRef.current);
-                    }
+                    if (timerRef.current) clearInterval(timerRef.current);
                     setStep('error');
                     setErrorMessage('Tempo expirado! Gere um novo código Pix.');
                     setPixCode(null);
@@ -137,9 +140,7 @@ export default function Checkout() {
             timerRef.current = setInterval(updateTimer, 1000);
 
             return () => {
-                if (timerRef.current) {
-                    clearInterval(timerRef.current);
-                }
+                if (timerRef.current) clearInterval(timerRef.current);
             };
         }
     }, [step, pixExpiration, toast]);
@@ -148,7 +149,10 @@ export default function Checkout() {
     const subtotal = plan?.price || 0;
     const discountAmount = discount;
     const totalAfterTrial = subtotal - discountAmount;
-    const totalDueToday = plan?.trialDays ? 0 : totalAfterTrial;
+    // For Subscription Card 1: Total due today is 0 if trial exists
+    const totalDueTodaySubscription = plan?.trialDays ? 0 : totalAfterTrial;
+    // For One-time Card 2: Total due today is full amount (no trial)
+    const totalDueTodayOneTime = totalAfterTrial;
 
     // Apply promo code
     const handleApplyPromo = () => {
@@ -162,7 +166,7 @@ export default function Checkout() {
     };
 
     // Handle Card Payment (Stripe Redirect)
-    const handleCardPaymentSubmit = useCallback(async (_formData: any) => {
+    const handleSubscriptionCheckout = useCallback(async () => {
         setStep('processing');
         setErrorMessage(null);
 
@@ -207,7 +211,6 @@ export default function Checkout() {
             if (response.data.success) {
                 setPixCode(response.data.qrCode || response.data.pixCopiaECola);
                 setPixQrCodeBase64(response.data.qrCodeBase64);
-                // Set expiration (5 minutes from now, or use response if available)
                 const expiration = response.data.expirationDate
                     ? new Date(response.data.expirationDate)
                     : new Date(Date.now() + 5 * 60 * 1000);
@@ -263,8 +266,8 @@ export default function Checkout() {
         toast({ title: "Copiado!", description: "Código copiado para a área de transferência" });
     };
 
-    // Handle trial activation
-    const handleActivateTrial = async () => {
+    // Handle trial activation (legacy/direct route if needed, but primarily Stripe trial now)
+    const handleActivateLegacyTrial = async () => {
         setStep('processing');
         try {
             await api.post('/payments/process-subscription', { planId: 'trial', token: 'trial' });
@@ -272,7 +275,7 @@ export default function Checkout() {
             navigate('/');
         } catch {
             toast({ variant: "destructive", title: "Erro ao ativar teste" });
-            setStep('form');
+            setStep('selection');
         }
     };
 
@@ -287,7 +290,7 @@ export default function Checkout() {
 
     if (!plan) return null;
 
-    // Trial plan - simplified VoxelPromo style
+    // Trial plan - simplified VoxelPromo style (Legacy Direct Trial)
     if (planId === 'trial') {
         return (
             <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
@@ -299,7 +302,7 @@ export default function Checkout() {
                     <p className="text-zinc-400 mb-6">7 dias para explorar todas as funcionalidades</p>
                     <Button
                         className="w-full h-12 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-white font-semibold rounded-xl border-0"
-                        onClick={handleActivateTrial}
+                        onClick={handleActivateLegacyTrial}
                         disabled={step === 'processing'}
                     >
                         {step === 'processing' ? <Loader2 className="animate-spin mr-2" /> : null}
@@ -338,462 +341,338 @@ export default function Checkout() {
 
                         <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
                             <span className="bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
-                                {plan.trialDays} dias grátis
+                                Vantagem Exclusiva
                             </span>
                         </h1>
 
                         <p className="text-zinc-400 mb-8">
-                            Depois, {plan.priceDisplay} {plan.billingCycle}
+                            Escolha abaixo como prefere realizar o pagamento.
                         </p>
 
-                        {/* Plan Details */}
-                        <div className="space-y-4 py-6 border-t border-zinc-800">
-                            <div className="flex justify-between items-start">
+                        {/* Plan Details Summary */}
+                        <div className="bg-zinc-900/50 rounded-xl p-6 border border-zinc-800/50 backdrop-blur-sm">
+                            <div className="flex justify-between items-start mb-4">
                                 <div>
-                                    <div className="font-medium text-white">{plan.displayName}</div>
+                                    <div className="font-medium text-white text-lg">{plan.displayName}</div>
                                     <div className="text-sm text-zinc-500">{plan.description}</div>
                                 </div>
-                                <div className="text-right">
-                                    <span className="font-medium text-cyan-400">{plan.trialDays} dias grátis</span>
+                                <div className="text-right bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+                                    <span className="font-semibold text-emerald-400 text-sm">{plan.priceDisplay}/mês</span>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Subtotal */}
-                        <div className="py-4 border-t border-zinc-800 space-y-3">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-zinc-400">Subtotal</span>
-                                <span className="text-zinc-300">{plan.priceDisplay}</span>
-                            </div>
-
-                            {/* Promo Code */}
-                            {!promoApplied ? (
-                                <button
-                                    onClick={() => setShowPromoInput(!showPromoInput)}
-                                    className="flex items-center gap-2 text-sm text-cyan-400 hover:text-cyan-300 transition-colors"
-                                >
-                                    <Tag className="w-4 h-4" />
-                                    Adicionar código promocional
-                                </button>
-                            ) : (
-                                <div className="flex justify-between text-sm text-emerald-400">
-                                    <span>Desconto (VOXEL10)</span>
-                                    <span>-R$ {(discountAmount / 100).toFixed(2).replace('.', ',')}</span>
-                                </div>
-                            )}
-
-                            {showPromoInput && !promoApplied && (
-                                <div className="flex gap-2 mt-2">
-                                    <Input
-                                        value={promoCode}
-                                        onChange={(e) => setPromoCode(e.target.value)}
-                                        placeholder="Código"
-                                        className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 h-9"
-                                    />
-                                    <Button
-                                        onClick={handleApplyPromo}
-                                        variant="outline"
-                                        className="bg-transparent border-zinc-700 text-cyan-400 hover:bg-zinc-800 h-9"
-                                    >
-                                        Aplicar
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Total */}
-                        <div className="py-4 border-t border-zinc-800 space-y-2">
-                            <div className="flex justify-between text-sm text-zinc-500">
-                                <span>Total após período de avaliação</span>
-                                <span>R$ {((totalAfterTrial) / 100).toFixed(2).replace('.', ',')}</span>
-                            </div>
-                            <div className="flex justify-between font-semibold text-lg">
-                                <span className="text-white">Total devido hoje</span>
-                                <span className="text-emerald-400">R$ {(totalDueToday / 100).toFixed(2).replace('.', ',')}</span>
-                            </div>
+                            <ul className="space-y-2">
+                                {plan.features.slice(0, 3).map((feature, i) => (
+                                    <li key={i} className="flex items-center text-sm text-zinc-400">
+                                        <Check className="w-4 h-4 text-cyan-500 mr-2 flex-shrink-0" />
+                                        {feature}
+                                    </li>
+                                ))}
+                            </ul>
                         </div>
                     </div>
                 </div>
 
-                {/* Right Column - Payment Form */}
+                {/* Right Column - Payment Selection */}
                 <div className="bg-zinc-950 lg:w-[55%] p-6 lg:p-12 flex items-start justify-center">
-                    <div className="w-full max-w-md">
+                    <div className="w-full max-w-md space-y-6">
 
-                        {step === 'form' && (
+                        {step === 'selection' && (
                             <>
                                 <h2 className="text-xl font-semibold text-white mb-6">
-                                    Inserir detalhes de pagamento
+                                    Forma de Pagamento
                                 </h2>
 
-                                {/* Payment Methods Tabs */}
-                                <div className="flex gap-2 mb-6">
-                                    <button
-                                        onClick={() => setPaymentMethod('card')}
-                                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm transition-all ${paymentMethod === 'card'
-                                            ? 'bg-zinc-800 border-2 border-cyan-500 text-cyan-400'
-                                            : 'bg-zinc-900 border border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:border-zinc-600'
-                                            }`}
-                                    >
-                                        <CreditCard className="w-4 h-4" />
-                                        Cartão
-                                    </button>
-                                    <button
-                                        onClick={() => setPaymentMethod('pix')}
-                                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm transition-all ${paymentMethod === 'pix'
-                                            ? 'bg-zinc-800 border-2 border-emerald-500 text-emerald-400'
-                                            : 'bg-zinc-900 border border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:border-zinc-600'
-                                            }`}
-                                    >
-                                        <QrCode className="w-4 h-4" />
-                                        Pix
-                                    </button>
-                                    <button
-                                        onClick={() => setPaymentMethod('boleto')}
-                                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm transition-all ${paymentMethod === 'boleto'
-                                            ? 'bg-zinc-800 border-2 border-orange-500 text-orange-400'
-                                            : 'bg-zinc-900 border border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:border-zinc-600'
-                                            }`}
-                                    >
-                                        <Barcode className="w-4 h-4" />
-                                        Boleto
-                                    </button>
+                                {/* OPTION 1: CARD (Main) */}
+                                <div
+                                    className="group relative bg-zinc-900 border-2 border-emerald-500/30 hover:border-emerald-500/60 rounded-2xl p-5 transition-all cursor-pointer shadow-lg shadow-emerald-500/5"
+                                    onClick={handleSubscriptionCheckout}
+                                >
+                                    {/* Badge */}
+                                    <div className="absolute -top-3 left-6 bg-emerald-500 text-zinc-950 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md">
+                                        <Star className="w-3 h-3 fill-current" />
+                                        RECOMENDADO
+                                    </div>
+
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20 group-hover:bg-emerald-500/20 transition-colors">
+                                            <CreditCard className="w-6 h-6 text-emerald-400" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="flex justify-between items-center">
+                                                <h3 className="font-bold text-white text-lg">Cartão de Crédito</h3>
+                                                <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
+                                                    {plan.trialDays} dias grátis
+                                                </span>
+                                            </div>
+                                            <p className="text-zinc-400 text-sm mt-0.5">Assinatura com renovação automática</p>
+                                        </div>
+                                        <ChevronRight className="w-5 h-5 text-zinc-600 group-hover:text-emerald-400 transition-colors" />
+                                    </div>
                                 </div>
 
-                                {/* Billing Type Warning */}
-                                {paymentMethod === 'card' && (
-                                    <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl mb-4">
-                                        <div className="flex items-start gap-3">
-                                            <Sparkles className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
-                                            <div>
-                                                <p className="text-sm font-medium text-amber-400">Assinatura Recorrente</p>
-                                                <p className="text-xs text-zinc-400 mt-1">
-                                                    Você será cobrado automaticamente R$ {((plan?.price || 0) / 100).toFixed(2).replace('.', ',')} por mês.
-                                                    Cancele quando quiser, sem multa.
-                                                </p>
-                                            </div>
-                                        </div>
+                                {/* Divider */}
+                                <div className="relative py-2">
+                                    <div className="absolute inset-0 flex items-center">
+                                        <span className="w-full border-t border-zinc-800" />
                                     </div>
-                                )}
-
-                                {(paymentMethod === 'pix' || paymentMethod === 'boleto') && (
-                                    <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl mb-4">
-                                        <div className="flex items-start gap-3">
-                                            <Clock className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
-                                            <div>
-                                                <p className="text-sm font-medium text-blue-400">Pagamento Único (30 dias)</p>
-                                                <p className="text-xs text-zinc-400 mt-1">
-                                                    Seu acesso será liberado por 30 dias após o pagamento.
-                                                    Renove quando quiser via Pix ou Boleto.
-                                                </p>
-                                            </div>
-                                        </div>
+                                    <div className="relative flex justify-center text-xs uppercase">
+                                        <span className="bg-zinc-950 px-2 text-zinc-500">Ou pagamento único (sem trial)</span>
                                     </div>
-                                )}
-
-                                {/* Card Payment Form (Stripe) */}
-                                {paymentMethod === 'card' && (
-                                    <div className="space-y-4">
-                                        <div className="p-4 bg-cyan-500/10 border border-cyan-500/30 rounded-xl mb-4">
-                                            <div className="flex items-start gap-3">
-                                                <CreditCard className="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" />
-                                                <div>
-                                                    <p className="text-sm font-medium text-cyan-400">Checkout Seguro via Stripe</p>
-                                                    <p className="text-xs text-zinc-400 mt-1">
-                                                        Você será redirecionado para a página segura de pagamento da Stripe para concluir sua assinatura.
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <Button
-                                            onClick={() => handleCardPaymentSubmit({})}
-                                            className="w-full h-12 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-semibold rounded-xl border-0 shadow-lg hover:shadow-cyan-500/20 transition-all duration-300 transform hover:-translate-y-0.5"
-                                        >
-                                            <CreditCard className="w-4 h-4 mr-2" />
-                                            Ir para Pagamento Seguro
-                                        </Button>
-                                    </div>
-                                )}
-
-                                {/* Pix Payment Form */}
-                                {paymentMethod === 'pix' && (
-                                    <div className="space-y-4">
-                                        <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
-                                            <div className="flex items-center gap-2 text-emerald-400 font-medium text-sm mb-1">
-                                                <QrCode className="w-4 h-4" />
-                                                Pagamento instantâneo
-                                            </div>
-                                            <p className="text-sm text-zinc-400">
-                                                Pague com Pix e seu acesso é liberado na hora.
-                                            </p>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            <div>
-                                                <label className="text-sm text-zinc-400 mb-1 block">E-mail</label>
-                                                <Input
-                                                    type="email"
-                                                    value={pixEmail}
-                                                    onChange={(e) => setPixEmail(e.target.value)}
-                                                    placeholder="seu@email.com"
-                                                    className="bg-zinc-800 border-zinc-700 text-white h-12"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="text-sm text-zinc-400 mb-1 block">CPF</label>
-                                                <Input
-                                                    value={pixCpf}
-                                                    onChange={(e) => setPixCpf(formatCpf(e.target.value))}
-                                                    placeholder="000.000.000-00"
-                                                    className="bg-zinc-800 border-zinc-700 text-white h-12"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <Button
-                                            onClick={handlePixPayment}
-                                            className="w-full h-12 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 font-semibold rounded-xl border-0"
-                                        >
-                                            <QrCode className="w-4 h-4 mr-2" />
-                                            Gerar código Pix
-                                        </Button>
-                                    </div>
-                                )}
-
-                                {/* Boleto Payment Form */}
-                                {paymentMethod === 'boleto' && (
-                                    <div className="space-y-4">
-                                        <div className="p-4 bg-orange-500/10 border border-orange-500/30 rounded-xl">
-                                            <div className="flex items-center gap-2 text-orange-400 font-medium text-sm mb-1">
-                                                <Clock className="w-4 h-4" />
-                                                Prazo de compensação
-                                            </div>
-                                            <p className="text-sm text-zinc-400">
-                                                O boleto pode levar até 3 dias úteis para ser compensado.
-                                            </p>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            <div>
-                                                <label className="text-sm text-zinc-400 mb-1 block">E-mail</label>
-                                                <Input
-                                                    type="email"
-                                                    value={pixEmail}
-                                                    onChange={(e) => setPixEmail(e.target.value)}
-                                                    placeholder="seu@email.com"
-                                                    className="bg-zinc-800 border-zinc-700 text-white h-12"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="text-sm text-zinc-400 mb-1 block">CPF</label>
-                                                <Input
-                                                    value={pixCpf}
-                                                    onChange={(e) => setPixCpf(formatCpf(e.target.value))}
-                                                    placeholder="000.000.000-00"
-                                                    className="bg-zinc-800 border-zinc-700 text-white h-12"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <Button
-                                            onClick={handleBoletoPayment}
-                                            className="w-full h-12 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 font-semibold rounded-xl border-0"
-                                        >
-                                            <Barcode className="w-4 h-4 mr-2" />
-                                            Gerar boleto
-                                        </Button>
-                                    </div>
-                                )}
-
-                                {/* Config Error */}
-                                {!MP_PUBLIC_KEY && paymentMethod === 'card' && (
-                                    <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
-                                        {errorMessage || 'Configuração de pagamento não disponível.'}
-                                    </div>
-                                )}
-
-                                {/* Footer */}
-                                <div className="flex items-center justify-center gap-4 mt-6 text-xs text-zinc-600">
-                                    <span>Powered by</span>
-                                    <span className="font-semibold text-zinc-400">mercado pago</span>
-                                    <span className="text-zinc-700">|</span>
-                                    <a href="/terms" className="hover:text-zinc-400">Termos</a>
-                                    <a href="/privacy" className="hover:text-zinc-400">Privacidade</a>
                                 </div>
+
+                                {/* OPTION 2: PIX */}
+                                <div
+                                    className="group bg-zinc-900/50 border border-zinc-800 hover:border-zinc-600 hover:bg-zinc-900 rounded-xl p-4 transition-all cursor-pointer flex items-center gap-4"
+                                    onClick={() => setStep('pix_form')}
+                                >
+                                    <div className="w-10 h-10 bg-zinc-800 rounded-lg flex items-center justify-center border border-zinc-700/50 text-cyan-400">
+                                        <PixIcon className="w-5 h-5" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex justify-between items-center">
+                                            <h3 className="font-semibold text-zinc-200">Pix</h3>
+                                            <span className="text-[10px] font-medium text-cyan-500/80 bg-cyan-500/10 px-2 py-0.5 rounded">
+                                                IMEDIATO
+                                            </span>
+                                        </div>
+                                        <p className="text-zinc-500 text-xs mt-0.5">Acesso de 30 dias (não recorrente)</p>
+                                    </div>
+                                    <ChevronRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 transition-colors" />
+                                </div>
+
+
+                                {/* OPTION 3: BOLETO */}
+                                <div
+                                    className="group bg-zinc-900/50 border border-zinc-800 hover:border-zinc-600 hover:bg-zinc-900 rounded-xl p-4 transition-all cursor-pointer flex items-center gap-4"
+                                    onClick={() => setStep('boleto_form')}
+                                >
+                                    <div className="w-10 h-10 bg-zinc-800 rounded-lg flex items-center justify-center border border-zinc-700/50">
+                                        <Barcode className="w-5 h-5 text-orange-400" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="font-semibold text-zinc-200">Boleto Bancário</h3>
+                                        <p className="text-zinc-500 text-xs mt-0.5">Compensação em até 3 dias úteis</p>
+                                    </div>
+                                    <ChevronRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 transition-colors" />
+                                </div>
+
+                                <div className="text-center pt-8">
+                                    <p className="text-xs text-zinc-600 mb-2">Ambiente seguro verificado</p>
+                                    <div className="flex justify-center gap-3 opacity-30 grayscale hover:grayscale-0 transition-all duration-500">
+                                        {/* Simple icons representation or SVGs could go here */}
+                                        <div className="h-6 w-10 bg-zinc-800 rounded"></div>
+                                        <div className="h-6 w-10 bg-zinc-800 rounded"></div>
+                                        <div className="h-6 w-10 bg-zinc-800 rounded"></div>
+                                    </div>
+                                </div>
+
                             </>
                         )}
 
-                        {/* Awaiting Payment (Pix/Boleto) */}
+                        {/* PIX FORM (Sub-step) */}
+                        {step === 'pix_form' && (
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 relative animate-in fade-in slide-in-from-right-4 duration-300">
+                                <button
+                                    onClick={() => setStep('selection')}
+                                    className="absolute top-6 left-6 text-zinc-500 hover:text-white transition-colors flex items-center gap-1 text-sm font-medium"
+                                >
+                                    <ArrowLeft className="w-4 h-4" />
+                                    Voltar
+                                </button>
+
+                                <div className="text-center mb-8 mt-4">
+                                    <div className="w-12 h-12 bg-cyan-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-cyan-500/20">
+                                        <QrCode className="w-6 h-6 text-cyan-400" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-white">Pagamento via Pix</h3>
+                                    <p className="text-zinc-400 text-sm mt-1">Preencha para gerar seu código</p>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-xs font-medium text-zinc-500 uppercase mb-1.5 block">Seu E-mail</label>
+                                        <Input
+                                            type="email"
+                                            value={pixEmail}
+                                            onChange={(e) => setPixEmail(e.target.value)}
+                                            placeholder="seu@email.com"
+                                            className="bg-zinc-950 border-zinc-800 text-white h-11 focus:ring-cyan-500/50 transition-all focus:border-cyan-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-medium text-zinc-500 uppercase mb-1.5 block">Seu CPF</label>
+                                        <Input
+                                            value={pixCpf}
+                                            onChange={(e) => setPixCpf(formatCpf(e.target.value))}
+                                            placeholder="000.000.000-00"
+                                            className="bg-zinc-950 border-zinc-800 text-white h-11 focus:ring-cyan-500/50 transition-all focus:border-cyan-500"
+                                        />
+                                    </div>
+
+                                    <div className="pt-4">
+                                        <Button
+                                            onClick={handlePixPayment}
+                                            className="w-full h-12 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 font-bold rounded-xl"
+                                        >
+                                            Gerar Código Pix
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* BOLETO FORM (Sub-step) */}
+                        {step === 'boleto_form' && (
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 relative animate-in fade-in slide-in-from-right-4 duration-300">
+                                <button
+                                    onClick={() => setStep('selection')}
+                                    className="absolute top-6 left-6 text-zinc-500 hover:text-white transition-colors flex items-center gap-1 text-sm font-medium"
+                                >
+                                    <ArrowLeft className="w-4 h-4" />
+                                    Voltar
+                                </button>
+
+                                <div className="text-center mb-8 mt-4">
+                                    <div className="w-12 h-12 bg-orange-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-orange-500/20">
+                                        <Barcode className="w-6 h-6 text-orange-400" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-white">Pagamento via Boleto</h3>
+                                    <p className="text-zinc-400 text-sm mt-1">Dados para emissão</p>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-xs font-medium text-zinc-500 uppercase mb-1.5 block">Seu E-mail</label>
+                                        <Input
+                                            type="email"
+                                            value={pixEmail}
+                                            onChange={(e) => setPixEmail(e.target.value)}
+                                            placeholder="seu@email.com"
+                                            className="bg-zinc-950 border-zinc-800 text-white h-11 focus:ring-orange-500/50 transition-all focus:border-orange-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-medium text-zinc-500 uppercase mb-1.5 block">Seu CPF</label>
+                                        <Input
+                                            value={pixCpf}
+                                            onChange={(e) => setPixCpf(formatCpf(e.target.value))}
+                                            placeholder="000.000.000-00"
+                                            className="bg-zinc-950 border-zinc-800 text-white h-11 focus:ring-orange-500/50 transition-all focus:border-orange-500"
+                                        />
+                                    </div>
+
+                                    <div className="pt-4">
+                                        <Button
+                                            onClick={handleBoletoPayment}
+                                            className="w-full h-12 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 font-bold rounded-xl"
+                                        >
+                                            Gerar Boleto
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Awaiting Payment (Pix/Boleto Results) */}
                         {step === 'awaiting' && (
-                            <div className="space-y-6">
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden animate-in zoom-in-95 duration-300">
                                 {pixCode && (
-                                    <>
-                                        <div className="relative bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 p-8 rounded-2xl overflow-hidden">
-                                            {/* Background Gradient Effect */}
-                                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-cyan-500 to-emerald-500 animate-gradient-x opacity-70"></div>
+                                    <div className="p-8 text-center relative">
+                                        {/* Pix Content */}
+                                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-cyan-500 to-emerald-500 animate-gradient-x opacity-70"></div>
 
-                                            <div className="text-center relative z-10">
-                                                <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-500/20 shadow-[0_0_30px_-5px_rgba(16,185,129,0.3)] animate-pulse-slow">
-                                                    <QrCode className="w-10 h-10 text-emerald-400" />
+                                        <h2 className="text-2xl font-bold text-white mb-2 mt-4">Pague com Pix</h2>
+                                        <p className="text-zinc-400 mb-6 text-sm">Escaneie o QR Code abaixo</p>
+
+                                        <div className="bg-white p-3 rounded-lg shadow-xl mx-auto w-fit mb-6 transform hover:scale-105 transition-transform duration-300">
+                                            {pixQrCodeBase64 ? (
+                                                <img
+                                                    src={`data:image/png;base64,${pixQrCodeBase64}`}
+                                                    alt="QR Code Pix"
+                                                    className="w-48 h-48 mix-blend-multiply"
+                                                />
+                                            ) : (
+                                                <div className="w-48 h-48 bg-zinc-100 rounded flex items-center justify-center">
+                                                    <Loader2 className="w-10 h-10 text-zinc-300 animate-spin" />
                                                 </div>
+                                            )}
+                                        </div>
 
-                                                <h2 className="text-2xl font-bold text-white mb-2">Pagamento via Pix</h2>
-                                                <p className="text-zinc-400">Escaneie o QR Code abaixo para liberar seu acesso instantaneamente.</p>
-
-                                                {/* Countdown Timer - Modern */}
-                                                <div className="mt-6 inline-flex flex-col items-center">
-                                                    <span className="text-xs text-zinc-500 mb-1 uppercase tracking-wider font-semibold">Expira em</span>
-                                                    <div className={`flex items-center gap-3 px-6 py-3 rounded-full border backdrop-blur-sm transition-colors duration-500 ${pixTimeLeft <= 60
-                                                        ? 'bg-red-500/10 border-red-500/50 text-red-400'
-                                                        : 'bg-zinc-800/80 border-cyan-500/30 text-cyan-400'
-                                                        }`}>
-                                                        <Clock className={`w-5 h-5 ${pixTimeLeft <= 60 ? 'animate-pulse' : ''}`} />
-                                                        <span className="font-mono text-2xl font-bold tracking-widest">
-                                                            {Math.floor(pixTimeLeft / 60).toString().padStart(2, '0')}:
-                                                            {(pixTimeLeft % 60).toString().padStart(2, '0')}
-                                                        </span>
-                                                    </div>
-                                                </div>
+                                        <div className="flex items-center justify-center gap-2 mb-6">
+                                            <div className={`flex items-center gap-2 px-4 py-2 rounded-full font-mono text-sm border transition-colors ${pixTimeLeft <= 60 ? 'bg-red-500/10 border-red-500/30 text-red-400 animate-pulse' : 'bg-zinc-800 border-zinc-700 text-zinc-300'}`}>
+                                                <Clock className="w-4 h-4" />
+                                                {Math.floor(pixTimeLeft / 60).toString().padStart(2, '0')}:{(pixTimeLeft % 60).toString().padStart(2, '0')}
                                             </div>
+                                        </div>
 
-                                            {/* QR Code Card */}
-                                            <div className="mt-8 bg-white p-4 rounded-xl shadow-2xl mx-auto w-fit relative group">
-                                                <div className="absolute -inset-1 bg-gradient-to-tr from-emerald-500 to-cyan-500 rounded-xl opacity-20 group-hover:opacity-40 transition duration-500 blur"></div>
-                                                <div className="relative bg-white p-2 rounded-lg">
-                                                    {pixQrCodeBase64 ? (
-                                                        <img
-                                                            src={`data:image/png;base64,${pixQrCodeBase64}`}
-                                                            alt="QR Code Pix"
-                                                            className="w-56 h-56 mix-blend-multiply"
-                                                        />
-                                                    ) : (
-                                                        <div className="w-56 h-56 bg-zinc-100 rounded flex items-center justify-center">
-                                                            <Loader2 className="w-12 h-12 text-zinc-300 animate-spin" />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* Pix Copia e Cola - Enhanced */}
-                                            <div className="mt-8 space-y-3 max-w-md mx-auto">
-                                                <div className="flex items-center justify-between text-sm">
-                                                    <label className="text-zinc-400 font-medium">Pix Copia e Cola</label>
-                                                    <span className="text-emerald-500 text-xs font-semibold animate-pulse">Aguardando pagamento...</span>
-                                                </div>
-                                                <div className="relative group">
-                                                    <Input
-                                                        readOnly
-                                                        value={pixCode}
-                                                        className="bg-black/40 border-zinc-700 text-zinc-300 font-mono text-xs h-12 pr-14 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                                                    />
-                                                    <div className="absolute right-1 top-1 bottom-1">
-                                                        <Button
-                                                            onClick={() => {
-                                                                copyToClipboard(pixCode);
-                                                                toast({ title: "Copiado!", description: "Código Pix copiado para a área de transferência." });
-                                                            }}
-                                                            variant="secondary"
-                                                            className="h-full bg-zinc-800 hover:bg-zinc-700 text-white border-none shadow-none rounded-md px-4"
-                                                        >
-                                                            <Copy className="w-4 h-4" />
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                                <p className="text-center text-xs text-zinc-500 py-2">
-                                                    Após o pagamento, a liberação é automática em poucos segundos.
-                                                </p>
-                                            </div>
-
-                                            <div className="mt-6 pt-6 border-t border-zinc-800/50 text-center">
-                                                <Button onClick={() => setStep('form')} variant="link" className="text-zinc-500 hover:text-white transition-colors">
-                                                    <ArrowLeft className="w-4 h-4 mr-2" />
-                                                    Escolher outra forma de pagamento
+                                        <div className="relative mb-6 group">
+                                            <Input
+                                                readOnly
+                                                value={pixCode}
+                                                className="bg-black/40 border-zinc-700 text-zinc-400 font-mono text-xs h-10 pr-12 text-center group-hover:border-zinc-500 transition-colors"
+                                            />
+                                            <div className="absolute right-1 top-1">
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => copyToClipboard(pixCode)}
+                                                    className="h-8 bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-600"
+                                                >
+                                                    <Copy className="w-3 h-3" />
                                                 </Button>
                                             </div>
                                         </div>
-                                    </>
+
+                                        <Button onClick={() => setStep('selection')} variant="link" className="text-zinc-500 hover:text-white">
+                                            Escolher outra forma
+                                        </Button>
+                                    </div>
                                 )}
 
                                 {boletoUrl && (
-                                    <>
-                                        <div className="text-center">
-                                            <div className="w-16 h-16 bg-orange-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-orange-500/30">
-                                                <Barcode className="w-8 h-8 text-orange-400" />
-                                            </div>
-                                            <h2 className="text-xl font-semibold text-white">Boleto gerado!</h2>
-                                            <p className="text-zinc-400 text-sm mt-1">Pague até a data de vencimento</p>
+                                    <div className="p-8 text-center">
+                                        <div className="w-16 h-16 bg-orange-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-orange-500/20">
+                                            <Barcode className="w-8 h-8 text-orange-400" />
                                         </div>
-
-                                        {boletoBarcode && (
-                                            <div className="space-y-2">
-                                                <label className="text-sm text-zinc-400">Código de barras</label>
-                                                <div className="flex gap-2">
-                                                    <Input
-                                                        readOnly
-                                                        value={boletoBarcode}
-                                                        className="bg-zinc-800 border-zinc-700 text-white font-mono text-sm"
-                                                    />
-                                                    <Button onClick={() => copyToClipboard(boletoBarcode)} variant="outline" className="border-zinc-700 hover:bg-zinc-800">
-                                                        <Copy className="w-4 h-4" />
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        )}
-
+                                        <h2 className="text-xl font-bold text-white mb-2">Boleto gerado com sucesso!</h2>
                                         <Button
                                             onClick={() => window.open(boletoUrl, '_blank')}
-                                            className="w-full h-12 bg-gradient-to-r from-orange-500 to-amber-500 font-semibold rounded-xl"
+                                            className="w-full h-12 bg-orange-600 hover:bg-orange-700 font-bold rounded-xl mb-4"
                                         >
-                                            Visualizar boleto
+                                            Visualizar Boleto
                                         </Button>
-
-                                        <Button onClick={() => setStep('form')} variant="ghost" className="w-full text-zinc-400">
-                                            Escolher outra forma de pagamento
+                                        <Button onClick={() => setStep('selection')} variant="ghost" className="text-zinc-500">
+                                            Voltar
                                         </Button>
-                                    </>
+                                    </div>
                                 )}
                             </div>
                         )}
 
                         {/* Processing State */}
                         {step === 'processing' && (
-                            <div className="flex flex-col items-center justify-center py-20">
-                                <div className="relative">
-                                    <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
-                                    <div className="absolute inset-0 rounded-full animate-ping bg-cyan-500/20" />
-                                </div>
-                                <p className="text-lg font-medium text-white mt-6">Processando...</p>
-                                <p className="text-sm text-zinc-500">Não feche esta página</p>
-                            </div>
-                        )}
-
-                        {/* Success State */}
-                        {step === 'success' && (
-                            <div className="flex flex-col items-center justify-center py-20">
-                                <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-cyan-500 rounded-2xl flex items-center justify-center mb-4">
-                                    <Check className="w-8 h-8 text-white" />
-                                </div>
-                                <p className="text-xl font-semibold text-white">Assinatura ativada!</p>
-                                <p className="text-sm text-zinc-500 mt-2">Redirecionando...</p>
+                            <div className="flex flex-col items-center justify-center py-20 animate-in fade-in duration-500">
+                                <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mb-6" />
+                                <p className="text-lg font-medium text-white">Processando...</p>
+                                <p className="text-sm text-zinc-500">Conectando ao provedor seguro</p>
                             </div>
                         )}
 
                         {/* Error State */}
                         {step === 'error' && (
-                            <div className="flex flex-col items-center justify-center py-20">
-                                <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center mb-4 border border-red-500/30">
-                                    <Shield className="w-8 h-8 text-red-400" />
-                                </div>
-                                <p className="text-xl font-semibold text-white">Erro no pagamento</p>
-                                <p className="text-sm text-zinc-500 mt-2 text-center max-w-xs">{errorMessage}</p>
+                            <div className="flex flex-col items-center justify-center py-10 bg-red-500/5 border border-red-500/20 rounded-2xl p-6 animate-in zoom-in-95 duration-300">
+                                <Shield className="w-10 h-10 text-red-400 mb-4" />
+                                <p className="text-lg font-semibold text-white">Erro no pagamento</p>
+                                <p className="text-sm text-zinc-500 mt-2 text-center mb-6">{errorMessage}</p>
                                 <Button
-                                    onClick={() => setStep('form')}
-                                    className="mt-6 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 border-0"
+                                    onClick={() => setStep('selection')}
+                                    className="bg-zinc-800 hover:bg-zinc-700 text-white"
                                 >
                                     Tentar novamente
                                 </Button>
                             </div>
                         )}
+
                     </div>
                 </div>
             </div>
