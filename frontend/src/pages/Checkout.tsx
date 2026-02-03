@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { initMercadoPago } from '@mercadopago/sdk-react';
-import { Loader2, Check, Shield, ArrowLeft, CreditCard, QrCode, Barcode, Tag, Sparkles, Copy, Clock, Star, Zap, ChevronRight } from "lucide-react";
+import { Loader2, Check, Shield, ArrowLeft, CreditCard, QrCode, Barcode, Tag, Sparkles, Copy, Clock, Star, Zap, ChevronRight, ShieldCheck, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
@@ -498,12 +498,18 @@ export default function Checkout() {
                                 </div>
 
                                 <div className="text-center pt-8">
-                                    <p className="text-xs text-zinc-600 mb-2">Ambiente seguro verificado</p>
-                                    <div className="flex justify-center gap-3 opacity-30 grayscale hover:grayscale-0 transition-all duration-500">
+                                    <p className="text-xs text-zinc-400 mb-2">Ambiente seguro verificado</p>
+                                    <div className="flex justify-center gap-3 opacity-90 hover:opacity-100 transition-all duration-500">
                                         {/* Simple icons representation or SVGs could go here */}
-                                        <div className="h-6 w-10 bg-zinc-800 rounded"></div>
-                                        <div className="h-6 w-10 bg-zinc-800 rounded"></div>
-                                        <div className="h-6 w-10 bg-zinc-800 rounded"></div>
+                                        <div className="h-6 w-10 bg-zinc-800 rounded flex items-center justify-center border border-zinc-700">
+                                            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                                        </div>
+                                        <div className="h-6 w-10 bg-zinc-800 rounded flex items-center justify-center border border-zinc-700">
+                                            <Lock className="w-3 h-3 text-zinc-300" />
+                                        </div>
+                                        <div className="h-6 w-10 bg-zinc-800 rounded flex items-center justify-center border border-zinc-700">
+                                            <CreditCard className="w-3 h-3 text-zinc-300" />
+                                        </div>
                                     </div>
                                 </div>
 
