@@ -628,18 +628,38 @@ router.get('/subscription', authenticate, async (req: AuthRequest, res: Response
     }
 
     // New logic: Access is derived from user.access.status
-    const hasAccess = user.access.status === 'ACTIVE' || (user.access.plan === 'TRIAL' && (!user.access.trialEndsAt || user.access.trialEndsAt > new Date()));
+    const now = new Date();
+    let validUntil = user.access.validUntil;
 
-    // Calculate days remaining (if applicable)
-    const daysRemaining = 0;
-    // ... complex logic for days remaining optional for now, or use validUntil
+    // If trial, use trialEndsAt as priority if no validUntil is set or if trial is later
+    if (user.access.plan === 'TRIAL' && user.access.trialEndsAt) {
+      if (!validUntil || user.access.trialEndsAt > validUntil) {
+        validUntil = user.access.trialEndsAt;
+      }
+    }
+
+    const hasAccess = user.access.status === 'ACTIVE' && (!validUntil || validUntil > now);
+
+    // Explicit lockout check
+    if (!hasAccess && user.access.status === 'ACTIVE') {
+      // Auto-expire if date passed
+      // We won't save here to avoid side-effects in GET, but we report as locked
+    }
+
+    // Calculate days remaining
+    let daysRemaining = 0;
+    if (validUntil && validUntil > now) {
+      const diffTime = Math.abs(validUntil.getTime() - now.getTime());
+      daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    }
 
     // Legacy support for frontend response shape
     const subscriptionData = {
-      planId: user.access.plan,
-      status: user.access.status.toLowerCase(),
+      planId: (user.access.plan || 'free').toLowerCase(),
+      status: hasAccess ? user.access.status.toLowerCase() : 'expired',
       provider: user.billing.provider?.toLowerCase(),
-      nextBillingDate: user.access.validUntil, // approximate mapping
+      nextBillingDate: validUntil,
+      startDate: user.createdAt, // Fallback start date
     };
 
     res.json({

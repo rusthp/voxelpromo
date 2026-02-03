@@ -176,10 +176,11 @@ export default function Checkout() {
             } else {
                 throw new Error(response.data.error || 'Erro ao iniciar checkout');
             }
-        } catch (error: any) {
+        } catch (error) {
             console.error('Payment error:', error);
             setStep('error');
-            setErrorMessage(error.response?.data?.error || error.message || 'Erro ao processar pagamento.');
+            const err = error as any;
+            setErrorMessage(err.response?.data?.error || err.message || 'Erro ao processar pagamento.');
         }
     }, [planId]);
 
@@ -213,10 +214,11 @@ export default function Checkout() {
             } else {
                 throw new Error(response.data.error || 'Erro ao gerar Pix');
             }
-        } catch (error: any) {
+        } catch (error) {
             console.error('Pix error:', error);
             setStep('error');
-            setErrorMessage(error.response?.data?.error || 'Erro ao gerar código Pix. Tente novamente.');
+            const err = error as any;
+            setErrorMessage(err.response?.data?.error || 'Erro ao gerar código Pix. Tente novamente.');
         }
     };
 
@@ -254,10 +256,11 @@ export default function Checkout() {
             } else {
                 throw new Error(response.data.error || 'Erro ao gerar Boleto');
             }
-        } catch (error: any) {
+        } catch (error) {
             console.error('Boleto error:', error);
             setStep('error');
-            setErrorMessage(error.response?.data?.error || 'Erro ao gerar boleto. Tente novamente.');
+            const err = error as any;
+            setErrorMessage(err.response?.data?.error || 'Erro ao gerar boleto. Tente novamente.');
         }
     };
 

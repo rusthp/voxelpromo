@@ -35,7 +35,7 @@ export interface User {
     };
     plan?: {
         tier: 'free' | 'pro' | 'agency';
-        status: 'active' | 'trialing' | 'past_due' | 'canceled';
+        status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired';
         validUntil?: string;
         limits?: {
             postsPerDay: number;

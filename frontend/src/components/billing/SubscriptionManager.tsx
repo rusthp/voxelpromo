@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils';
 
 interface Subscription {
     planId: string;
-    status: 'authorized' | 'pending' | 'paused' | 'cancelled';
+    status: 'authorized' | 'active' | 'pending' | 'paused' | 'cancelled' | 'canceled' | 'expired' | 'past_due';
     accessType: 'recurring' | 'fixed';
     startDate: string;
     nextBillingDate?: string;
@@ -31,6 +31,7 @@ interface Subscription {
     paymentMethod?: 'card' | 'pix' | 'boleto';
     lastPaymentDate?: string;
     failedAttempts?: number;
+    provider?: 'mercadopago' | 'stripe';
 }
 
 interface SubscriptionData {
@@ -55,7 +56,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
     pending: { label: 'Pendente', color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', icon: Clock },
     paused: { label: 'Pausada', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30', icon: Pause },
     cancelled: { label: 'Cancelada', color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/30', icon: XCircle },
-    canceled: { label: 'Cancelada', color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/30', icon: XCircle }
+    canceled: { label: 'Cancelada', color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/30', icon: XCircle },
+    expired: { label: 'Expirada', color: 'text-zinc-400', bg: 'bg-zinc-500/10', border: 'border-zinc-500/30', icon: AlertTriangle }
 };
 
 export function SubscriptionManager() {
@@ -69,7 +71,7 @@ export function SubscriptionManager() {
         try {
             const response = await api.get('/payments/subscription');
             setData(response.data.data);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to fetch subscription:', error);
             toast({
                 variant: 'destructive',
@@ -197,11 +199,10 @@ export function SubscriptionManager() {
             </div>
         );
     }
-
     const { subscription, hasAccess, daysRemaining, isRecurring, canCancel } = data;
     const planConfig = PLAN_CONFIG[subscription.planId] || PLAN_CONFIG['basic-monthly'];
     const PlanIcon = planConfig.icon;
-    const provider = (subscription as any).provider || 'mercadopago'; // or 'stripe'
+    const provider = subscription.provider || 'mercadopago'; // or 'stripe'
 
     const normalizedStatus = subscription.status === 'active' ? 'authorized' : subscription.status;
     const statusConfig = STATUS_CONFIG[normalizedStatus] || STATUS_CONFIG.pending;

@@ -87,7 +87,14 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
         createdAt: user.createdAt,
         lastLogin: user.lastLogin,
         billing: user.billing,
-        plan: user.plan,
+        // Map new access model to legacy plan structure for frontend compatibility
+        plan: {
+          tier: user.access?.plan?.toLowerCase() || 'free',
+          status: user.access?.status?.toLowerCase() || 'active',
+          validUntil: user.access?.validUntil,
+          trialEndsAt: user.access?.trialEndsAt,
+          limits: user.access?.limits,
+        },
       },
     });
   } catch (error: any) {
