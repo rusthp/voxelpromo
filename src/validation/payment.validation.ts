@@ -97,6 +97,17 @@ export const createBoletoSchema = Joi.object({
         .messages({
             'number.positive': 'Valor deve ser positivo',
         }),
+
+    address: Joi.object({
+        zip_code: Joi.string().required(),
+        street_name: Joi.string().required(),
+        street_number: Joi.alternatives().try(Joi.string(), Joi.number()).required(),
+        neighborhood: Joi.string().required(),
+        city: Joi.string().required(),
+        federal_unit: Joi.string().required().length(2)
+    }).required().messages({
+        'any.required': 'Endereço é obrigatório para boleto'
+    })
 });
 
 export const processSubscriptionSchema = Joi.object({

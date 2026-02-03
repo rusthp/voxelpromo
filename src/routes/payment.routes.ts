@@ -49,10 +49,7 @@ router.post('/create-checkout', authenticate, validate(createCheckoutSchema), as
       details: { planId, price: checkout.price },
     });
 
-    res.json({
-      success: true,
-      data: checkout,
-    });
+    res.json(checkout);
   } catch (error: any) {
     logger.error('Error creating checkout:', error);
     res.status(500).json({ success: false, error: error.message || 'Failed to create checkout' });
@@ -214,7 +211,7 @@ router.post('/create-pix', authenticate, validate(createPixSchema), async (req: 
  */
 router.post('/create-boleto', authenticate, validate(createBoletoSchema), async (req: AuthRequest, res: Response) => {
   try {
-    const { planId, payerEmail, payerCpf, amount } = req.body;
+    const { planId, payerEmail, payerCpf, amount, address } = req.body;
     const userId = req.user!.id;
 
     const user = await UserModel.findById(userId);
@@ -230,6 +227,7 @@ router.post('/create-boleto', authenticate, validate(createBoletoSchema), async 
       payerEmail,
       payerCpf,
       amount: amount || 49.9,
+      address,
     });
 
     if (result.success) {
@@ -633,7 +631,7 @@ router.get('/subscription', authenticate, async (req: AuthRequest, res: Response
     const hasAccess = user.access.status === 'ACTIVE' || (user.access.plan === 'TRIAL' && (!user.access.trialEndsAt || user.access.trialEndsAt > new Date()));
 
     // Calculate days remaining (if applicable)
-    let daysRemaining = 0;
+    const daysRemaining = 0;
     // ... complex logic for days remaining optional for now, or use validUntil
 
     // Legacy support for frontend response shape
@@ -806,7 +804,7 @@ router.post('/stripe/webhook', async (req: Request, res: Response) => {
 
     let event;
     try {
-      // @ts-ignore - Assuming req.body is Buffer if raw middleware is setupp
+      // Assuming req.body is Buffer if raw middleware is setupp
       event = (stripeService as any).constructEvent(req.body, sig as string);
     } catch (err: any) {
       logger.error(`⚠️ Webhook signature verification failed: ${err.message}`);

@@ -312,6 +312,14 @@ export class MercadoPagoService implements IPaymentService {
         payerEmail: string;
         payerCpf: string;
         amount: number;
+        address: {
+            zip_code: string;
+            street_name: string;
+            street_number: number;
+            neighborhood: string;
+            city: string;
+            federal_unit: string;
+        };
     }): Promise<PaymentResult> {
         try {
             const plan = getPlan(data.planId);
@@ -335,6 +343,14 @@ export class MercadoPagoService implements IPaymentService {
                     },
                     first_name: 'Cliente',
                     last_name: 'VoxelPromo',
+                    address: {
+                        zip_code: data.address.zip_code,
+                        street_name: data.address.street_name,
+                        street_number: String(data.address.street_number),
+                        neighborhood: data.address.neighborhood,
+                        city: data.address.city,
+                        federal_unit: data.address.federal_unit
+                    }
                 },
                 external_reference: `${data.userId}-${data.planId}-boleto-${Date.now()}`,
                 date_of_expiration: expirationDate.toISOString(),

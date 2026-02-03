@@ -72,6 +72,14 @@ export interface IPaymentService {
         payerEmail: string;
         payerCpf: string;
         amount: number;
+        address?: {
+            zip_code: string;
+            street_name: string;
+            street_number: number | string;
+            neighborhood: string;
+            city: string;
+            federal_unit: string;
+        };
     }): Promise<PaymentResult>;
 
     // Webhook

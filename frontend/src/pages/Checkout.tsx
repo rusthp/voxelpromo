@@ -113,6 +113,38 @@ export default function Checkout() {
         }
     }, [planId]);
 
+    // Address data for Boleto
+    const [address, setAddress] = useState({
+        zipCode: '',
+        street: '',
+        number: '',
+        neighborhood: '',
+        city: '',
+        state: ''
+    });
+
+    // Fetch Address from CEP
+    const handleBlurCep = async () => {
+        const cleanCep = address.zipCode.replace(/\D/g, '');
+        if (cleanCep.length !== 8) return;
+
+        try {
+            const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+            const data = await response.json();
+            if (!data.erro) {
+                setAddress(prev => ({
+                    ...prev,
+                    street: data.logradouro,
+                    neighborhood: data.bairro,
+                    city: data.localidade,
+                    state: data.uf
+                }));
+            }
+        } catch (error) {
+            console.error('Erro ao buscar CEP', error);
+        }
+    };
+
     // Pix countdown timer
     useEffect(() => {
         if (step === 'awaiting' && pixExpiration) {
@@ -243,6 +275,14 @@ export default function Checkout() {
                 payerEmail: pixEmail,
                 payerCpf: pixCpf.replace(/\D/g, ''),
                 amount: totalAfterTrial / 100,
+                address: {
+                    zip_code: address.zipCode.replace(/\D/g, ''),
+                    street_name: address.street,
+                    street_number: parseInt(address.number) || 0,
+                    neighborhood: address.neighborhood,
+                    city: address.city,
+                    federal_unit: address.state
+                }
             });
 
             if (response.data.success) {
@@ -560,6 +600,69 @@ export default function Checkout() {
                                             placeholder="000.000.000-00"
                                             className="bg-zinc-950 border-zinc-800 text-white h-11 focus:ring-orange-500/50 transition-all focus:border-orange-500"
                                         />
+                                    </div>
+
+                                    <div className="pt-2 border-t border-zinc-800 mt-4">
+                                        <h4 className="text-sm font-medium text-white mb-3">Endereço (obrigatório para boleto)</h4>
+                                        <div className="grid grid-cols-2 gap-3 mb-3">
+                                            <div className="col-span-1">
+                                                <label className="text-xs font-medium text-zinc-500 uppercase mb-1.5 block">CEP</label>
+                                                <Input
+                                                    value={address.zipCode}
+                                                    onChange={(e) => setAddress({ ...address, zipCode: e.target.value })}
+                                                    onBlur={handleBlurCep}
+                                                    placeholder="00000-000"
+                                                    className="bg-zinc-950 border-zinc-800 text-white h-10 text-sm focus:border-orange-500"
+                                                />
+                                            </div>
+                                            <div className="col-span-1">
+                                                <label className="text-xs font-medium text-zinc-500 uppercase mb-1.5 block">Número</label>
+                                                <Input
+                                                    value={address.number}
+                                                    onChange={(e) => setAddress({ ...address, number: e.target.value })}
+                                                    placeholder="123"
+                                                    className="bg-zinc-950 border-zinc-800 text-white h-10 text-sm focus:border-orange-500"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="mb-3">
+                                            <label className="text-xs font-medium text-zinc-500 uppercase mb-1.5 block">Rua</label>
+                                            <Input
+                                                value={address.street}
+                                                onChange={(e) => setAddress({ ...address, street: e.target.value })}
+                                                placeholder="Rua Exemplo"
+                                                className="bg-zinc-950 border-zinc-800 text-white h-10 text-sm focus:border-orange-500"
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3 mb-3">
+                                            <div className="col-span-1">
+                                                <label className="text-xs font-medium text-zinc-500 uppercase mb-1.5 block">Bairro</label>
+                                                <Input
+                                                    value={address.neighborhood}
+                                                    onChange={(e) => setAddress({ ...address, neighborhood: e.target.value })}
+                                                    placeholder="Centro"
+                                                    className="bg-zinc-950 border-zinc-800 text-white h-10 text-sm focus:border-orange-500"
+                                                />
+                                            </div>
+                                            <div className="col-span-1">
+                                                <label className="text-xs font-medium text-zinc-500 uppercase mb-1.5 block">Cidade/UF</label>
+                                                <div className="flex gap-2">
+                                                    <Input
+                                                        value={address.city}
+                                                        onChange={(e) => setAddress({ ...address, city: e.target.value })}
+                                                        placeholder="Cidade"
+                                                        className="bg-zinc-950 border-zinc-800 text-white h-10 text-sm focus:border-orange-500 flex-1"
+                                                    />
+                                                    <Input
+                                                        value={address.state}
+                                                        onChange={(e) => setAddress({ ...address, state: e.target.value })}
+                                                        placeholder="UF"
+                                                        maxLength={2}
+                                                        className="bg-zinc-950 border-zinc-800 text-white h-10 text-sm w-12 focus:border-orange-500 text-center px-1"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div className="pt-4">
