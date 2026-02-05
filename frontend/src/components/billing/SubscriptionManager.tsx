@@ -239,11 +239,13 @@ export function SubscriptionManager() {
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-4 mt-1 text-sm text-white/50">
-                                    <span className="flex items-center gap-1.5">
-                                        <PaymentMethodIcon className="w-4 h-4" />
-                                        {subscription.paymentMethod === 'card' ? 'Cartão' :
-                                            subscription.paymentMethod === 'pix' ? 'Pix' : 'Boleto'}
-                                    </span>
+                                    {subscription.paymentMethod && (
+                                        <span className="flex items-center gap-1.5">
+                                            <PaymentMethodIcon className="w-4 h-4" />
+                                            {subscription.paymentMethod === 'card' ? 'Cartão' :
+                                                subscription.paymentMethod === 'pix' ? 'Pix' : 'Boleto'}
+                                        </span>
+                                    )}
                                     <span className="flex items-center gap-1.5">
                                         <Calendar className="w-4 h-4" />
                                         Desde {subscription.startDate ? new Date(subscription.startDate).toLocaleDateString('pt-BR') : '-'}

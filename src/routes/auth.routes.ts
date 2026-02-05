@@ -177,9 +177,11 @@ router.post(
           name: name || '',
           document: document || '',
         },
-        plan: {
-          tier: 'free',
-          status: 'trialing',
+        // ✅ Access control - proper trial setup
+        access: {
+          plan: 'TRIAL',
+          status: 'ACTIVE',
+          trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days trial
           validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days trial
         },
         // ❌ NOT marking hasUsedTrial here - will be marked in PaymentService when trial is activated
@@ -942,9 +944,11 @@ router.post('/google', authLimiter, async (req: Request, res: Response) => {
         avatarUrl: googleUser.picture,
         emailVerified: true, // Google already verified the email
         role: 'user',
-        plan: {
-          tier: 'free',
-          status: 'trialing',
+        // ✅ Access control - proper trial setup
+        access: {
+          plan: 'TRIAL',
+          status: 'ACTIVE',
+          trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days trial
           validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days trial
         },
       });
