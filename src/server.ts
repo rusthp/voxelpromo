@@ -100,22 +100,17 @@ app.use(
   })
 );
 
-// STRIPE WEBHOOK: Preserve raw body for signature verification
-// This middleware runs BEFORE express.json() and saves the raw body
-app.use('/api/payments/stripe/webhook', (req, _res, next) => {
-  let data = '';
-  req.setEncoding('utf8');
-  req.on('data', (chunk) => {
-    data += chunk;
-  });
-  req.on('end', () => {
-    (req as any).rawBody = data;
-    next();
-  });
-});
-
 // SECURITY: Request body size limits (DDoS protection)
-app.use(express.json({ limit: '10kb' }));
+// STRIPE WEBHOOK: Use verify callback to preserve raw body for signature verification
+app.use(express.json({
+  limit: '10kb',
+  verify: (req, _res, buf, encoding) => {
+    // Only preserve rawBody for Stripe webhook route
+    if (req.url === '/api/payments/stripe/webhook') {
+      (req as any).rawBody = buf.toString((encoding as BufferEncoding) || 'utf8');
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
 // SECURITY: Global DDoS Protection (100 req/s burst, 300 req/min sustained)
