@@ -100,9 +100,19 @@ app.use(
   })
 );
 
-// STRIPE WEBHOOK: Must receive raw body BEFORE json parsing for signature verification
-// This route MUST be registered before express.json() middleware
-app.use('/api/payments/stripe/webhook', express.raw({ type: 'application/json' }));
+// STRIPE WEBHOOK: Preserve raw body for signature verification
+// This middleware runs BEFORE express.json() and saves the raw body
+app.use('/api/payments/stripe/webhook', (req, _res, next) => {
+  let data = '';
+  req.setEncoding('utf8');
+  req.on('data', (chunk) => {
+    data += chunk;
+  });
+  req.on('end', () => {
+    (req as any).rawBody = data;
+    next();
+  });
+});
 
 // SECURITY: Request body size limits (DDoS protection)
 app.use(express.json({ limit: '10kb' }));

@@ -806,26 +806,12 @@ router.post('/stripe/webhook', async (req: Request, res: Response) => {
   try {
     const stripeService = PaymentFactory.getService('stripe');
 
-    // We need the raw body for signature verification. 
-    // Express needs to be configured to provide raw body, or we trick it if already parsed.
-    // Ideally app.use(express.raw({type: 'application/json'})) is set for this route.
-    // Assuming for now req.body is already parsed, verification might fail if we don't have raw buffer.
-    // IMPORTANT: The user must ensure raw body is available.
-
-    // NOTE: Handling raw body in Express requires specific middleware setup. 
-    // For this iteration, we'll try to use the constructEvent from service assuming req.rawBody exists (if configured)
-    // or just rely on the service logic.
-    // Actually, stripe.webhooks.constructEvent EXPECTS raw body (string/buffer).
-    // As a fallback (unsafe dev mode), we might skip verification if signature is dummy.
-
-    // Let's assume standard app.ts setup:
-    // app.use('/api/payments/stripe/webhook', express.raw({ type: 'application/json' }));
-    // req.body would be a Buffer.
+    // Use rawBody that was preserved by our custom middleware in server.ts
+    const rawBody = (req as any).rawBody || req.body;
 
     let event;
     try {
-      // Assuming req.body is Buffer if raw middleware is setupp
-      event = (stripeService as any).constructEvent(req.body, sig as string);
+      event = (stripeService as any).constructEvent(rawBody, sig as string);
     } catch (err: any) {
       logger.error(`⚠️ Webhook signature verification failed: ${err.message}`);
       res.status(400).send(`Webhook Error: ${err.message}`);
