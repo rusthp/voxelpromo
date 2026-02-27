@@ -32,6 +32,10 @@ interface ShopeeConfig {
   minPrice?: number; // Preço mínimo (BRL)
   cacheEnabled?: boolean; // Habilitar cache de feeds
   validateLinks?: boolean; // Validar links antes de salvar
+  // Multi-tenant API credentials
+  appId?: string;
+  appSecret?: string;
+  apiEnabled?: boolean;
 }
 
 export class ShopeeService {
@@ -71,15 +75,21 @@ export class ShopeeService {
     const settingsService = getUserSettingsService();
     const settings = await settingsService.getSettings(userId);
 
-    // Map UserSettings to ShopeeConfig
+    const shopee = settings?.shopee ?? {};
+
+    // Map UserSettings to ShopeeConfig (multi-tenant)
     const config: ShopeeConfig = {
-      feedUrls: settings?.shopee?.feedUrls || [],
-      affiliateCode: settings?.shopee?.affiliateCode,
-      minDiscount: settings?.shopee?.minDiscount,
-      maxPrice: settings?.shopee?.maxPrice,
-      minPrice: settings?.shopee?.minPrice,
-      cacheEnabled: settings?.shopee?.cacheEnabled,
-      validateLinks: false
+      feedUrls: shopee.feedUrls || [],
+      affiliateCode: shopee.affiliateCode,
+      minDiscount: shopee.minDiscount,
+      maxPrice: shopee.maxPrice,
+      minPrice: shopee.minPrice,
+      cacheEnabled: shopee.cacheEnabled,
+      validateLinks: false,
+      // Multi-tenant API credentials
+      appId: shopee.appId,
+      appSecret: shopee.appSecret,
+      apiEnabled: shopee.apiEnabled,
     };
 
     return new ShopeeService(config, userId);
@@ -589,13 +599,13 @@ export class ShopeeService {
     let products: ShopeeProduct[] = [];
     let source: 'api' | 'csv' = 'csv';
 
-    // Try API first (if user has credentials configured)
-    // Try API first (if enabled via feature flag or env)
-    const appId = process.env.SHOPEE_APP_ID;
-    const appSecret = process.env.SHOPEE_APP_SECRET;
-    const apiEnabled = process.env.SHOPEE_API_ENABLED !== 'false';
+    // Multi-tenant: read API credentials from per-user config first, fallback to process.env
+    const config = this.getConfig();
+    const appId = config.appId || process.env.SHOPEE_APP_ID;
+    const appSecret = config.appSecret || process.env.SHOPEE_APP_SECRET;
+    const apiEnabled = config.apiEnabled ?? !!(appId && appSecret);
 
-    if (appId && appSecret && apiEnabled) {
+    if (apiEnabled && appId && appSecret) {
       try {
         const affiliateService = new ShopeeAffiliateService({ appId, appSecret });
         logger.info('📡 Shopee: Trying API first...', { source: 'api', userId: this.userId });
@@ -639,6 +649,8 @@ export class ShopeeService {
           source: 'api',
         });
       }
+    } else {
+      logger.info('ℹ️ Shopee API not configured for this user, trying CSV feeds...', { userId: this.userId });
     }
 
     // Fallback to CSV if API not configured or returned no products

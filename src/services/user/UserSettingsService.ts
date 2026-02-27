@@ -68,6 +68,10 @@ export class UserSettingsService {
         minPrice: doc.shopee?.minPrice,
         cacheEnabled: doc.shopee?.cacheEnabled,
         isConfigured: doc.shopee?.isConfigured || false,
+        // Multi-tenant API credentials
+        appId: doc.shopee?.appId ? '***' : '',
+        appSecret: doc.shopee?.appSecret ? '***' : '',
+        apiEnabled: doc.shopee?.apiEnabled ?? false,
       },
       telegram: {
         botToken: doc.telegram?.botToken ? '***' : '',
@@ -228,8 +232,14 @@ export class UserSettingsService {
       settings.shopee.maxPrice = payload.shopee.maxPrice ?? settings.shopee.maxPrice;
       settings.shopee.minPrice = payload.shopee.minPrice ?? settings.shopee.minPrice;
       settings.shopee.cacheEnabled = payload.shopee.cacheEnabled ?? settings.shopee.cacheEnabled;
+      // Multi-tenant API credentials
+      settings.shopee.appId = updateIfNotMasked(settings.shopee.appId, payload.shopee.appId);
+      settings.shopee.appSecret = updateIfNotMasked(settings.shopee.appSecret, payload.shopee.appSecret);
+      settings.shopee.apiEnabled = payload.shopee.apiEnabled ?? settings.shopee.apiEnabled;
       settings.shopee.isConfigured = !!(
-        settings.shopee.feedUrls?.length || settings.shopee.affiliateCode
+        settings.shopee.feedUrls?.length ||
+        settings.shopee.affiliateCode ||
+        (settings.shopee.appId && settings.shopee.appSecret)
       );
     }
 
