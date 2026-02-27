@@ -30,17 +30,20 @@ export class LogService {
       // Extract actor info from req if not provided specifically
       const user = actor || (req as any)?.user; // Type assertion if req.user is not fully typed yet
 
+      // Guard: skip audit log if no valid userId (system/cron actions)
+      if (!user?._id) {
+        console.debug(`[AuditLog] Skipping log for action "${action}" — no actor.userId (system/cron job)`);
+        return;
+      }
+
       const actorData = {
-        userId: user?._id,
-        username: user?.username || 'system',
-        email: user?.email || 'system@voxelpromo.com',
-        role: user?.role || 'system',
+        userId: user._id,
+        username: user.username || 'system',
+        email: user.email || 'system@voxelpromo.com',
+        role: user.role || 'system',
         ip: this.getIp(req),
         userAgent: req?.headers['user-agent'] || 'unknown',
       };
-
-      // If no valid user, and it's not a generic system action, we might log it as anonymous or fail?
-      // For now, let's allow 'system' if no user is found.
 
       await AuditLogModel.create({
         actor: actorData,

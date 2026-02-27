@@ -15,6 +15,7 @@ interface MercadoLivreConfig {
   tokenExpiresAt?: number;
   affiliateCode?: string;
   codeVerifier?: string;
+  userId?: string; // Multi-tenant: user ID for persisting tokens to UserSettings
   // Internal API for affiliate links (Phase 1 - Personal Use)
   sessionCookies?: string; // Full cookie string from logged-in session
   csrfToken?: string; // x-csrf-token from affiliate page
@@ -226,11 +227,13 @@ export class MercadoLivreService {
     }
 
     try {
-      const response = await axios.post(`${this.baseUrl}/oauth/token`, params, {
-        headers: {
-          accept: 'application/json',
-          'content-type': 'application/x-www-form-urlencoded',
-        },
+      const response = await this.retryRequest(async () => {
+        return await axios.post(`${this.baseUrl}/oauth/token`, params, {
+          headers: {
+            accept: 'application/json',
+            'content-type': 'application/x-www-form-urlencoded',
+          },
+        });
       });
 
       logger.info('✅ Successfully exchanged code for access token');
@@ -270,21 +273,23 @@ export class MercadoLivreService {
     }
 
     try {
-      const response = await axios.post(
-        `${this.baseUrl}/oauth/token`,
-        new URLSearchParams({
-          grant_type: 'refresh_token',
-          client_id: config.clientId,
-          client_secret: config.clientSecret,
-          refresh_token: config.refreshToken,
-        }),
-        {
-          headers: {
-            accept: 'application/json',
-            'content-type': 'application/x-www-form-urlencoded',
-          },
-        }
-      );
+      const response = await this.retryRequest(async () => {
+        return await axios.post(
+          `${this.baseUrl}/oauth/token`,
+          new URLSearchParams({
+            grant_type: 'refresh_token',
+            client_id: config.clientId,
+            client_secret: config.clientSecret,
+            refresh_token: config.refreshToken!,
+          }),
+          {
+            headers: {
+              accept: 'application/json',
+              'content-type': 'application/x-www-form-urlencoded',
+            },
+          }
+        );
+      });
 
       logger.info('✅ Successfully refreshed access token');
 
@@ -377,7 +382,7 @@ export class MercadoLivreService {
   }
 
   /**
-   * Save tokens to config.json
+   * Save tokens to config.json (legacy fallback)
    */
   private saveTokensToConfig(accessToken: string, refreshToken: string, expiresIn: number): void {
     try {
@@ -404,9 +409,45 @@ export class MercadoLivreService {
   }
 
   /**
+   * Save tokens to UserSettings (MongoDB) for multi-tenant mode
+   */
+  private async saveTokensToUserSettings(
+    userId: string,
+    accessToken: string,
+    refreshToken: string,
+    expiresIn: number
+  ): Promise<void> {
+    try {
+      const { getUserSettingsService } = await import('../user/UserSettingsService');
+      const userSettingsService = getUserSettingsService();
+      const currentSettings = await userSettingsService.getSettings(userId);
+
+      await userSettingsService.updateSettings(userId, {
+        mercadolivre: {
+          ...currentSettings?.mercadolivre,
+          accessToken,
+          refreshToken,
+          tokenExpiresAt: new Date(Date.now() + expiresIn * 1000),
+        },
+      });
+
+      // Also update in-memory config so subsequent calls in this instance use fresh tokens
+      if (this.config) {
+        this.config.accessToken = accessToken;
+        this.config.refreshToken = refreshToken;
+        this.config.tokenExpiresAt = Date.now() + expiresIn * 1000;
+      }
+
+      logger.info(`💾 ML Tokens saved to UserSettings for user ${userId}`);
+    } catch (error) {
+      logger.error(`❌ Failed to save tokens to UserSettings for user ${userId}:`, error);
+    }
+  }
+
+  /**
    * Check if token is expired and auto-refresh if needed
    */
-  private async ensureValidToken(): Promise<string> {
+  async ensureValidToken(): Promise<string> {
     const config = this.getConfig();
 
     if (!config.accessToken) {
@@ -424,12 +465,22 @@ export class MercadoLivreService {
         try {
           const refreshed = await this.refreshAccessToken();
 
-          // Save the refreshed tokens automatically
-          this.saveTokensToConfig(
-            refreshed.access_token,
-            refreshed.refresh_token,
-            refreshed.expires_in
-          );
+          // Multi-tenant: save to UserSettings (DB)
+          if (config.userId) {
+            await this.saveTokensToUserSettings(
+              config.userId,
+              refreshed.access_token,
+              refreshed.refresh_token,
+              refreshed.expires_in
+            );
+          } else {
+            // Legacy fallback: save to config.json
+            this.saveTokensToConfig(
+              refreshed.access_token,
+              refreshed.refresh_token,
+              refreshed.expires_in
+            );
+          }
 
           logger.info('✅ Token auto-refreshed and saved successfully');
           return refreshed.access_token;

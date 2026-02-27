@@ -16,7 +16,7 @@ const getServiceForUser = async (userId: string): Promise<MercadoLivreService> =
     throw new Error('Mercado Livre settings not found for user');
   }
 
-  // Inject user specific config
+  // Inject user specific config (include userId for auto-refresh persistence)
   return new MercadoLivreService({
     clientId: settings.mercadolivre.clientId || '',
     clientSecret: settings.mercadolivre.clientSecret || '',
@@ -28,7 +28,8 @@ const getServiceForUser = async (userId: string): Promise<MercadoLivreService> =
     codeVerifier: settings.mercadolivre.codeVerifier,
     sessionCookies: settings.mercadolivre.sessionCookies,
     csrfToken: settings.mercadolivre.csrfToken,
-    affiliateTag: settings.mercadolivre.affiliateTag
+    affiliateTag: settings.mercadolivre.affiliateTag,
+    userId,
   });
 };
 
