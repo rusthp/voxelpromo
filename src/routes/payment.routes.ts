@@ -627,24 +627,24 @@ router.get('/subscription', authenticate, async (req: AuthRequest, res: Response
       return;
     }
 
-    // New logic: Access is derived from user.access.status
+    // New logic: Access is derived from user.access.status + effective end date
     const now = new Date();
     let validUntil = user.access.validUntil;
 
-    // If trial, use trialEndsAt as priority if no validUntil is set or if trial is later
-    if (user.access.plan === 'TRIAL' && user.access.trialEndsAt) {
+    // Always consider trialEndsAt as a valid end date (regardless of plan name)
+    // This covers users whose plan was changed from TRIAL to BASIC but still have trialEndsAt set
+    if (user.access.trialEndsAt) {
       if (!validUntil || user.access.trialEndsAt > validUntil) {
         validUntil = user.access.trialEndsAt;
       }
     }
 
-    const hasAccess = user.access.status === 'ACTIVE' && (!validUntil || validUntil > now);
-
-    // Explicit lockout check
-    if (!hasAccess && user.access.status === 'ACTIVE') {
-      // Auto-expire if date passed
-      // We won't save here to avoid side-effects in GET, but we report as locked
+    // Fallback: if both dates are null (legacy users), use createdAt + 7 days
+    if (!validUntil && user.createdAt) {
+      validUntil = new Date(user.createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
     }
+
+    const hasAccess = user.access.status === 'ACTIVE' && (!validUntil || validUntil > now);
 
     // Calculate days remaining
     let daysRemaining = 0;

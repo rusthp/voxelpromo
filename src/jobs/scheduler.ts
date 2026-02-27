@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { CollectorService } from '../services/collector/CollectorService';
 import { OfferService } from '../services/offer/OfferService';
+import { AutomationService } from '../services/automation/AutomationService';
 import { logger } from '../utils/logger';
 import { UserModel } from '../models/User';
 import { TokenExpiryJob } from '../services/jobs/TokenExpiryJob';
@@ -57,6 +58,7 @@ async function runJobForActiveUsers(jobName: string, action: (user: any) => Prom
  */
 export function setupCronJobs(): void {
   const offerService = new OfferService(); // Stateless helper (methods accept userId)
+  const automationService = new AutomationService(); // Stateless singleton (methods accept userId)
 
   // 1. Collect offers every 6 hours (Multi-Tenant)
   // Runs at 4:00, 10:00, 16:00, 22:00
@@ -165,6 +167,26 @@ export function setupCronJobs(): void {
     } catch (error) {
       logger.error('❌ Error in daily cleanup:', error);
     }
+  }, { timezone: 'America/Sao_Paulo' });
+
+  // 8. Automation: Smart Planner (runs at the start of every hour per user)
+  // Distributes posts randomly within the hour for more natural behavior
+  cron.schedule('0 * * * *', async () => {
+    await runJobForActiveUsers('Automation Planner', async (user) => {
+      const userId = user._id?.toString() || user.id?.toString();
+      if (!userId) return;
+      await automationService.distributeHourlyPosts(userId);
+    });
+  }, { timezone: 'America/Sao_Paulo' });
+
+  // 9. Automation: Publisher (runs every minute per user)
+  // Picks up scheduled/ready offers and publishes to channels (Telegram, WhatsApp, X, Instagram)
+  cron.schedule('* * * * *', async () => {
+    await runJobForActiveUsers('Automation Publisher', async (user) => {
+      const userId = user._id?.toString() || user.id?.toString();
+      if (!userId) return;
+      await automationService.processScheduledPosts(userId);
+    });
   }, { timezone: 'America/Sao_Paulo' });
 
   // 6. Subscription Sync (6 em 6 hours) - Already Multi-Tenant aware

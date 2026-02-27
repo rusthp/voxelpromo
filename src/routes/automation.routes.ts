@@ -1,18 +1,21 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { AutomationService } from '../services/automation/AutomationService';
 import { logger } from '../utils/logger';
 import { validate } from '../middleware/validate';
 import { automationConfigSchema } from '../validation/automation.validation';
 import { checkSubscriptionStatus } from '../middleware/SubscriptionMiddleware';
+import { authenticate, AuthRequest } from '../middleware/auth';
 
 const router = Router();
+
+// Stateless singleton — all methods receive userId as parameter
 const automationService = new AutomationService();
 
 /**
  * @swagger
  * /api/automation/config:
  *   get:
- *     summary: Get active automation configuration
+ *     summary: Get active automation configuration for the logged-in user
  *     tags: [Automation]
  *     security:
  *       - bearerAuth: []
@@ -22,9 +25,10 @@ const automationService = new AutomationService();
  *       404:
  *         description: No configuration found
  */
-router.get('/config', async (_req: Request, res: Response) => {
+router.get('/config', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const config = await automationService.getActiveConfig();
+    const userId = req.user!.id;
+    const config = await automationService.getActiveConfig(userId);
 
     if (!config) {
       return res.status(404).json({ error: 'No automation configuration found' });
@@ -41,7 +45,7 @@ router.get('/config', async (_req: Request, res: Response) => {
  * @swagger
  * /api/automation/config:
  *   post:
- *     summary: Save or update automation configuration
+ *     summary: Save or update automation configuration for the logged-in user
  *     tags: [Automation]
  *     security:
  *       - bearerAuth: []
@@ -55,9 +59,10 @@ router.get('/config', async (_req: Request, res: Response) => {
  *       200:
  *         description: Configuration saved successfully
  */
-router.post('/config', validate(automationConfigSchema), async (req: Request, res: Response) => {
+router.post('/config', authenticate, validate(automationConfigSchema), async (req: AuthRequest, res: Response) => {
   try {
-    const config = await automationService.saveConfig(req.body);
+    const userId = req.user!.id;
+    const config = await automationService.saveConfig(userId, req.body);
     return res.json({ success: true, config });
   } catch (error: any) {
     logger.error('Error saving automation config:', error);
@@ -69,7 +74,7 @@ router.post('/config', validate(automationConfigSchema), async (req: Request, re
  * @swagger
  * /api/automation/status:
  *   get:
- *     summary: Get automation status
+ *     summary: Get automation status for the logged-in user
  *     tags: [Automation]
  *     security:
  *       - bearerAuth: []
@@ -77,9 +82,10 @@ router.post('/config', validate(automationConfigSchema), async (req: Request, re
  *       200:
  *         description: Current automation status
  */
-router.get('/status', async (_req: Request, res: Response) => {
+router.get('/status', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const status = await automationService.getStatus();
+    const userId = req.user!.id;
+    const status = await automationService.getStatus(userId);
     return res.json(status);
   } catch (error: any) {
     logger.error('Error getting automation status:', error);
@@ -91,7 +97,7 @@ router.get('/status', async (_req: Request, res: Response) => {
  * @swagger
  * /api/automation/start:
  *   post:
- *     summary: Start automation
+ *     summary: Start automation for the logged-in user
  *     tags: [Automation]
  *     security:
  *       - bearerAuth: []
@@ -99,9 +105,10 @@ router.get('/status', async (_req: Request, res: Response) => {
  *       200:
  *         description: Automation started
  */
-router.post('/start', checkSubscriptionStatus, async (_req: Request, res: Response) => {
+router.post('/start', authenticate, checkSubscriptionStatus, async (req: AuthRequest, res: Response) => {
   try {
-    const config = await automationService.getActiveConfig();
+    const userId = req.user!.id;
+    const config = await automationService.getActiveConfig(userId);
 
     if (!config) {
       return res
@@ -110,16 +117,16 @@ router.post('/start', checkSubscriptionStatus, async (_req: Request, res: Respon
     }
 
     // Set config as active
-    await automationService.saveConfig({ ...config, isActive: true });
+    await automationService.saveConfig(userId, { ...config, isActive: true });
 
     // Trigger immediate distribution for Smart Planner (if enabled)
     let scheduledCount = 0;
     if (config.postsPerHour && config.postsPerHour > 0) {
-      logger.info('📅 Triggering initial Smart Planner distribution...');
-      scheduledCount = await automationService.distributeHourlyPosts();
+      logger.info(`📅 Triggering initial Smart Planner distribution for user ${userId}...`);
+      scheduledCount = await automationService.distributeHourlyPosts(userId);
     }
 
-    logger.info('✅ Automation started');
+    logger.info(`✅ Automation started for user ${userId}`);
     return res.json({
       success: true,
       message: 'Automation started successfully',
@@ -135,7 +142,7 @@ router.post('/start', checkSubscriptionStatus, async (_req: Request, res: Respon
  * @swagger
  * /api/automation/stop:
  *   post:
- *     summary: Stop automation
+ *     summary: Stop automation for the logged-in user
  *     tags: [Automation]
  *     security:
  *       - bearerAuth: []
@@ -143,18 +150,19 @@ router.post('/start', checkSubscriptionStatus, async (_req: Request, res: Respon
  *       200:
  *         description: Automation stopped
  */
-router.post('/stop', async (_req: Request, res: Response) => {
+router.post('/stop', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const config = await automationService.getActiveConfig();
+    const userId = req.user!.id;
+    const config = await automationService.getActiveConfig(userId);
 
     if (!config) {
       return res.json({ success: true, message: 'Automation was not running' });
     }
 
     // Set config as inactive
-    await automationService.saveConfig({ ...config, isActive: false });
+    await automationService.saveConfig(userId, { ...config, isActive: false });
 
-    logger.info('⏸️ Automation stopped');
+    logger.info(`⏸️ Automation stopped for user ${userId}`);
     return res.json({ success: true, message: 'Automation stopped successfully' });
   } catch (error: any) {
     logger.error('Error stopping automation:', error);
@@ -166,7 +174,7 @@ router.post('/stop', async (_req: Request, res: Response) => {
  * @swagger
  * /api/automation/test:
  *   post:
- *     summary: Test automation (preview next posts)
+ *     summary: Test automation (preview next posts for the logged-in user)
  *     tags: [Automation]
  *     security:
  *       - bearerAuth: []
@@ -174,16 +182,17 @@ router.post('/stop', async (_req: Request, res: Response) => {
  *       200:
  *         description: Preview of next posts
  */
-router.post('/test', checkSubscriptionStatus, async (_req: Request, res: Response) => {
+router.post('/test', authenticate, checkSubscriptionStatus, async (req: AuthRequest, res: Response) => {
   try {
-    const config = await automationService.getActiveConfig();
+    const userId = req.user!.id;
+    const config = await automationService.getActiveConfig(userId);
 
     if (!config) {
       return res.status(404).json({ error: 'No configuration found' });
     }
 
-    // Get next 5 offers that would be posted
-    const nextOffers = await automationService.getNextScheduledOffers(config, 5);
+    // Get next 5 offers that would be posted (scoped to this user)
+    const nextOffers = await automationService.getNextScheduledOffers(userId, config, 5);
 
     return res.json({
       success: true,

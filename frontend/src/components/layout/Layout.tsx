@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
+import { ExpirationBanner } from "@/components/billing/ExpirationBanner";
 import { cn } from "@/lib/utils";
 
 interface LayoutProps {
@@ -30,6 +31,7 @@ export function Layout({ children }: LayoutProps) {
                 )}
             >
                 <Header onMenuClick={() => setMobileOpen(true)} />
+                <ExpirationBanner />
                 {children}
             </main>
         </div>

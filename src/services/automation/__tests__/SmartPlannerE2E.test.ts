@@ -47,6 +47,7 @@ import { configCache } from '../../../utils/cache';
 
 describe('Smart Planner E2E Scheduling Flow', () => {
     let automationService: AutomationService;
+    const testUserId = '507f1f77bcf86cd799439011';
 
     beforeEach(() => {
         automationService = new AutomationService();
@@ -147,7 +148,7 @@ describe('Smart Planner E2E Scheduling Flow', () => {
             });
 
             // Step 4: Execute distribution
-            const scheduledCount = await automationService.distributeHourlyPosts();
+            const scheduledCount = await automationService.distributeHourlyPosts(testUserId);
 
             // Step 5: Verify results
             // Should schedule exactly postsPerHour (4) offers
@@ -185,7 +186,7 @@ describe('Smart Planner E2E Scheduling Flow', () => {
                 lean: jest.fn().mockResolvedValue([]),
             });
 
-            const result = await automationService.distributeHourlyPosts();
+            const result = await automationService.distributeHourlyPosts(testUserId);
 
             // Verify scheduling occurred
             expect(result).toBeGreaterThanOrEqual(0);
@@ -219,7 +220,7 @@ describe('Smart Planner E2E Scheduling Flow', () => {
                 lean: jest.fn().mockResolvedValue([]),
             });
 
-            const result = await automationService.distributeHourlyPosts();
+            const result = await automationService.distributeHourlyPosts(testUserId);
 
             // At 9:00 exactly, should still be able to schedule (within hours)
             expect(result).toBeGreaterThanOrEqual(0);
@@ -254,7 +255,7 @@ describe('Smart Planner E2E Scheduling Flow', () => {
                 lean: jest.fn().mockResolvedValue([]),
             });
 
-            const firstRunResult = await automationService.distributeHourlyPosts();
+            const firstRunResult = await automationService.distributeHourlyPosts(testUserId);
 
             // With 29 minutes remaining (30 to 59), should schedule up to 5
             expect(firstRunResult).toBeLessThanOrEqual(5);
@@ -281,7 +282,7 @@ describe('Smart Planner E2E Scheduling Flow', () => {
                 lean: jest.fn().mockResolvedValue([]),
             });
 
-            const secondRunResult = await automationService.distributeHourlyPosts();
+            const secondRunResult = await automationService.distributeHourlyPosts(testUserId);
 
             // At 11:00, should be able to schedule full 5 posts
             expect(secondRunResult).toBeLessThanOrEqual(5);
@@ -322,7 +323,7 @@ describe('Smart Planner E2E Scheduling Flow', () => {
                 lean: jest.fn().mockResolvedValue([]),
             });
 
-            const result = await automationService.distributeHourlyPosts();
+            const result = await automationService.distributeHourlyPosts(testUserId);
 
             // Should schedule at most 1 (limited by remaining minutes)
             expect(result).toBeLessThanOrEqual(1);
@@ -355,7 +356,7 @@ describe('Smart Planner E2E Scheduling Flow', () => {
                 lean: jest.fn().mockResolvedValue([]),
             });
 
-            const result = await automationService.distributeHourlyPosts();
+            const result = await automationService.distributeHourlyPosts(testUserId);
 
             // Should not exceed postsPerHour
             expect(result).toBeLessThanOrEqual(3);
@@ -388,7 +389,7 @@ describe('Smart Planner E2E Scheduling Flow', () => {
                 lean: jest.fn().mockResolvedValue([]),
             });
 
-            const result = await automationService.distributeHourlyPosts();
+            const result = await automationService.distributeHourlyPosts(testUserId);
 
             // Should only schedule available offers
             expect(result).toBeLessThanOrEqual(2);
@@ -420,7 +421,7 @@ describe('Smart Planner E2E Scheduling Flow', () => {
                 lean: jest.fn().mockResolvedValue([]),
             });
 
-            const result = await automationService.distributeHourlyPosts();
+            const result = await automationService.distributeHourlyPosts(testUserId);
 
             // Should still schedule (channel selection is done at post time)
             expect(result).toBeGreaterThanOrEqual(0);
@@ -461,7 +462,7 @@ describe('Smart Planner E2E Scheduling Flow', () => {
                 .mockResolvedValueOnce(100)
                 .mockResolvedValueOnce(50);
 
-            const status = await automationService.getStatus();
+            const status = await automationService.getStatus(testUserId);
 
             expect(status.isActive).toBe(true);
             expect(status.config).toBeDefined();
@@ -500,7 +501,7 @@ describe('Smart Planner E2E Scheduling Flow', () => {
                 .mockResolvedValueOnce(100)
                 .mockResolvedValueOnce(50);
 
-            const status = await automationService.getStatus();
+            const status = await automationService.getStatus(testUserId);
 
             // Smart Planner is enabled when postsPerHour > 0
             expect(status.config.postsPerHour).toBeGreaterThan(0);

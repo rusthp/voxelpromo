@@ -44,7 +44,10 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         const validUntil = user.plan?.validUntil ? new Date(user.plan.validUntil) : null;
         const now = new Date();
 
-        const isExpired = (status === 'canceled' || status === 'past_due' || status === 'expired') &&
+        // Defense-in-depth: expired if backend says so OR if validUntil date has passed
+        const isExpired =
+            (status === 'expired') ||
+            ((status === 'canceled' || status === 'past_due') && validUntil && validUntil < now) ||
             (validUntil && validUntil < now);
 
         // Also check if status is specifically 'expired' (custom status we might set)

@@ -18,14 +18,24 @@ interface ShopeeGraphQLError {
 
 export interface ShopeeApiProduct {
     itemId: string;
-    name: string;
+    productName: string;
     imageUrl: string;
-    price: number;
-    commissionRate: number;
-    commission: number;
+    priceMin: number | string;       // Price in R$ (may be string or number)
+    priceMax: number | string;       // Price in R$ (may be string or number)
+    priceDiscountRate: number | string; // Discount percentage (may be string like "50")
+    commissionRate: string;          // String ratio e.g. "0.0850" = 8.5%
+    sellerCommissionRate: string;    // String ratio e.g. "0.10" = 10%
+    shopeeCommissionRate: string;    // String ratio e.g. "0.03" = 3%
+    commission: number | string;     // Estimated commission in R$
     sales: number;
+    ratingStar: number;
     productLink: string;
+    offerLink: string;
+    shopId: string;
     shopName?: string;
+    shopType?: string | number;
+    periodStartTime?: number;
+    periodEndTime?: number;
 }
 
 export class ShopeeAffiliateService {
@@ -73,42 +83,59 @@ export class ShopeeAffiliateService {
     /**
      * Fetches brand offers using GraphQL (Cached: 30 mins)
      */
-    async getBrandOffers(limit: number = 20, scrollId?: string): Promise<{ products: ShopeeApiProduct[], nextScrollId?: string }> {
+    async getBrandOffers(limit: number = 20, options?: { keyword?: string; listType?: number; sortType?: number; page?: number; scrollId?: string }): Promise<{ products: ShopeeApiProduct[], nextScrollId?: string }> {
         if (!this.appId || !this.appSecret) {
             throw new Error('Shopee API credentials not configured');
         }
 
         // Check Cache
-        const cacheKey = `shopee:offers:${limit}:${scrollId || 'first'}`;
+        const cacheKey = `shopee:offers:${limit}:${options?.scrollId || options?.page || 'first'}`;
         const cached = cache.get(cacheKey);
         if (cached) {
-            logger.debug(`🚀 Shopee API: Returning cached offers for ${scrollId || 'first page'}`);
+            logger.debug(`🚀 Shopee API: Returning cached offers for ${options?.scrollId || 'first page'}`);
             return cached;
         }
 
         const query = `
-      query GetBrandOffers($limit: Int, $scrollId: String) {
-        productOfferV2(limit: $limit, scrollId: $scrollId) {
+      query GetBrandOffers($limit: Int, $keyword: String, $listType: Int, $sortType: Int, $page: Int) {
+        productOfferV2(limit: $limit, keyword: $keyword, listType: $listType, sortType: $sortType, page: $page) {
           nodes {
             itemId
-            name
+            productName
             imageUrl
-            price
+            priceMin
+            priceMax
+            priceDiscountRate
             commissionRate
+            sellerCommissionRate
+            shopeeCommissionRate
             commission
             sales
+            ratingStar
             productLink
+            offerLink
+            shopId
             shopName
+            shopType
+            periodStartTime
+            periodEndTime
           }
           pageInfo {
-            scrollId
+            page
+            limit
             hasNextPage
           }
         }
       }
     `;
 
-        const variables = { limit, scrollId };
+        const variables = {
+            limit,
+            keyword: options?.keyword,
+            listType: options?.listType ?? 0,
+            sortType: options?.sortType ?? 1,
+            page: options?.page ?? 1,
+        };
         const payload = JSON.stringify({ query, variables });
         const timestamp = Math.floor(Date.now() / 1000);
 
@@ -145,7 +172,7 @@ export class ShopeeAffiliateService {
     /**
      * Generates a short link for a product (Cached: 24 hours)
      */
-    async generateShortLink(productUrl: string): Promise<string> {
+    async generateShortLink(productUrl: string, subIds?: string[]): Promise<string> {
         if (!this.appId || !this.appSecret) {
             // Fallback logic could go here if needed, but optimally we need credentials
             logger.warn('⚠️ Cannot generate short link: Missing credentials');
@@ -160,14 +187,19 @@ export class ShopeeAffiliateService {
         }
 
         const query = `
-      mutation GenerateShortLink($originUrl: String!) {
-        generateShortLink(originUrl: $originUrl) {
+      mutation GenerateShortLink($input: ShortLinkInput!) {
+        generateShortLink(input: $input) {
           shortLink
         }
       }
     `;
 
-        const variables = { originUrl: productUrl };
+        const variables = {
+            input: {
+                originUrl: productUrl,
+                ...(subIds && subIds.length > 0 ? { subIds } : {}),
+            },
+        };
         const payload = JSON.stringify({ query, variables });
         const timestamp = Math.floor(Date.now() / 1000);
 

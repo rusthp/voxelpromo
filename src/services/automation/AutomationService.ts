@@ -10,8 +10,8 @@ import { TemplateService } from './TemplateService';
 export class AutomationService {
   private prioritizationService: PrioritizationService;
   private templateService: TemplateService;
-  private static readonly CACHE_KEY_CONFIG = 'automation:config';
-  private static readonly CACHE_KEY_STATUS = 'automation:status';
+  private static readonly CACHE_KEY_CONFIG_PREFIX = 'automation:config';
+  private static readonly CACHE_KEY_STATUS_PREFIX = 'automation:status';
 
   constructor() {
     this.prioritizationService = new PrioritizationService();
@@ -19,76 +19,76 @@ export class AutomationService {
   }
 
   /**
-   * Get active automation configuration (🚀 TURBO: with cache)
+   * Get active automation configuration for a specific user (🚀 TURBO: with cache)
    */
-  async getActiveConfig(): Promise<any | null> {
+  async getActiveConfig(userId: string): Promise<any | null> {
     try {
-      // 🚀 TURBO: Check cache first
-      const cached = configCache.get(AutomationService.CACHE_KEY_CONFIG);
+      // 🚀 TURBO: Check cache first (per-user key)
+      const cacheKey = `${AutomationService.CACHE_KEY_CONFIG_PREFIX}:${userId}`;
+      const cached = configCache.get(cacheKey);
       if (cached) {
-        logger.debug('🚀 Turbo: Config loaded from cache');
+        logger.debug(`🚀 Turbo: Config loaded from cache for user ${userId}`);
         return cached;
       }
 
-      // Cache miss - fetch from database
-      // Note: We fetch the config regardless of active status, as we follow a singleton pattern
-      // The caller is responsible for checking config.isActive if needed
-      const config = await AutomationConfigModel.findOne({})
-        .sort({ updatedAt: -1 }) // Get the most recently updated one just in case
+      // Cache miss - fetch from database (scoped by userId)
+      const config = await AutomationConfigModel.findOne({ userId })
+        .sort({ updatedAt: -1 })
         .populate('messageTemplateId')
         .lean();
 
       // 🚀 TURBO: Cache the result for 5 minutes
       if (config) {
-        configCache.set(AutomationService.CACHE_KEY_CONFIG, config);
+        configCache.set(cacheKey, config);
       }
 
       return config;
     } catch (error) {
-      logger.error('Error getting active config:', error);
+      logger.error(`Error getting active config for user ${userId}:`, error);
       return null;
     }
   }
 
   /**
-   * Save or update automation configuration
+   * Save or update automation configuration for a specific user
    */
-  async saveConfig(configData: any): Promise<any> {
+  async saveConfig(userId: string, configData: any): Promise<any> {
     try {
-      // If setting this config as active, deactivate all others
+      // If setting this config as active, deactivate other configs for this user
       if (configData.isActive) {
-        await AutomationConfigModel.updateMany({}, { isActive: false });
+        await AutomationConfigModel.updateMany({ userId }, { isActive: false });
       }
 
-      // Check if we have an existing config
-      const existing = await AutomationConfigModel.findOne({});
+      // Check if this user has an existing config
+      const existing = await AutomationConfigModel.findOne({ userId });
 
       if (existing) {
         // Update existing config
         Object.assign(existing, configData);
+        existing.userId = userId; // Ensure userId is always set
         existing.updatedAt = new Date();
         await existing.save();
-        logger.info('✅ Automation config updated');
+        logger.info(`✅ Automation config updated for user ${userId}`);
 
-        // 🚀 TURBO: Invalidate cache
-        configCache.invalidate(AutomationService.CACHE_KEY_CONFIG);
-        configCache.invalidate(AutomationService.CACHE_KEY_STATUS);
+        // 🚀 TURBO: Invalidate cache for this user
+        configCache.invalidate(`${AutomationService.CACHE_KEY_CONFIG_PREFIX}:${userId}`);
+        configCache.invalidate(`${AutomationService.CACHE_KEY_STATUS_PREFIX}:${userId}`);
 
         return existing.toObject();
       } else {
-        // Create new config
-        const newConfig = new AutomationConfigModel(configData);
+        // Create new config with userId
+        const newConfig = new AutomationConfigModel({ ...configData, userId });
         await newConfig.save();
-        logger.info('✅ Automation config created');
+        logger.info(`✅ Automation config created for user ${userId}`);
 
-        // 🚀 TURBO: Invalidate cache
-        configCache.invalidate(AutomationService.CACHE_KEY_CONFIG);
-        configCache.invalidate(AutomationService.CACHE_KEY_STATUS);
+        // 🚀 TURBO: Invalidate cache for this user
+        configCache.invalidate(`${AutomationService.CACHE_KEY_CONFIG_PREFIX}:${userId}`);
+        configCache.invalidate(`${AutomationService.CACHE_KEY_STATUS_PREFIX}:${userId}`);
 
         return newConfig.toObject();
       }
     } catch (error) {
-      logger.error('Error saving config:', error);
+      logger.error(`Error saving config for user ${userId}:`, error);
       throw error;
     }
   }
@@ -120,11 +120,13 @@ export class AutomationService {
   /**
    * Get next offers to post based on configuration and prioritization
    * 🚀 TURBO: Optimized with batch processing and lean queries
+   * Multi-tenant: Scoped by userId
    */
-  async getNextScheduledOffers(config: any, limit: number = 5): Promise<Offer[]> {
+  async getNextScheduledOffers(userId: string, config: any, limit: number = 5): Promise<Offer[]> {
     try {
-      // Build query based on filters
+      // Build query based on filters — always scoped by userId
       const query: any = {
+        userId,
         isActive: true,
         isPosted: false,
       };
@@ -286,10 +288,11 @@ export class AutomationService {
 
   /**
    * Process scheduled posts - called by cron job
+   * Multi-tenant: Scoped by userId
    */
-  async processScheduledPosts(): Promise<number> {
+  async processScheduledPosts(userId: string): Promise<number> {
     try {
-      const config = await this.getActiveConfig();
+      const config = await this.getActiveConfig(userId);
 
       if (!config || !config.isActive) {
         return 0;
@@ -307,8 +310,8 @@ export class AutomationService {
         return 0;
       }
 
-      // Get next offers to post
-      const offers = await this.getNextScheduledOffers(config, 1); // Get 1 offer per cycle
+      // Get next offers to post (scoped by userId)
+      const offers = await this.getNextScheduledOffers(userId, config, 1); // Get 1 offer per cycle
 
       if (offers.length === 0) {
         logger.debug('📭 No offers available for posting');
@@ -349,7 +352,7 @@ export class AutomationService {
 
       // Actually post using OfferService
       // Note: OfferService handles history logging and status updates itself
-      const success = await offerService.postOffer(offer._id!.toString(), channels);
+      const success = await offerService.postOffer(offer._id!.toString(), channels, userId);
 
       if (success) {
         // Determine if we generated an AI post for this
@@ -400,10 +403,11 @@ export class AutomationService {
 
   /**
    * Get automation status (for frontend)
+   * Multi-tenant: Scoped by userId
    */
-  async getStatus(): Promise<any> {
+  async getStatus(userId: string): Promise<any> {
     try {
-      const config = await this.getActiveConfig();
+      const config = await this.getActiveConfig(userId);
 
       if (!config) {
         return {
@@ -413,27 +417,29 @@ export class AutomationService {
       }
 
       const shouldPost = this.shouldPostNow(config);
-      const nextOffers = await this.getNextScheduledOffers(config, 5);
+      const nextOffers = await this.getNextScheduledOffers(userId, config, 5);
 
-      // Get last posted offer
-      const lastPostedOffer = await OfferModel.findOne({ isPosted: true })
+      // Get last posted offer for this user
+      const lastPostedOffer = await OfferModel.findOne({ userId, isPosted: true })
         .sort({ updatedAt: -1 })
         .select('title updatedAt')
         .lean();
 
-      // Get today's post count
+      // Get today's post count for this user
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const postsToday = await OfferModel.countDocuments({
+        userId,
         isPosted: true,
         updatedAt: { $gte: today },
       });
 
-      // Get total posted
-      const totalPosted = await OfferModel.countDocuments({ isPosted: true });
+      // Get total posted for this user
+      const totalPosted = await OfferModel.countDocuments({ userId, isPosted: true });
 
-      // Get pending offers count
+      // Get pending offers count for this user
       const pendingCount = await OfferModel.countDocuments({
+        userId,
         isActive: true,
         isPosted: false,
         discountPercentage: { $gte: config.minDiscountPercentage || 0 },
@@ -475,12 +481,13 @@ export class AutomationService {
    * Smart Hourly Planner: Distribute quantity of posts randomly within the current hour
    * Uses unique random minutes to avoid collisions - more human-like behavior
    * Example: postsPerHour=5 -> posts at 09:05, 09:12, 09:27, 09:38, 09:51
+   * Multi-tenant: Scoped by userId
    */
-  async distributeHourlyPosts(): Promise<number> {
+  async distributeHourlyPosts(userId: string): Promise<number> {
     try {
-      const config = await this.getActiveConfig();
+      const config = await this.getActiveConfig(userId);
       if (!config || !config.isActive) {
-        logger.debug('📅 Smart Planner: Config not active, skipping.');
+        logger.debug(`📅 Smart Planner: Config not active for user ${userId}, skipping.`);
         return 0;
       }
 
@@ -517,8 +524,8 @@ export class AutomationService {
         return 0;
       }
 
-      // Get candidate offers (get 2x quantity to have backup)
-      const offers = await this.getNextScheduledOffers(config, quantity * 2);
+      // Get candidate offers (get 2x quantity to have backup), scoped by userId
+      const offers = await this.getNextScheduledOffers(userId, config, quantity * 2);
 
       // Filter offers that are NOT already scheduled
       const availableOffers = offers.filter((o: any) => !o.scheduledAt);

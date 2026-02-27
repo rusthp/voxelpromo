@@ -25,7 +25,7 @@ export const checkSubscriptionStatus = async (
 
         // Fetch fresh user data (to get current plan status)
         // We select 'access' as it is now the SSOT
-        const user = await UserModel.findById(req.user.id).select('access');
+        const user = await UserModel.findById(req.user.id).select('access createdAt');
 
         if (!user) {
             return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -47,8 +47,32 @@ export const checkSubscriptionStatus = async (
         // And Plan must be > FREE ? Or just "STATUS IS VALID".
         // Let's check status first.
 
-        // 2. Check Status
+        // 2. Check Status — ACTIVE must also pass effective end-date check
         if (access.status === 'ACTIVE') {
+            const now = new Date();
+            let effectiveEnd = access.validUntil ? new Date(access.validUntil) : null;
+            // Always consider trialEndsAt (even if plan was renamed from TRIAL → BASIC etc.)
+            if (access.trialEndsAt) {
+                const trialEnd = new Date(access.trialEndsAt);
+                if (!effectiveEnd || trialEnd > effectiveEnd) {
+                    effectiveEnd = trialEnd;
+                }
+            }
+
+            // Fallback: if both dates are null (legacy users), use createdAt + 7 days
+            if (!effectiveEnd && user.createdAt) {
+                effectiveEnd = new Date(new Date(user.createdAt).getTime() + 7 * 24 * 60 * 60 * 1000);
+            }
+
+            // If there's an effective end date and it's passed, block access
+            if (effectiveEnd && effectiveEnd < now) {
+                logger.warn(`⏳ Subscription expired for user ${user._id} (effectiveEnd: ${effectiveEnd.toISOString()})`);
+                return res.status(403).json({
+                    error: 'SUBSCRIPTION_EXPIRED',
+                    message: 'Seu acesso expirou. Renove sua assinatura para continuar.',
+                });
+            }
+
             return next();
         }
 

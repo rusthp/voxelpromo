@@ -37,6 +37,7 @@ export interface User {
         tier: 'free' | 'pro' | 'agency';
         status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired';
         validUntil?: string;
+        daysRemaining?: number;
         limits?: {
             postsPerDay: number;
         };

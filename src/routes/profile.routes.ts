@@ -70,6 +70,32 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
 
+    // Map new access model to legacy plan structure for frontend compatibility
+    // Dynamically compute status: if validUntil/trialEndsAt has passed, report as 'expired'
+    const now = new Date();
+    const rawStatus = (user.access?.status?.toLowerCase() || 'active') as string;
+    const validUntil = user.access?.validUntil;
+    const trialEndsAt = user.access?.trialEndsAt;
+    // Use the later of trialEndsAt and validUntil as the effective end date
+    let effectiveEnd = trialEndsAt && (!validUntil || trialEndsAt > validUntil)
+      ? trialEndsAt
+      : validUntil;
+
+    // Fallback: if both dates are null (legacy users), use createdAt + 7 days
+    if (!effectiveEnd && user.createdAt) {
+      effectiveEnd = new Date(new Date(user.createdAt).getTime() + 7 * 24 * 60 * 60 * 1000);
+    }
+
+    const computedStatus = (effectiveEnd && effectiveEnd < now && rawStatus === 'active')
+      ? 'expired'
+      : rawStatus;
+
+    // Compute days remaining for frontend banner
+    let daysRemaining = 0;
+    if (effectiveEnd && effectiveEnd > now) {
+      daysRemaining = Math.ceil((effectiveEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    }
+
     return res.json({
       success: true,
       profile: {
@@ -87,12 +113,12 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
         createdAt: user.createdAt,
         lastLogin: user.lastLogin,
         billing: user.billing,
-        // Map new access model to legacy plan structure for frontend compatibility
         plan: {
           tier: user.access?.plan?.toLowerCase() || 'free',
-          status: user.access?.status?.toLowerCase() || 'active',
+          status: computedStatus,
           validUntil: user.access?.validUntil,
           trialEndsAt: user.access?.trialEndsAt,
+          daysRemaining,
           limits: user.access?.limits,
         },
       },

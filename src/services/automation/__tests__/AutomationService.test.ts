@@ -30,6 +30,7 @@ import { configCache } from '../../../utils/cache';
 
 describe('AutomationService', () => {
   let automationService: AutomationService;
+  const testUserId = '507f1f77bcf86cd799439011';
 
   beforeEach(() => {
     automationService = new AutomationService();
@@ -108,7 +109,7 @@ describe('AutomationService', () => {
       const cachedConfig = { isActive: true, startHour: 8 };
       (configCache.get as jest.Mock).mockReturnValue(cachedConfig);
 
-      const result = await automationService.getActiveConfig();
+      const result = await automationService.getActiveConfig(testUserId);
 
       expect(result).toEqual(cachedConfig);
       expect(configCache.get).toHaveBeenCalled();
@@ -124,7 +125,7 @@ describe('AutomationService', () => {
         lean: jest.fn().mockResolvedValue(dbConfig),
       });
 
-      const result = await automationService.getActiveConfig();
+      const result = await automationService.getActiveConfig(testUserId);
 
       expect(result).toEqual(dbConfig);
       expect(AutomationConfigModel.findOne).toHaveBeenCalled();
@@ -137,7 +138,7 @@ describe('AutomationService', () => {
         throw new Error('Database error');
       });
 
-      const result = await automationService.getActiveConfig();
+      const result = await automationService.getActiveConfig(testUserId);
 
       expect(result).toBeNull();
     });
@@ -157,7 +158,7 @@ describe('AutomationService', () => {
       };
       (AutomationConfigModel as unknown as jest.Mock).mockImplementation(() => mockInstance);
 
-      const result = await automationService.saveConfig(configData);
+      const result = await automationService.saveConfig(testUserId, configData);
 
       expect(result).toEqual(savedConfig);
       expect(mockInstance.save).toHaveBeenCalled();
@@ -177,7 +178,7 @@ describe('AutomationService', () => {
       (AutomationConfigModel.findOne as jest.Mock).mockResolvedValue(existingConfig);
       (AutomationConfigModel.updateMany as jest.Mock).mockResolvedValue({});
 
-      await automationService.saveConfig(configData);
+      await automationService.saveConfig(testUserId, configData);
 
       expect(existingConfig.save).toHaveBeenCalled();
       expect(configCache.invalidate).toHaveBeenCalled();
@@ -195,9 +196,9 @@ describe('AutomationService', () => {
       };
       (AutomationConfigModel as unknown as jest.Mock).mockImplementation(() => mockInstance);
 
-      await automationService.saveConfig(configData);
+      await automationService.saveConfig(testUserId, configData);
 
-      expect(AutomationConfigModel.updateMany).toHaveBeenCalledWith({}, { isActive: false });
+      expect(AutomationConfigModel.updateMany).toHaveBeenCalledWith({ userId: testUserId }, { isActive: false });
     });
   });
 
@@ -216,7 +217,7 @@ describe('AutomationService', () => {
         limit: jest.fn().mockResolvedValue([]),
       });
 
-      const result = await automationService.getNextScheduledOffers(config, 5);
+      const result = await automationService.getNextScheduledOffers(testUserId, config, 5);
 
       expect(result).toEqual([]);
     });
@@ -254,11 +255,12 @@ describe('AutomationService', () => {
         lean: jest.fn().mockResolvedValue([]),
       });
 
-      const result = await automationService.getNextScheduledOffers(config, 5);
+      const result = await automationService.getNextScheduledOffers(testUserId, config, 5);
 
       expect(result.length).toBeGreaterThanOrEqual(0);
       expect(OfferModel.find).toHaveBeenCalledWith(
         expect.objectContaining({
+          userId: testUserId,
           isActive: true,
           isPosted: false,
           source: { $in: ['mercadolivre'] },
@@ -303,7 +305,7 @@ describe('AutomationService', () => {
         lean: jest.fn().mockResolvedValue([]),
       });
 
-      const result = await automationService.getNextScheduledOffers(config, 2);
+      const result = await automationService.getNextScheduledOffers(testUserId, config, 2);
 
       // Should return offers sorted by priority (highest first)
       expect(result.length).toBeLessThanOrEqual(2);
@@ -319,7 +321,7 @@ describe('AutomationService', () => {
         lean: jest.fn().mockResolvedValue(null),
       });
 
-      const result = await automationService.getStatus();
+      const result = await automationService.getStatus(testUserId);
 
       expect(result.isActive).toBe(false);
       expect(result.message).toBe('No automation configured');
@@ -359,7 +361,7 @@ describe('AutomationService', () => {
         .mockResolvedValueOnce(100) // total posted
         .mockResolvedValueOnce(50); // pending
 
-      const result = await automationService.getStatus();
+      const result = await automationService.getStatus(testUserId);
 
       expect(result.isActive).toBe(true);
       expect(result.config).toBeDefined();
@@ -379,7 +381,7 @@ describe('AutomationService', () => {
     it('should return 0 when config is not active', async () => {
       (configCache.get as jest.Mock).mockReturnValue({ isActive: false });
 
-      const result = await automationService.distributeHourlyPosts();
+      const result = await automationService.distributeHourlyPosts(testUserId);
 
       expect(result).toBe(0);
     });
@@ -390,7 +392,7 @@ describe('AutomationService', () => {
         postsPerHour: 0,
       });
 
-      const result = await automationService.distributeHourlyPosts();
+      const result = await automationService.distributeHourlyPosts(testUserId);
 
       expect(result).toBe(0);
     });
@@ -401,7 +403,7 @@ describe('AutomationService', () => {
         postsPerHour: -5,
       });
 
-      const result = await automationService.distributeHourlyPosts();
+      const result = await automationService.distributeHourlyPosts(testUserId);
 
       expect(result).toBe(0);
     });
@@ -417,7 +419,7 @@ describe('AutomationService', () => {
         endHour: 18,
       });
 
-      const result = await automationService.distributeHourlyPosts();
+      const result = await automationService.distributeHourlyPosts(testUserId);
 
       expect(result).toBe(0);
     });
@@ -445,7 +447,7 @@ describe('AutomationService', () => {
         lean: jest.fn().mockResolvedValue([]),
       });
 
-      const result = await automationService.distributeHourlyPosts();
+      const result = await automationService.distributeHourlyPosts(testUserId);
 
       expect(result).toBe(0);
     });
@@ -461,7 +463,7 @@ describe('AutomationService', () => {
         endHour: 18,
       });
 
-      const result = await automationService.distributeHourlyPosts();
+      const result = await automationService.distributeHourlyPosts(testUserId);
 
       expect(result).toBe(0);
     });
@@ -521,7 +523,7 @@ describe('AutomationService', () => {
         })),
       }));
 
-      const result = await automationService.distributeHourlyPosts();
+      const result = await automationService.distributeHourlyPosts(testUserId);
 
       // Should schedule up to postsPerHour (3) offers
       expect(result).toBeLessThanOrEqual(3);
@@ -562,7 +564,7 @@ describe('AutomationService', () => {
         lean: jest.fn().mockResolvedValue([]),
       });
 
-      const result = await automationService.distributeHourlyPosts();
+      const result = await automationService.distributeHourlyPosts(testUserId);
 
       // Only non-scheduled offers should be considered
       expect(result).toBeLessThanOrEqual(1);
@@ -603,7 +605,7 @@ describe('AutomationService', () => {
         lean: jest.fn().mockResolvedValue([]),
       });
 
-      const result = await automationService.distributeHourlyPosts();
+      const result = await automationService.distributeHourlyPosts(testUserId);
 
       // Should be limited by remaining minutes (4)
       expect(result).toBeLessThanOrEqual(4);
@@ -640,7 +642,7 @@ describe('AutomationService', () => {
       // Run multiple times to verify randomness produces different results
       const results: number[] = [];
       for (let i = 0; i < 5; i++) {
-        const result = await automationService.distributeHourlyPosts();
+        const result = await automationService.distributeHourlyPosts(testUserId);
         results.push(result);
       }
 
@@ -664,7 +666,7 @@ describe('AutomationService', () => {
         throw new Error('Database connection lost');
       });
 
-      const result = await automationService.distributeHourlyPosts();
+      const result = await automationService.distributeHourlyPosts(testUserId);
 
       expect(result).toBe(0);
     });
@@ -696,7 +698,7 @@ describe('AutomationService', () => {
         lean: jest.fn().mockResolvedValue([]),
       });
 
-      const result = await automationService.distributeHourlyPosts();
+      const result = await automationService.distributeHourlyPosts(testUserId);
 
       // Should work with overnight schedule
       expect(result).toBeGreaterThanOrEqual(0);

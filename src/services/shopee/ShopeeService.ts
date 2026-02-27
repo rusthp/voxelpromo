@@ -601,21 +601,25 @@ export class ShopeeService {
         logger.info('📡 Shopee: Trying API first...', { source: 'api', userId: this.userId });
 
         // Fetch matches from API with pagination
-        let currentScrollId: string | undefined = undefined;
+        let currentPage = 1;
         let fetchedCount = 0;
         const apiProducts: ShopeeApiProduct[] = [];
 
         while (fetchedCount < limit) {
           const batchLimit = Math.min(50, limit - fetchedCount); // Max 50 per page (API limit estimate)
-          const response = await affiliateService.getBrandOffers(batchLimit, currentScrollId);
+          const response = await affiliateService.getBrandOffers(batchLimit, {
+            listType: 0, // Recommended
+            sortType: 2, // Best selling
+            page: currentPage,
+          });
 
           if (!response.products || response.products.length === 0) break;
 
           apiProducts.push(...response.products);
           fetchedCount += response.products.length;
-          currentScrollId = response.nextScrollId;
+          currentPage++;
 
-          if (!currentScrollId) break; // No more pages
+          if (!response.nextScrollId) break; // No more pages
 
           // Rate limit protection: wait 1s between pages if fetching multiple
           if (fetchedCount < limit) await new Promise(resolve => setTimeout(resolve, 1000));
@@ -684,18 +688,29 @@ export class ShopeeService {
    * Convert API product to internal ShopeeProduct format
    */
   private convertApiProduct(apiProduct: ShopeeApiProduct): ShopeeProduct {
+    // Shopee BR API - prices may be strings, parse safely
+    const priceMin = parseFloat(String(apiProduct.priceMin || 0));
+    const priceMax = parseFloat(String(apiProduct.priceMax || 0));
+    const discountRate = parseFloat(String(apiProduct.priceDiscountRate || 0));
+
+    // Use priceMin as current price, fallback to priceMax
+    const currentPrice = priceMin || priceMax;
+    const originalPrice = discountRate > 0 ? currentPrice / (1 - discountRate / 100) : currentPrice;
+
     return {
       image_link: apiProduct.imageUrl || '',
       itemid: apiProduct.itemId,
-      title: apiProduct.name || '',
-      description: apiProduct.name || '', // API doesn't return description, use title
-      price: apiProduct.price || 0,
-      sale_price: apiProduct.price,
-      discount_percentage: 0, // API doesn't return discount info in this query
+      shopid: apiProduct.shopId,
+      title: apiProduct.productName || '',
+      description: apiProduct.productName || '', // API doesn't return description, use title
+      price: originalPrice,
+      sale_price: currentPrice < originalPrice ? currentPrice : undefined,
+      discount_percentage: discountRate > 0 ? discountRate : undefined,
       product_link: apiProduct.productLink || '',
-      product_short_link: apiProduct.productLink || '', // Will be generated later if needed
+      // Use offerLink (pre-generated affiliate link) if available
+      product_short_link: apiProduct.offerLink || apiProduct.productLink || '',
       global_category1: 'electronics', // Default to generic, or infer from title later
-      item_rating: 0, // Not available in this query
+      item_rating: apiProduct.ratingStar || 0,
     };
   }
 }

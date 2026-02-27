@@ -43,7 +43,7 @@ export interface AutomationConfigDocument extends Document {
   // Metadata
   createdAt: Date;
   updatedAt: Date;
-  createdBy?: string; // User ID
+  userId: string; // User ID (multi-tenant - required)
 }
 
 const PeakHourSchema = new Schema({
@@ -89,7 +89,7 @@ const AutomationConfigSchema = new Schema<AutomationConfigDocument>({
   // Metadata
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
-  createdBy: { type: String },
+  userId: { type: String, required: true, index: true },
 });
 
 // Update updatedAt on save
@@ -101,6 +101,8 @@ AutomationConfigSchema.pre('save', function (next) {
 // 🚀 TURBO: Optimized indexes for faster queries
 AutomationConfigSchema.index({ isActive: 1 }, { name: 'active_config_lookup' });
 AutomationConfigSchema.index({ isActive: 1, updatedAt: -1 }, { name: 'active_recent_config' });
+AutomationConfigSchema.index({ userId: 1, isActive: 1 }, { name: 'user_active_config' });
+AutomationConfigSchema.index({ userId: 1, updatedAt: -1 }, { name: 'user_recent_config' });
 
 export const AutomationConfigModel = mongoose.model<AutomationConfigDocument>(
   'AutomationConfig',
