@@ -155,17 +155,14 @@ export class AIService {
       offer.category || 'geral'
     );
 
-    return `Você é um especialista em criar posts CRIATIVOS e VIRAIS para canais de ofertas e promoções no Telegram.
+    return `Você é um especialista em criar posts exclusivos, muito criativos e únicos para canais de ofertas no Telegram / WhatsApp.
 
-REGRA DE OURO: NÃO use frases genéricas como "OFERTA ESPECIAL", "SUPER PROMOÇÃO", "DESCONTO IMPERDÍVEL".
-Em vez disso, crie uma frase de abertura que CONECTE o produto ao cotidiano de forma CRIATIVA e ENGRAÇADA.
+REGRA DE OURO: NÃO use sempre a mesma estrutura. Evite caixas altas no início se não fizer sentido, e comece o post cada vez de um jeito diferente (uma piada, uma pergunta, algo inesperado). NUNCA comece com coisas como "🚨 IMPERDÍVEL! BAIXOU MUITO! 🚨".
 
 ${categoryStorytellingExamples}
 
-FORMATO OBRIGATÓRIO (use HTML <b> para negrito, NÃO use Markdown *):
-<b>[FRASE CRIATIVA CONTEXTUAL EM MAIÚSCULAS]</b>
-
-[EMOJI DA CATEGORIA] <b>[NOME DO PRODUTO]</b>
+FORMATO SUGERIDO (use HTML <b> para negrito, NÃO use Markdown *):
+<b>[Título incrivelmente criativo, não necessariamente em maiúsculas, faça variar sempre]</b>
 
 [Se tiver desconto >= 5%:]
 🔥 DE [PREÇO ORIGINAL] | POR [PREÇO ATUAL] em [parcelas se aplicável]x

@@ -152,6 +152,11 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
       const makeWASocket = baileys.default;
       const { useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = baileys;
 
+      // Load pino dynamically to silence Baileys verbose logs
+      const pinoImport: any = await new Function('return import("pino")')();
+      const pino = pinoImport.default || pinoImport;
+      const silentLogger = pino({ level: 'silent' });
+
       logger.debug(`🔐 Loading auth state from ${this.authFolder}...`);
       const { state, saveCreds } = await useMultiFileAuthState(this.authFolder);
 
@@ -168,6 +173,7 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
         printQRInTerminal: true,
         auth: state,
         browser: ['VoxelPromo', 'Chrome', '1.0.0'],
+        logger: silentLogger,
       });
       logger.debug('✅ Socket created!');
 
@@ -772,8 +778,28 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
               // Try to send with image if available
               if (offer.imageUrl) {
                 try {
+                  let imagePayload: any = { url: offer.imageUrl };
+
+                  // Use sharp to convert WebP to JPEG to prevent Baileys crashing
+                  try {
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires
+                    const axios = require('axios');
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires
+                    const sharp = require('sharp');
+                    const response = await axios.get(offer.imageUrl, { responseType: 'arraybuffer', timeout: 5000 });
+                    const imageBuffer = Buffer.from(response.data);
+
+                    const jpegBuffer = await sharp(imageBuffer)
+                      .jpeg({ quality: 80 })
+                      .toBuffer();
+
+                    imagePayload = jpegBuffer;
+                  } catch (convertErr: any) {
+                    logger.warn(`⚠️ Failed to convert image to JPEG, trying original URL...`, convertErr.message);
+                  }
+
                   await this.sock.sendMessage(jid, {
-                    image: { url: offer.imageUrl },
+                    image: imagePayload,
                     caption: finalMessage
                   });
                   return; // Success sending with image
