@@ -30,17 +30,14 @@ export class LogService {
       // Extract actor info from req if not provided specifically
       const user = actor || (req as any)?.user; // Type assertion if req.user is not fully typed yet
 
-      // Guard: skip audit log if no valid userId (system/cron actions)
-      if (!user?._id) {
-        console.debug(`[AuditLog] Skipping log for action "${action}" — no actor.userId (system/cron job)`);
-        return;
-      }
-
+      // We don't skip system/cron jobs anymore, we log them as 'SYSTEM' actor
+      const actorId = user?._id || user?.id; // Support both Mongoose _id and JWT payload id
       const actorData = {
-        userId: user._id,
-        username: user.username || 'system',
-        email: user.email || 'system@voxelpromo.com',
-        role: user.role || 'system',
+        userId: actorId || undefined,
+        actorType: actorId ? 'USER' : 'SYSTEM',
+        username: user?.username || 'system',
+        email: user?.email || 'system@voxelpromo.com',
+        role: user?.role || 'system',
         ip: this.getIp(req),
         userAgent: req?.headers['user-agent'] || 'unknown',
       };

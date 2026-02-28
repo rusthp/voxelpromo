@@ -22,6 +22,7 @@ export class OfferService {
   private vectorizerService: VectorizerService | null = null;
   private telegramServices: Map<string, TelegramService> = new Map();
   private instagramServices: Map<string, InstagramService> = new Map();
+  private xServices: Map<string, XService> = new Map();
 
   constructor() {
     // Lazy initialization - only create services when needed
@@ -101,6 +102,28 @@ export class OfferService {
   }
 
 
+
+  /**
+   * Get X (Twitter) service for specific user (Multi-tenant)
+   */
+  private async getXServiceForUser(userId?: string): Promise<XService | null> {
+    if (!userId) {
+      return this.getXService(); // Fallback to legacy/global if no user
+    }
+
+    if (this.xServices.has(userId)) {
+      return this.xServices.get(userId)!;
+    }
+
+    try {
+      const service = await XService.createForUser(userId);
+      this.xServices.set(userId, service);
+      return service;
+    } catch (e) {
+      logger.error(`Failed to load X (Twitter) settings for user ${userId}`, e);
+      return null;
+    }
+  }
 
   /**
    * Get Instagram service for specific user (Multi-tenant)
@@ -808,7 +831,13 @@ export class OfferService {
       ) {
         try {
           logger.info(`📤 Attempting to post offer ${offerId} to X (Twitter)`);
-          const xSuccess = await this.getXService().sendOffer(offer);
+          const xService = await this.getXServiceForUser(offer.userId!);
+          if (!xService) {
+            logger.warn(`⚠️ Failed to load X (Twitter) service for user ${offer.userId}`);
+            throw new Error('X (Twitter) service could not be initialized for user');
+          }
+
+          const xSuccess = await xService.sendOffer(offer);
           if (xSuccess) {
             postedChannels.push('x');
             success = true;

@@ -62,7 +62,7 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
     // Validate Telegram Bot Token (if provided and not masked)
     if (
       config.telegram?.botToken &&
-      config.telegram.botToken !== '***' &&
+      !/^[*•]+$/.test(config.telegram.botToken) &&
       config.telegram.botToken.trim().length > 0
     ) {
       const validation = validateTelegramBotToken(config.telegram.botToken);
@@ -169,7 +169,7 @@ router.post('/', (req, res) => {
     // Validate Telegram Bot Token (if provided and not masked)
     if (
       config.telegram?.botToken &&
-      config.telegram.botToken !== '***' &&
+      !/^[*•]+$/.test(config.telegram.botToken) &&
       config.telegram.botToken.trim().length > 0
     ) {
       const validation = validateTelegramBotToken(config.telegram.botToken);
@@ -326,7 +326,7 @@ router.post('/', (req, res) => {
         // - If undefined, preserve existing value
         botToken:
           config.telegram?.botToken !== undefined
-            ? config.telegram.botToken === '***'
+            ? /^[*•]+$/.test(config.telegram.botToken)
               ? existingConfig.telegram?.botToken || '' // Preserve if masked
               : config.telegram.botToken.trim().length > 0
                 ? config.telegram.botToken.trim()

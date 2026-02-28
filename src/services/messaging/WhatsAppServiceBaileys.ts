@@ -515,22 +515,22 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
     }
 
     if (!this.targetNumber && !this.targetGroups.length) {
-      logger.warn(`⚠️ WhatsApp (Baileys) target number not configured for user ${this.userId || 'system'}`);
-      return;
-    }
-
-    // Validate target number format
-    try {
-      JIDValidator.detectAndFormat(this.targetNumber);
-      logger.debug(`✅ Target number validated: ${this.targetNumber}`);
-    } catch (validationError: any) {
-      logger.error(`❌ Invalid target number format: ${this.targetNumber}`);
-      logger.error(`   Error: ${validationError.message}`);
-      logger.debug(
-        `   Expected format: phone number (e.g., 5511999999999) or JID (e.g., 5511999999999@s.whatsapp.net or 120363123456789012@g.us)`
-      );
-      this.lastError = `Invalid target number: ${validationError.message}`;
-      return;
+      logger.warn(`⚠️ WhatsApp (Baileys) target number not configured for user ${this.userId || 'system'}. Calling initializeSocket anyway to allow QR scan.`);
+      // We do not return here, so the user can scan the QR code first.
+    } else if (this.targetNumber) {
+      // Validate target number format
+      try {
+        JIDValidator.detectAndFormat(this.targetNumber);
+        logger.debug(`✅ Target number validated: ${this.targetNumber}`);
+      } catch (validationError: any) {
+        logger.error(`❌ Invalid target number format: ${this.targetNumber}`);
+        logger.error(`   Error: ${validationError.message}`);
+        logger.debug(
+          `   Expected format: phone number (e.g., 5511999999999) or JID (e.g., 5511999999999@s.whatsapp.net or 120363123456789012@g.us)`
+        );
+        this.lastError = `Invalid target number: ${validationError.message}`;
+        // We don't return here either, let the connection happen
+      }
     }
 
     // If forced, reset state for fresh start

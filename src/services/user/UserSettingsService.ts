@@ -250,7 +250,8 @@ export class UserSettingsService {
         settings.telegram.botToken,
         payload.telegram.botToken
       );
-      settings.telegram.channelId = payload.telegram.channelId ?? settings.telegram.channelId;
+      // Support both channelId and chatId from payload (frontend sends chatId)
+      settings.telegram.channelId = payload.telegram.channelId ?? payload.telegram.chatId ?? settings.telegram.channelId;
       settings.telegram.isConfigured = !!(
         settings.telegram.botToken && settings.telegram.channelId
       );

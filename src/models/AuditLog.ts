@@ -2,7 +2,8 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IAuditLog extends Document {
   actor: {
-    userId: mongoose.Types.ObjectId;
+    userId?: mongoose.Types.ObjectId;
+    actorType: 'USER' | 'SYSTEM';
     username: string;
     email: string;
     role: string;
@@ -25,7 +26,13 @@ export interface IAuditLog extends Document {
 const AuditLogSchema = new Schema<IAuditLog>(
   {
     actor: {
-      userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+      userId: { type: Schema.Types.ObjectId, ref: 'User', required: false },
+      actorType: {
+        type: String,
+        enum: ['USER', 'SYSTEM'],
+        required: true,
+        default: 'SYSTEM',
+      },
       username: { type: String, required: true },
       email: { type: String, required: true },
       role: { type: String, required: true },
