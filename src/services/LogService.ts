@@ -32,8 +32,7 @@ export class LogService {
 
       // We don't skip system/cron jobs anymore, we log them as 'SYSTEM' actor
       const actorId = user?._id || user?.id; // Support both Mongoose _id and JWT payload id
-      const actorData = {
-        userId: actorId || undefined,
+      const actorData: any = {
         actorType: actorId ? 'USER' : 'SYSTEM',
         username: user?.username || 'system',
         email: user?.email || 'system@voxelpromo.com',
@@ -41,6 +40,10 @@ export class LogService {
         ip: this.getIp(req),
         userAgent: req?.headers['user-agent'] || 'unknown',
       };
+      
+      if (actorId) {
+        actorData.userId = actorId;
+      }
 
       await AuditLogModel.create({
         actor: actorData,

@@ -57,7 +57,7 @@ export class TelegramService {
     }
 
     this.bot = new TelegramBot(token, { polling: false });
-    logger.info('✅ Telegram bot initialized');
+    logger.debug('✅ Telegram bot initialized');
   }
 
   /**

@@ -23,6 +23,7 @@ export class OfferService {
   private telegramServices: Map<string, TelegramService> = new Map();
   private instagramServices: Map<string, InstagramService> = new Map();
   private xServices: Map<string, XService> = new Map();
+  private whatsappServices: Map<string, IWhatsAppService> = new Map();
 
   constructor() {
     // Lazy initialization - only create services when needed
@@ -92,6 +93,29 @@ export class OfferService {
       this.whatsappService = WhatsAppServiceFactory.create(library);
     }
     return this.whatsappService;
+  }
+
+  /**
+   * Get WhatsApp service for specific user (Multi-tenant)
+   */
+  private async getWhatsAppServiceForUser(userId?: string): Promise<IWhatsAppService | null> {
+    if (!userId) {
+      return this.getWhatsAppService(); // Fallback to legacy/global if no user
+    }
+
+    if (this.whatsappServices.has(userId)) {
+      return this.whatsappServices.get(userId)!;
+    }
+
+    try {
+      const { WhatsAppServiceBaileys } = await import('../messaging/WhatsAppServiceBaileys');
+      const service = await WhatsAppServiceBaileys.createForUser(userId);
+      this.whatsappServices.set(userId, service);
+      return service;
+    } catch (e) {
+      logger.error(`Failed to load WhatsApp settings for user ${userId}`, e);
+      return null;
+    }
   }
 
   private getXService(): XService {
@@ -789,7 +813,13 @@ export class OfferService {
       // Send to WhatsApp
       if (channels.includes('whatsapp') && !offer.postedChannels?.includes('whatsapp')) {
         try {
-          const whatsappSuccess = await this.getWhatsAppService().sendOffer(offer);
+          const whatsappService = await this.getWhatsAppServiceForUser(offer.userId!);
+          if (!whatsappService) {
+            logger.warn(`⚠️ Failed to load WhatsApp service for user ${offer.userId}`);
+            throw new Error('WhatsApp service could not be initialized for user');
+          }
+
+          const whatsappSuccess = await whatsappService.sendOffer(offer);
           if (whatsappSuccess) {
             postedChannels.push('whatsapp');
             success = true;

@@ -1,25 +1,24 @@
 import { Router } from 'express';
-import { WhatsAppServiceBaileys } from '../services/messaging/WhatsAppServiceBaileys';
 import { logger } from '../utils/logger';
 import { existsSync, readdirSync, unlinkSync, rmdirSync } from 'fs';
 import { join } from 'path';
 import { authenticate, AuthRequest } from '../middleware/auth';
 
-const router = Router();
+import { OfferService } from '../services/offer/OfferService';
 
-// Store service instances per user
-const userServices = new Map<string, WhatsAppServiceBaileys>();
+const router = Router();
+const offerService = new OfferService();
 
 /**
  * Get or create WhatsApp service for user
  */
-async function getServiceForUser(userId: string): Promise<WhatsAppServiceBaileys> {
-  if (userServices.has(userId)) {
-    return userServices.get(userId)!;
+async function getServiceForUser(userId: string): Promise<any> {
+  // Access the private getWhatsAppServiceForUser method via casting to keep things tight 
+  // or use the refactored method if we exposed it. We'll use cast here for quick lookup.
+  const service = await (offerService as any).getWhatsAppServiceForUser(userId);
+  if (!service) {
+    throw new Error('Could not load WhatsApp service for user');
   }
-
-  const service = await WhatsAppServiceBaileys.createForUser(userId);
-  userServices.set(userId, service);
   return service;
 }
 
@@ -224,9 +223,8 @@ router.delete('/auth', authenticate, async (req: AuthRequest, res) => {
     }
 
     // Also reset service instance
-    if (userServices.has(userId)) {
-      // Ideally close connection first
-      userServices.delete(userId);
+    if ((offerService as any).whatsappServices?.has(userId)) {
+      (offerService as any).whatsappServices.delete(userId);
     }
 
     return res.json({ success: true, message: 'Autenticação limpa.', deletedFiles: deletedCount });
