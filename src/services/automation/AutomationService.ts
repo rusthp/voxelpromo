@@ -63,12 +63,22 @@ export class AutomationService {
       const existing = await AutomationConfigModel.findOne({ userId });
 
       if (existing) {
+        const wasActive = existing.isActive;
         // Update existing config
         Object.assign(existing, configData);
         existing.userId = userId; // Ensure userId is always set
         existing.updatedAt = new Date();
         await existing.save();
         logger.info(`✅ Automation config updated for user ${userId}`);
+
+        // If pausing automation, clear already scheduled pending posts
+        if (wasActive && !configData.isActive) {
+          logger.info(`⏸️ Automation paused for user ${userId}. Clearing pending scheduled offers...`);
+          await OfferModel.updateMany(
+            { userId, isPosted: false, scheduledAt: { $exists: true } },
+            { $unset: { scheduledAt: 1 } }
+          );
+        }
 
         // 🚀 TURBO: Invalidate cache for this user
         configCache.invalidate(`${AutomationService.CACHE_KEY_CONFIG_PREFIX}:${userId}`);
@@ -80,6 +90,13 @@ export class AutomationService {
         const newConfig = new AutomationConfigModel({ ...configData, userId });
         await newConfig.save();
         logger.info(`✅ Automation config created for user ${userId}`);
+
+        if (configData.isActive === false) {
+          await OfferModel.updateMany(
+            { userId, isPosted: false, scheduledAt: { $exists: true } },
+            { $unset: { scheduledAt: 1 } }
+          );
+        }
 
         // 🚀 TURBO: Invalidate cache for this user
         configCache.invalidate(`${AutomationService.CACHE_KEY_CONFIG_PREFIX}:${userId}`);
@@ -154,7 +171,7 @@ export class AutomationService {
       // 🚀 TURBO: Use lean() for faster queries, limit fields
       const offers = await OfferModel.find(query)
         .select(
-          'title productUrl currentPrice originalPrice discountPercentage source category _id'
+          'title productUrl currentPrice originalPrice discountPercentage source category scheduledAt _id'
         )
         .lean()
         .limit(limit * 3); // Get 3x to have options after prioritization
@@ -581,26 +598,20 @@ export class AutomationService {
         );
       }
 
-      // Generate unique random minutes using Fisher-Yates shuffle
-      // Create array of available minutes (1 to remainingMinutes)
-      const availableMinuteSlots: number[] = [];
-      for (let i = 1; i <= remainingMinutes; i++) {
-        availableMinuteSlots.push(i);
-      }
+      // Allocate Chunked Randomness logic
+      // We divide the remaining runtime (e.g., 60 minutes) into equal blocks based on how many
+      // posts we want, and pick a random minute within each block to guarantee spacing.
+      const selectedMinutes: number[] = [];
+      const chunkSize = Math.floor(remainingMinutes / selectedOffers.length);
 
-      // Fisher-Yates shuffle for true randomness
-      for (let i = availableMinuteSlots.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [availableMinuteSlots[i], availableMinuteSlots[j]] = [
-          availableMinuteSlots[j],
-          availableMinuteSlots[i],
-        ];
+      for (let i = 0; i < selectedOffers.length; i++) {
+        // For each block, determine start and end boundaries
+        const minOffset = i * chunkSize + 1; // e.g. 1
+        const maxOffset = (i + 1) * chunkSize; // e.g. 12
+        // Pick a random minute inside this block
+        const randomMinute = Math.floor(Math.random() * (maxOffset - minOffset + 1)) + minOffset;
+        selectedMinutes.push(randomMinute);
       }
-
-      // Take first N minutes and sort for readable logs
-      const selectedMinutes = availableMinuteSlots
-        .slice(0, selectedOffers.length)
-        .sort((a, b) => a - b);
 
       // Initialize OfferService
       // eslint-disable-next-line @typescript-eslint/no-var-requires
