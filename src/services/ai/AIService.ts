@@ -155,71 +155,59 @@ export class AIService {
       offer.category || 'geral'
     );
 
-    return `Você é um especialista em criar posts exclusivos, muito criativos e únicos para canais de ofertas no Telegram / WhatsApp.
+    return `Você é um copywriter criativo e especialista em ofertas virais para o Telegram e WhatsApp.
 
-REGRA DE OURO: NÃO use sempre a mesma estrutura. Evite caixas altas no início se não fizer sentido, e comece o post cada vez de um jeito diferente (uma piada, uma pergunta, algo inesperado). NUNCA comece com coisas como "🚨 IMPERDÍVEL! BAIXOU MUITO! 🚨".
+REGRA DE #1: NUNCA crie textos iguais. Fuja de clichês! Comece CADA POST de um jeito diferente (piada, pergunta instigante, meme em texto, curiosidade, ou alerta de preço bizarro).
+NUNCA, JAMAIS use o termo "IMPERDÍVEL" ou "BAIXOU MUITO". Pense fora da caixa!
 
 ${categoryStorytellingExamples}
 
-FORMATO SUGERIDO (use HTML <b> para negrito, NÃO use Markdown *):
-<b>[Título incrivelmente criativo, não necessariamente em maiúsculas, faça variar sempre]</b>
+REGRAS DE FORMATAÇÃO (ESTRITAMENTE OBRIGATÓRIAS):
+- Use HTML <b>texto</b> para negrito. NUNCA use asteriscos como *texto* ou **texto**.
+- NÃO use HTML <br> ou <br/>, apenas quebras de linha com "Enter" (\\n).
+- Destaque o benefício ou a brincadeira no título.
+- Se houver um desconto maior ou igual a 5%, mostre o "De R$ X | Por R$ Y". Caso contrário, mostre apenas o "Por R$ Y".
+- Sempre coloque o link DIRETO no final (sem frescuras tipo "Link na bio" ou "Compre aqui:"). O formato ideal é um emoji apontando seguido do url. Ex: 👉 {url}
+- Use hashtags no final.
 
-[Se tiver desconto >= 5%:]
-🔥 DE [PREÇO ORIGINAL] | POR [PREÇO ATUAL] em [parcelas se aplicável]x
+ESTRUTURA SUGERIDA (MAS NÃO SE PRENDA A ELA):
+<b>[Abertura criativa / engraçada / caótica sobre o produto]</b>
 
-🎯 [DESCONTO]% OFF
+[Emoji] <b>[Nome curto do Produto]</b>
 
-[Se NÃO tiver desconto >= 5%:]
-🔥 POR [PREÇO COM VÍRGULA]
+🔥 De: [Preço Antigo]
+💰 Por: <b>[Preço Atual]</b> [se parcelado colocar "em X vezes"]
+[Se aplicável, % de desconto]
 
-[Se tiver cupom:]
-🎟️ CUPOM: <b>[CÓDIGO DO CUPOM]</b>
+[Se tiver cupom] 🎟️ Cupom: <b>[Código do Cupom]</b>
 
-🔗 [LINK DIRETO DO PRODUTO]
+👉 [URL DO PRODUTO]
 
-[Hashtags - SEMPRE adicione no final:]
-#oferta #promocao #desconto #[categoria] #[fonte]
+#oferta #[categoria]
 
-IMPORTANTE:
-- Use HTML <b>texto</b> para negrito, NUNCA use Markdown *texto*
-- NÃO use <br> ou <br/> - use quebras de linha (\\n) para espaçamento
-- NÃO mostre o preço duas vezes - se tiver desconto, mostre apenas a linha com desconto
-- NÃO mostre "🎯 0% OFF" quando não há desconto real
-- Use vírgula no preço (ex: 12,59 ao invés de 12.59)
-- SEMPRE adicione hashtags no final (linha separada com espaço antes)
-- Use espaçamento generoso entre seções (linhas vazias entre cada seção)
-- Cada seção deve ter pelo menos uma linha vazia antes e depois
-
-Dados da oferta:
+Dados da oferta da vez:
 Título: ${offer.title}
 Preço Original: R$ ${offer.originalPrice.toFixed(2)}
 Preço Atual: R$ ${offer.currentPrice.toFixed(2)}
 Desconto: ${offer.discountPercentage.toFixed(0)}%
 Categoria: ${offer.category}
 ${offer.coupons && offer.coupons.length > 0 ? `Cupons: ${offer.coupons.join(', ')}` : ''}
-${offer.rating ? `Avaliação: ${offer.rating}/5` : ''}
-${offer.reviewsCount ? `Avaliações: ${offer.reviewsCount}` : ''}
 Link: ${offer.affiliateUrl}
 
-Instruções:
-- ${toneText}
-- Crie uma frase de abertura CRIATIVA baseada na categoria do produto (veja exemplos acima)
-- A frase deve fazer SENTIDO com o produto e criar uma NARRATIVA
-- ${maxLength ? `Máximo de ${maxLength} caracteres` : 'Seja conciso mas persuasivo'}
-- ${includeEmojis !== false ? 'Use emojis relevantes (🔥, 💰, 🎯, 🎟️, 🔗)' : 'Não use emojis'}
-- ${includeHashtags !== false ? 'Inclua hashtags relevantes' : 'Não use hashtags'}
-- SEMPRE inclua o link diretamente no final (não use "Ver oferta" ou "Link na bio")
-- Use vírgula no preço (ex: 12,59 ao invés de 12.59)
-- Destaque o desconto e o valor
-- Torne o post atrativo e que gere interesse
+INSTRUÇÕES FINAIS:
+${toneText}
+${maxLength ? `O post deve ter no máximo ${maxLength} caracteres.` : ''}
+${includeEmojis !== false ? 'Use emojis moderadamente, não exagere.' : 'NÃO use emojis.'}
+${includeHashtags !== false ? 'Use entre 2 e 4 hashtags.' : 'NÃO use hashtags.'}
+Torne o texto VIVO! Imagine que você está mandando mensagem num grupo de amigos para mostrar uma pechincha inacreditável.
 
 Retorne APENAS um JSON válido com esta estrutura:
 {
-  "title": "título curto e impactante",
-  "description": "descrição persuasiva da oferta",
+  "title": "título curto e impactante (sem imperdível)",
+  "description": "descrição curta focando nos benefícios e na oferta",
   "hashtags": ["#hashtag1", "#hashtag2"],
   "emojis": ["🔥", "💰"],
-  "fullPost": "post completo formatado EXATAMENTE como o formato obrigatório acima, incluindo o link direto no final"
+  "fullPost": "O POST COMPLETO PARA REDES SOCIAIS, PRONTO PARA COPIAR E COLAR, usando a formatação HTML com <b>negrito</b>."
 }`;
   }
 
@@ -723,7 +711,17 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
     };
     const source = sourceMap[offer.source] || offer.source;
 
-    const fullPost = `🚨 <b>IMPERDÍVEL! BAIXOU MUITO!</b> 🚨
+    // Randomize the fallback string so it is not always the identical one
+    const fallbackOpenings = [
+      '🔥 Olha o que eu acabei de achar:',
+      '😱 Corre que o preço despencou:',
+      '🚀 Oferta imperdível pintando na área:',
+      '💣 Preço de banana pra esse produto:',
+      '🎯 Achado do dia pra vocês:',
+    ];
+    const randomOpening = fallbackOpenings[Math.floor(Math.random() * fallbackOpenings.length)];
+
+    const fullPost = `<b>${randomOpening}</b>
 
 📦 <b>${offer.title}</b>
 
