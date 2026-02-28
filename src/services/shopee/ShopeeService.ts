@@ -594,7 +594,7 @@ export class ShopeeService {
    */
   async getProducts(
     category: string = 'electronics',
-    limit: number = 100
+    limit: number = 200
   ): Promise<ShopeeProduct[]> {
     let products: ShopeeProduct[] = [];
     let source: 'api' | 'csv' = 'csv';
@@ -677,14 +677,21 @@ export class ShopeeService {
     }
 
     // Filter by category/keywords if specified
-    if (category && category !== 'electronics') {
-      const keywords = category.toLowerCase().split(' ').filter(k => k.length > 2); // Split by space, ignore short words
+    // Skip filter for generic/diversified niches — accept all API products
+    const genericTerms = ['electronics', 'eletronicos casa', 'eletronicos', 'electronics mix', 'electronics gadgets', ''];
+    const isGeneric = !category || genericTerms.includes(category.toLowerCase().trim());
+
+    if (!isGeneric) {
+      // Normalize: remove accents for matching
+      const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const keywords = category.toLowerCase().split(' ').filter(k => k.length > 2);
+      const normalizedKeywords = keywords.map(normalize);
 
       const filtered = products.filter((p) => {
-        const searchText = `${p.title} ${p.description} ${p.global_category1 || ''} ${p.global_category2 || ''}`.toLowerCase();
+        const searchText = normalize(`${p.title} ${p.description} ${p.global_category1 || ''} ${p.global_category2 || ''}`);
 
-        // OR logic: match ANY keyword
-        return keywords.some(keyword => searchText.includes(keyword));
+        // OR logic: match ANY keyword (accent-insensitive)
+        return normalizedKeywords.some(keyword => searchText.includes(keyword));
       });
 
       logger.info(`📦 Filtered to ${filtered.length} products matching keywords: "${keywords.join(', ')}"`, {
@@ -693,6 +700,7 @@ export class ShopeeService {
       return filtered.slice(0, limit);
     }
 
+    logger.info(`📦 Generic niche — accepting all ${products.length} products (no keyword filter)`, { source });
     return products.slice(0, limit);
   }
 

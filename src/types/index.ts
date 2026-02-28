@@ -1,3 +1,14 @@
+/**
+ * Pre-rendered message from TemplateService.
+ * Channels must use this text and only adapt formatting.
+ */
+export interface RenderedMessage {
+  text: string;
+  templateId?: string;
+  tone?: string;
+  generatedAt: Date;
+}
+
 export interface Offer {
   _id?: string;
   userId?: string; // Reference to the user who owns this offer
@@ -12,16 +23,16 @@ export interface Offer {
   productUrl: string;
   affiliateUrl: string;
   source:
-    | 'amazon'
-    | 'aliexpress'
-    | 'shopee'
-    | 'rss'
-    | 'manual'
-    | 'mercadolivre'
-    | 'awin'
-    | 'lomadee'
-    | 'afilio'
-    | 'rakuten';
+  | 'amazon'
+  | 'aliexpress'
+  | 'shopee'
+  | 'rss'
+  | 'manual'
+  | 'mercadolivre'
+  | 'awin'
+  | 'lomadee'
+  | 'afilio'
+  | 'rakuten';
   category: string;
   subcategory?: string;
   rating?: number;
@@ -35,6 +46,7 @@ export interface Offer {
   postedAt?: Date;
   postedChannels?: string[];
   aiGeneratedPost?: string;
+  rendered?: RenderedMessage; // Pre-rendered template message
   scheduledAt?: Date;
   shortCode?: string;
   clicks?: number;

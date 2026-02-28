@@ -683,7 +683,32 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
       }
 
       let successCount = 0;
-      const message = this.formatMessage(offer);
+
+      /**
+       * 🔗 Priority chain (mutually exclusive — never mix sources):
+       *   1. offer.rendered.text   → from AutomationService + TemplateService (automation flow)
+       *   2. offer.aiGeneratedPost → from AIService (manual post with AI)
+       *   3. formatMessage()       → legacy fallback (manual post without AI)
+       */
+      let rawMessage: string;
+      if (offer.rendered?.text) {
+        rawMessage = offer.rendered.text;
+        logger.info(`📝 WhatsApp using template (id: ${offer.rendered.templateId || 'default'}, tone: ${offer.rendered.tone || 'n/a'})`);
+      } else if (offer.aiGeneratedPost) {
+        rawMessage = offer.aiGeneratedPost;
+        logger.info('📝 WhatsApp using AI generated post');
+      } else {
+        logger.warn('⚠️ WhatsApp: No rendered template — using fallback formatMessage');
+        rawMessage = this.formatMessage(offer);
+      }
+
+      // Adapt: convert HTML to WhatsApp formatting (*bold*, _italic_)
+      const message = this.convertHtmlToWhatsApp(rawMessage);
+
+      // Only add link if it's not already in the message
+      const finalMessage = (offer.affiliateUrl && !message.includes(offer.affiliateUrl))
+        ? `${message}\n\n🔗 ${offer.affiliateUrl}`
+        : message;
 
       // Enviar para todos os grupos/números configurados
       for (const target of this.targetGroups) {
@@ -708,7 +733,7 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
               if (!this.sock) {
                 throw new Error('Socket not initialized');
               }
-              await this.sock.sendMessage(jid, { text: message });
+              await this.sock.sendMessage(jid, { text: finalMessage });
             }, `Send message to ${jid}`);
             logger.debug(`✅ Text message sent successfully`);
           } catch (messageError: any) {

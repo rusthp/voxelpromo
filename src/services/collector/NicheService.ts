@@ -32,7 +32,7 @@ export const SUPPORTED_NICHES: Record<string, NicheDefinition> = {
             },
             shopee: {
                 category: 'electronics',
-                subcategories: [{ name: 'Geral', keywords: 'eletronicos casa' }]
+                subcategories: [{ name: 'Geral', keywords: '' }]
             },
             aliexpress: {
                 category: 'electronics',

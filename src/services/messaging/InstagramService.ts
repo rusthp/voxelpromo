@@ -789,8 +789,24 @@ export class InstagramService {
         return { success: false };
       }
 
-      // Format caption for Instagram
-      const caption = await this.formatMessage(offer);
+      /**
+       * 🔗 Priority chain (mutually exclusive — never mix sources):
+       *   1. offer.rendered.text   → from AutomationService + TemplateService (automation flow)
+       *   2. offer.aiGeneratedPost → from AIService (manual post with AI)
+       *   3. formatMessage()       → legacy fallback (manual post without AI)
+       */
+      let caption: string;
+      if (offer.rendered?.text) {
+        // Adapt: strip HTML tags for Instagram (no formatting support)
+        caption = offer.rendered.text.replace(/<[^>]+>/g, '');
+        logger.info(`📝 Instagram using template (id: ${offer.rendered.templateId || 'default'}, tone: ${offer.rendered.tone || 'n/a'})`);
+      } else if (offer.aiGeneratedPost) {
+        caption = offer.aiGeneratedPost.replace(/<[^>]+>/g, '');
+        logger.info('📝 Instagram using AI generated post');
+      } else {
+        logger.warn('⚠️ Instagram: No rendered template — using fallback formatMessage');
+        caption = await this.formatMessage(offer);
+      }
 
       logger.info(`📤 Publishing Instagram post for: ${offer.title}`);
 

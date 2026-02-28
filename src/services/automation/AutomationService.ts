@@ -193,8 +193,31 @@ export class AutomationService {
       // Sort by priority (descending)
       offersWithPriority.sort((a, b) => b._priority - a._priority);
 
-      // Return top N offers
-      return offersWithPriority.slice(0, limit).map(({ _priority, ...offer }) => offer as Offer);
+      // 🔄 Source rotation: interleave offers from different sources
+      // Groups by source, then round-robins (ML → Shopee → ML → Shopee...)
+      const bySource = new Map<string, any[]>();
+      for (const offer of offersWithPriority) {
+        const src = offer.source || 'unknown';
+        if (!bySource.has(src)) bySource.set(src, []);
+        bySource.get(src)!.push(offer);
+      }
+
+      const sourceQueues = Array.from(bySource.values());
+      const interleaved: any[] = [];
+      let idx = 0;
+
+      while (interleaved.length < limit && sourceQueues.some(q => q.length > 0)) {
+        const queue = sourceQueues[idx % sourceQueues.length];
+        if (queue.length > 0) {
+          interleaved.push(queue.shift()!);
+        }
+        idx++;
+        // Safety: prevent infinite loop if all queues are empty
+        if (idx > offersWithPriority.length * 2) break;
+      }
+
+      // Return interleaved offers
+      return interleaved.slice(0, limit).map(({ _priority, ...offer }) => offer as Offer);
     } catch (error) {
       logger.error('Error getting next scheduled offers:', error);
       return [];
@@ -322,19 +345,32 @@ export class AutomationService {
 
       // Render message using template
       let message = '';
+      let templateTone = '';
+      let templateId = '';
       if (config.messageTemplateId) {
         const template = await this.templateService.getTemplate(
           config.messageTemplateId.toString()
         );
         if (template) {
           message = this.templateService.renderTemplate(template, offer);
+          templateTone = template.tone || '';
+          templateId = template._id?.toString() || config.messageTemplateId.toString();
         }
       }
 
       // If no template or rendering failed, use default
       if (!message) {
         message = this.templateService.renderDefaultTemplate(offer);
+        templateTone = 'default';
       }
+
+      // 🔗 Attach rendered message to offer — channels MUST use this
+      offer.rendered = {
+        text: message,
+        templateId: templateId || undefined,
+        tone: templateTone,
+        generatedAt: new Date(),
+      };
 
       logger.info(`📤 Automation posting offer: ${offer.title.substring(0, 50)}...`);
       logger.info(`📝 Using message: ${message.substring(0, 100)}...`);

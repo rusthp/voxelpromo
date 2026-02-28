@@ -314,8 +314,23 @@ export class XService {
 
       logger.info(`📤 Sending offer to X (Twitter) - Title: ${offer.title}`);
 
-      // Format message for X (Twitter has 280 char limit, but we'll try to keep it concise)
-      const message = await this.formatMessage(offer);
+      /**
+       * 🔗 Priority chain (mutually exclusive — never mix sources):
+       *   1. offer.rendered.text   → from AutomationService + TemplateService (automation flow)
+       *   2. offer.aiGeneratedPost → from AIService (manual post with AI)
+       *   3. formatMessage()       → legacy fallback (manual post without AI)
+       */
+      let message: string;
+      if (offer.rendered?.text) {
+        message = this.adaptForX(offer.rendered.text);
+        logger.info(`📝 X using template (id: ${offer.rendered.templateId || 'default'}, tone: ${offer.rendered.tone || 'n/a'})`);
+      } else if (offer.aiGeneratedPost) {
+        message = this.adaptForX(offer.aiGeneratedPost);
+        logger.info('📝 X using AI generated post');
+      } else {
+        logger.warn('⚠️ X: No rendered template — using fallback formatMessage');
+        message = await this.formatMessage(offer);
+      }
 
       // X/Twitter API v2 - create tweet
       // Use readWrite client if available (OAuth 1.0a), otherwise use regular client
@@ -462,6 +477,41 @@ export class XService {
     }
 
     return message;
+  }
+
+  /**
+   * Adapt text for X (Twitter): strip HTML, enforce 280 chars, NEVER cut URLs.
+   * Pure adapter — does NOT alter copy content.
+   */
+  private adaptForX(html: string): string {
+    // Step 1: Strip HTML tags
+    const text = html.replace(/<[^>]+>/g, '');
+
+    // Step 2: If already within limit, return as-is
+    if (text.length <= 280) return text;
+
+    // Step 3: Extract URLs to protect them from truncation
+    const urlRegex = /https?:\/\/[^\s]+/g;
+    const urls = text.match(urlRegex) || [];
+
+    // Remove URLs from text to truncate only the copy
+    let textWithoutUrls = text;
+    for (const url of urls) {
+      textWithoutUrls = textWithoutUrls.replace(url, '').trim();
+    }
+
+    // Calculate available space: 280 - urls - separators
+    const urlsText = urls.join('\n');
+    const maxTextLen = 280 - urlsText.length - (urls.length > 0 ? 2 : 0); // -2 for \n\n separator
+
+    if (maxTextLen > 20) {
+      // Truncate only the copy, preserve full URLs
+      const truncatedText = textWithoutUrls.substring(0, maxTextLen - 3).trimEnd() + '...';
+      return urls.length > 0 ? `${truncatedText}\n\n${urlsText}` : truncatedText;
+    }
+
+    // Edge case: URL alone is > 280 — just truncate the whole thing (rare)
+    return text.substring(0, 277) + '...';
   }
 
   /**

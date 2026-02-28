@@ -91,7 +91,24 @@ export class TelegramService {
       }
 
       logger.info(`📤 Sending offer to Telegram - Title: ${offer.title}, Chat ID: ${this.chatId}`);
-      const message = await this.formatMessage(offer);
+
+      /**
+       * 🔗 Priority chain (mutually exclusive — never mix sources):
+       *   1. offer.rendered.text   → from AutomationService + TemplateService (automation flow)
+       *   2. offer.aiGeneratedPost → from AIService (manual post with AI)
+       *   3. formatMessage()       → legacy fallback (manual post without AI)
+       */
+      let message: string;
+      if (offer.rendered?.text) {
+        message = offer.rendered.text;
+        logger.info(`📝 Telegram using template (id: ${offer.rendered.templateId || 'default'}, tone: ${offer.rendered.tone || 'n/a'})`);
+      } else if (offer.aiGeneratedPost) {
+        message = offer.aiGeneratedPost;
+        logger.info('📝 Telegram using AI generated post');
+      } else {
+        logger.warn('⚠️ Telegram: No rendered template — using fallback formatMessage');
+        message = await this.formatMessage(offer);
+      }
 
       if (offer.imageUrl) {
         logger.debug(`📷 Sending offer with image: ${offer.imageUrl}`);
