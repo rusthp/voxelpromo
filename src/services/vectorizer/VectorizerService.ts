@@ -39,6 +39,7 @@ export interface VectorizerResponse<T> {
 
 export class VectorizerService {
   private config: VectorizerConfig;
+  private isServiceAvailable: boolean | null = null;
 
   constructor(config?: Partial<VectorizerConfig>) {
     this.config = {
@@ -137,6 +138,10 @@ export class VectorizerService {
     options?: InsertOptions
   ): Promise<VectorizerResponse<{ vector_id: string }>> {
     try {
+      if (this.isServiceAvailable === false) {
+        return { success: false, error: 'Vectorizer API offline (skipped silently)' };
+      }
+
       const collection = options?.collection || this.config.defaultCollection;
       const response = await fetch(`${this.config.apiUrl}/collections/${collection}/texts`, {
         method: 'POST',
@@ -157,9 +162,11 @@ export class VectorizerService {
       }
 
       const data = await response.json();
+      this.isServiceAvailable = true;
       return { success: true, data: { vector_id: data.vector_id || data.id } };
     } catch (error) {
-      return { success: false, error: String(error) };
+      this.isServiceAvailable = false;
+      return { success: false, error: 'Vectorizer offline or unreachable' };
     }
   }
 

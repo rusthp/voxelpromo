@@ -570,12 +570,14 @@ const Settings = () => {
     const handleTest = async (service: string) => {
         try {
             setTesting(service);
-            const response = await api.post('/config/test', { service });
-            const result = response.data[service];
+            // Send the specific service config so the backend can test unsaved changes
+            const serviceConfig = config[service as keyof ConfigState];
+            const response = await api.post('/config/test', { service, config: serviceConfig });
+            const result = response.data[service] || response.data;
             if (result?.success) {
-                toast.success(result.message);
+                toast.success(result.message || "Teste concluído com sucesso!");
             } else {
-                toast.error(result?.message || "Erro ao testar configuração.");
+                toast.error(result?.message || result?.error || "Erro ao testar configuração.");
             }
         } catch (error) {
             console.error(`Error testing ${service}:`, error);

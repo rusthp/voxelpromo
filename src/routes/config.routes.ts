@@ -657,7 +657,7 @@ router.post('/', (req, res) => {
 router.post('/test', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { service } = req.body;
+    const { service, config: payloadConfig } = req.body;
     const results: any = {};
 
     // Fetch user settings from database
@@ -667,10 +667,14 @@ router.post('/test', authenticate, async (req: AuthRequest, res: Response) => {
     // Test Telegram
     if (service === 'telegram' || !service) {
       try {
-        const botToken = userSettings.telegram?.botToken;
-        // Check if token exists and is valid (not masked unless we decide to handle masked retrieval differently, 
-        // but getSettings usually returns fully unless specific safe method used. 
-        // Actually getSettings returns the document, so it has the real token)
+        const telegramConfig = payloadConfig || userSettings.telegram;
+        let botToken = telegramConfig?.botToken;
+        const chatId = telegramConfig?.chatId || telegramConfig?.channelId; // Support both channelId and chatId, preferring chatId which the UI binds to
+
+        // Check if token is masked, and if so, fallback to real token from userSettings
+        if (botToken && botToken.includes('***')) {
+          botToken = userSettings.telegram?.botToken;
+        }
 
         if (!botToken || botToken.trim().length === 0) {
           results.telegram = { success: false, message: 'Bot Token não configurado' };
@@ -681,7 +685,6 @@ router.post('/test', authenticate, async (req: AuthRequest, res: Response) => {
           // Test by getting bot info
           const botInfo = await bot.getMe();
           if (botInfo && botInfo.username) {
-            const chatId = userSettings.telegram?.channelId; // Mapped to channelId in DB
             if (chatId) {
               try {
                 const testMessage = `🤖 <b>Teste do VoxelPromo</b>\n\n✅ Bot configurado com sucesso!\n\n📅 Data/Hora: ${new Date().toLocaleString('pt-BR')}\n🔗 Sistema: VoxelPromo - Monitoramento de Ofertas\n\nSe você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
@@ -720,8 +723,9 @@ router.post('/test', authenticate, async (req: AuthRequest, res: Response) => {
     // Test AI
     if (service === 'ai' || !service) {
       try {
-        const provider = userSettings.ai?.provider || 'groq';
-        const apiKey = provider === 'groq' ? userSettings.ai?.groqApiKey : userSettings.ai?.openaiApiKey;
+        const aiConfig = payloadConfig || userSettings.ai;
+        const provider = aiConfig?.provider || 'groq';
+        const apiKey = provider === 'groq' ? aiConfig?.groqApiKey : aiConfig?.openaiApiKey;
 
         if (!apiKey) {
           results.ai = { success: false, message: `${provider} API Key não configurada` };

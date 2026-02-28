@@ -17,6 +17,10 @@ import { UserSettingsModel } from '../../models/UserSettings';
  * WhatsApp Service usando Baileys (recomendado - mais leve e rápido)
  */
 export class WhatsAppServiceBaileys implements IWhatsAppService {
+
+  // Global instance cache to prevent multiple sockets for the same user
+  private static instances = new Map<string, WhatsAppServiceBaileys>();
+
   private sock: WASocket | null = null;
   private _isReady = false;
   private targetNumber: string = '';
@@ -45,9 +49,35 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
    * Factory method: Create service for a specific user
    */
   static async createForUser(userId: string): Promise<WhatsAppServiceBaileys> {
+    // Return cached instance if it exists to prevent multiple socket connections
+    if (this.instances.has(userId)) {
+      const existingService = this.instances.get(userId)!;
+      // Always reload settings to ensure we have the latest target numbers/groups
+      await existingService.loadSettings();
+      return existingService;
+    }
+
     const service = new WhatsAppServiceBaileys(userId);
     await service.loadSettings();
+    this.instances.set(userId, service);
     return service;
+  }
+
+  /**
+   * Disconnect and remove instance from cache (useful when device is removed or auth is cleared)
+   */
+  static removeInstance(userId: string): void {
+    if (this.instances.has(userId)) {
+      const service = this.instances.get(userId)!;
+      if (service.sock) {
+        try {
+          service.sock.end(undefined);
+        } catch (e) {
+          // Ignore close errors
+        }
+      }
+      this.instances.delete(userId);
+    }
   }
 
   /**
@@ -336,6 +366,11 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
               }
             } catch (error) {
               logger.warn('Erro ao limpar arquivos de autenticação:', error);
+            }
+
+            // Remove instance from global cache since the session is dead
+            if (this.userId) {
+              WhatsAppServiceBaileys.removeInstance(this.userId);
             }
 
             // Don't auto-reconnect - user needs to scan QR code again
@@ -727,25 +762,41 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
             continue; // Próximo target
           }
 
-          // Send text message with retry
+          // Send message with retry
           try {
             await RetryHelper.retryMessage(async () => {
               if (!this.sock) {
                 throw new Error('Socket not initialized');
               }
+
+              // Try to send with image if available
+              if (offer.imageUrl) {
+                try {
+                  await this.sock.sendMessage(jid, {
+                    image: { url: offer.imageUrl },
+                    caption: finalMessage
+                  });
+                  return; // Success sending with image
+                } catch (imgErr) {
+                  logger.warn(`⚠️ Failed to send image to ${jid}, falling back to text only:`, (imgErr as Error).message);
+                  // Will fall through and try to send as text only
+                }
+              }
+
+              // Fallback to text or if no image URL
               await this.sock.sendMessage(jid, { text: finalMessage });
             }, `Send message to ${jid}`);
-            logger.debug(`✅ Text message sent successfully`);
+            logger.debug(`✅ Message sent successfully`);
           } catch (messageError: any) {
-            const errorMsg = `Failed to send text message after retries: ${messageError.message}`;
+            const errorMsg = `Failed to send message after retries: ${messageError.message}`;
             logger.error(`❌ ${errorMsg}`);
             this.lastError = errorMsg;
             this.messagesFailed++;
             return false;
           }
 
-          // Note: WhatsApp automatically generates link preview from the URL in the message
-          // No need to send image separately as it creates duplicate messages
+          // Note: Previously we relied on WhatsApp's link preview, but it was unreliable.
+          // Now we explicitly send the image with the caption to ensure it appears.
 
           this.messagesSent++;
           successCount++;

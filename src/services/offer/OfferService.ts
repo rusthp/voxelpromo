@@ -23,7 +23,6 @@ export class OfferService {
   private telegramServices: Map<string, TelegramService> = new Map();
   private instagramServices: Map<string, InstagramService> = new Map();
   private xServices: Map<string, XService> = new Map();
-  private whatsappServices: Map<string, IWhatsAppService> = new Map();
 
   constructor() {
     // Lazy initialization - only create services when needed
@@ -103,14 +102,10 @@ export class OfferService {
       return this.getWhatsAppService(); // Fallback to legacy/global if no user
     }
 
-    if (this.whatsappServices.has(userId)) {
-      return this.whatsappServices.get(userId)!;
-    }
-
     try {
+      // Defer to WhatsAppServiceBaileys static instances map for global state retention
       const { WhatsAppServiceBaileys } = await import('../messaging/WhatsAppServiceBaileys');
       const service = await WhatsAppServiceBaileys.createForUser(userId);
-      this.whatsappServices.set(userId, service);
       return service;
     } catch (e) {
       logger.error(`Failed to load WhatsApp settings for user ${userId}`, e);
@@ -1158,15 +1153,18 @@ export class OfferService {
 
       for (const offer of scheduledOffers) {
         try {
-          // Fetch automation config to get enabled channels
-          const config = await AutomationConfigModel.findOne({}).lean();
+          const userIdStr = offer.userId?.toString();
+
+          // Fetch automation config to get enabled channels for this specific user
+          const query = userIdStr ? { userId: userIdStr } : {};
+          const config = await AutomationConfigModel.findOne(query).lean();
           const enabledChannels =
             config?.enabledChannels && config.enabledChannels.length > 0
               ? config.enabledChannels
               : ['telegram']; // Default to telegram if no config
 
-          // Post to configured channels
-          const success = await this.postOffer(offer._id.toString(), enabledChannels);
+          // Post to configured channels with user context
+          const success = await this.postOffer(offer._id.toString(), enabledChannels, userIdStr);
 
           if (success) {
             // Clear scheduledAt after successful posting

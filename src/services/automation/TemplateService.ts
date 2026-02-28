@@ -117,10 +117,10 @@ export class TemplateService {
       // Replace all variables
       const variables = {
         '{title}': offer.title,
-        '{price}': `R$ ${offer.currentPrice.toFixed(2)}`,
-        '{originalPrice}': `R$ ${offer.originalPrice.toFixed(2)}`,
-        '{discount}': `R$ ${offer.discount.toFixed(2)}`,
-        '{discountPercent}': `${offer.discountPercentage.toFixed(0)}%`,
+        '{price}': `R$ ${(offer.currentPrice || 0).toFixed(2)}`,
+        '{originalPrice}': `R$ ${(offer.originalPrice || offer.currentPrice || 0).toFixed(2)}`,
+        '{discount}': `R$ ${(offer.discount || 0).toFixed(2)}`,
+        '{discountPercent}': `${(offer.discountPercentage || 0).toFixed(0)}%`,
         '{url}': offer.affiliateUrl || offer.productUrl,
         '{source}': this.formatSource(offer.source),
         '{category}': offer.category,
@@ -153,8 +153,8 @@ export class TemplateService {
 
 ${offer.title}
 
-💰 De R$ ${offer.originalPrice.toFixed(2)} por R$ ${offer.currentPrice.toFixed(2)}
-📉 ${offer.discountPercentage.toFixed(0)}% OFF (Economize R$ ${offer.discount.toFixed(2)})
+💰 De R$ ${(offer.originalPrice || offer.currentPrice || 0).toFixed(2)} por R$ ${(offer.currentPrice || 0).toFixed(2)}
+📉 ${(offer.discountPercentage || 0).toFixed(0)}% OFF (Economize R$ ${(offer.discount || 0).toFixed(2)})
 
 ${offer.rating ? `⭐ ${offer.rating.toFixed(1)} ${offer.reviewsCount ? `(${offer.reviewsCount} avaliações)` : ''}` : ''}
 
