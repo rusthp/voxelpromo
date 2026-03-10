@@ -3,6 +3,8 @@ import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { Browser, Page } from 'puppeteer';
 import { logger } from '../../utils/logger';
 import { existsSync } from 'fs';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
 
 // Add stealth plugin
 puppeteer.use(StealthPlugin());
@@ -707,6 +709,84 @@ export class MercadoLivreScraper {
     } catch (error: any) {
       logger.error(`❌ Deals Scraping Failed: ${error.message}`);
       throw error;
+    }
+  }
+
+  /**
+   * Scrapes the Mercado Livre "/ofertas" page.
+   */
+  public async scrapeOfertas(limit: number = 20): Promise<any[]> {
+    try {
+      const url = 'https://www.mercadolivre.com.br/ofertas';
+      const { data } = await axios.get(url);
+      const $ = cheerio.load(data);
+      const offers: any[] = [];
+
+      // Selectors adjusted for Mercado Livre's promo items (often change, using multiple fallbacks)
+      $('.promotion-item, .poly-card').each((i, element) => {
+        if (i >= limit) return false;
+
+        const title = $(element).find('.promotion-item__title, .poly-component__title').text().trim();
+        const priceText = $(element).find('.andes-money-amount__fraction').first().text().trim();
+        const link = $(element).find('a').attr('href');
+        const imageUrl = $(element).find('img').attr('src') || $(element).find('img').attr('data-src');
+
+        if (title && link) {
+          offers.push({
+            title,
+            price: priceText ? parseFloat(priceText.replace(/\./g, '').replace(',', '.')) : 0,
+            url: link,
+            imageUrl,
+            platform: 'MERCADO_LIVRE',
+            source: 'OFERTAS',
+            extractedAt: new Date()
+          });
+        }
+        return true;
+      });
+
+      return offers;
+    } catch (error) {
+      logger.error('❌ [MercadoLivreScraper] Error scraping /ofertas:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Scrapes the Mercado Livre "/mais-vendidos" categories.
+   */
+  public async scrapeMaisVendidos(categoryUrl: string, limit: number = 20): Promise<any[]> {
+    try {
+      const { data } = await axios.get(categoryUrl);
+      const $ = cheerio.load(data);
+      const trending: any[] = [];
+
+      $('.ui-search-result__wrapper, .poly-card').each((i, element) => {
+        if (i >= limit) return false;
+
+        const title = $(element).find('.ui-search-item__title, .poly-component__title').text().trim();
+        const priceText = $(element).find('.andes-money-amount__fraction').first().text().trim();
+        const link = $(element).find('a').attr('href');
+        const imageUrl = $(element).find('img').attr('src') || $(element).find('img').attr('data-src');
+
+        if (title && link) {
+          trending.push({
+            title,
+            price: priceText ? parseFloat(priceText.replace(/\./g, '').replace(',', '.')) : 0,
+            url: link,
+            imageUrl,
+            platform: 'MERCADO_LIVRE',
+            source: 'MAIS_VENDIDOS',
+            extractedAt: new Date()
+          });
+        }
+        return true;
+      });
+
+      return trending;
+    } catch (error) {
+      logger.error('❌ [MercadoLivreScraper] Error scraping /mais-vendidos:', error);
+      return [];
     }
   }
 

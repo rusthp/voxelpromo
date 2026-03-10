@@ -718,8 +718,32 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
       '🚀 Oferta imperdível pintando na área:',
       '💣 Preço de banana pra esse produto:',
       '🎯 Achado do dia pra vocês:',
+      '⚡ Promoção relâmpago ativada:',
+      '🚨 Alerta de preço baixo:',
+      '🛒 Se liga nessa promoção que encontrei:',
+      '🌟 Destaque do dia pra economizar muito:',
+      '🤑 Quer pagar barato? Confere isso aqui:',
+      '🎁 Presente de hoje com mega desconto:',
+      '⏳ Oportunidade única passando na sua timeline:',
+      '💎 Aquela oferta que você estava esperando:',
+      '🛑 Pare o que está fazendo e veja esse preço:',
+      '💥 Explodiu! Maior desconto que já vi nisso:'
     ];
+    
+    const fallbackClosings = [
+      '🏃‍♂️ Corra antes que acabe:',
+      '⏳ Tempo limitado, garanta o seu:',
+      '👇 Clique no link abaixo e aproveite:',
+      '🔗 Link com desconto especial aqui:',
+      '🛒 Adicione ao carrinho agora mesmo:',
+      '🏃‍♀️ Não perca tempo, acesse:',
+      '🚀 Acelera que o estoque voa:',
+      '⚡ Compre antes que o preço suba:',
+      '🛍️ Garanta o seu pelo link:'
+    ];
+
     const randomOpening = fallbackOpenings[Math.floor(Math.random() * fallbackOpenings.length)];
+    const randomClosing = fallbackClosings[Math.floor(Math.random() * fallbackClosings.length)];
 
     const fullPost = `<b>${randomOpening}</b>
 
@@ -731,7 +755,7 @@ Retorne APENAS a frase, sem aspas, sem explicações, sem formatação adicional
 
 💳 <i>Pagamento seguro via ${source}</i>
 
-🏃‍♂️ Corra antes que acabe:
+${randomClosing}
 👉 ${offer.affiliateUrl}
 
 #${source.replace(/\s+/g, '')} #Ofertas #Promoção`;

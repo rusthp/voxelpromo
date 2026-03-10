@@ -581,6 +581,40 @@ export class CollectorService {
 
     let totalSaved = 0;
 
+    // 0. Occasionally enrich database with highly-converting / deals products
+    const shouldEnrichWithDeals = Math.random() < 0.20;
+
+    if (shouldEnrichWithDeals) {
+      try {
+        logger.info('🎯 Enriching ML deals and top sellers...');
+        const ofertas = await this.mercadoLivreService.getOfertas(10);
+        
+        // Convert array of products to Offer type
+        const ofertasOffers = (await Promise.all(ofertas.map(p => this.mercadoLivreService.convertToOffer(p, 'ofertas')))).filter((o): o is Offer => o !== null);
+        const savedOfertas = await this.offerService.saveOffers(ofertasOffers, this.userId);
+        
+        totalSaved += savedOfertas;
+        logger.info(`💾 Saved ${savedOfertas} ML Ofertas`);
+
+        // Map categoryContext to MLB categories
+        const mapCategory = (cat: string) => {
+          if (cat.includes('electronics') || cat.includes('celulares')) return 'MLB1051';
+          if (cat.includes('games')) return 'MLB1144';
+          return 'MLB1051'; // default
+        };
+        const trendingCategoryId = mapCategory(categoryContext);
+        const maisVendidos = await this.mercadoLivreService.getMaisVendidos(trendingCategoryId, 10);
+        
+        const maisVendidosOffers = (await Promise.all(maisVendidos.map(p => this.mercadoLivreService.convertToOffer(p, 'mais_vendidos')))).filter((o): o is Offer => o !== null);
+        const savedMaisVendidos = await this.offerService.saveOffers(maisVendidosOffers, this.userId);
+        
+        totalSaved += savedMaisVendidos;
+        logger.info(`💾 Saved ${savedMaisVendidos} ML Mais Vendidos`);
+      } catch (error) {
+        logger.error('❌ [Collector] Error enriching ML deals:', error);
+      }
+    }
+
     // 1. Collect Daily Deals (Once per day)
     try {
       const dailyDealsCount = await this.collectDailyDealsFromMercadoLivre();

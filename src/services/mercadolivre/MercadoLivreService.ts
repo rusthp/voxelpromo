@@ -74,6 +74,10 @@ export class MercadoLivreService {
   private authUrl = 'https://auth.mercadolivre.com.br';
   private scraper: any = null;
   private urlShortener: UrlShortenerService | null = null;
+  
+  // Simple in-memory cache to prevent excessive scraping for trending pages
+  private cache = new Map<string, { data: any[], timestamp: number }>();
+  private CACHE_TTL_MS = 1000 * 60 * 30; // 30 minutes
 
   private getUrlShortener(): UrlShortenerService {
     if (!this.urlShortener) {
@@ -562,6 +566,47 @@ export class MercadoLivreService {
    */
   async getHotDeals(limit: number = 20): Promise<MercadoLivreProduct[]> {
     return this.getTrendingProducts(limit);
+  }
+
+  public async getOfertas(limit: number = 20): Promise<any[]> {
+    const cacheKey = `ofertas_${limit}`;
+    const cached = this.cache.get(cacheKey);
+
+    if (cached && (Date.now() - cached.timestamp < this.CACHE_TTL_MS)) {
+      return cached.data;
+    }
+
+    if (!this.scraper) {
+      const { MercadoLivreScraper } = await import('./MercadoLivreScraper');
+      this.scraper = MercadoLivreScraper.getInstance();
+    }
+
+    const ofertas = await this.scraper.scrapeOfertas(limit);
+    if (ofertas.length > 0) {
+      this.cache.set(cacheKey, { data: ofertas, timestamp: Date.now() });
+    }
+    return ofertas;
+  }
+
+  public async getMaisVendidos(categoryId: string, limit: number = 20): Promise<any[]> {
+    const categoryUrl = `https://www.mercadolivre.com.br/mais-vendidos/${categoryId}`;
+    const cacheKey = `mais_vendidos_${categoryId}_${limit}`;
+    const cached = this.cache.get(cacheKey);
+
+    if (cached && (Date.now() - cached.timestamp < this.CACHE_TTL_MS)) {
+      return cached.data;
+    }
+
+    if (!this.scraper) {
+      const { MercadoLivreScraper } = await import('./MercadoLivreScraper');
+      this.scraper = MercadoLivreScraper.getInstance();
+    }
+
+    const trending = await this.scraper.scrapeMaisVendidos(categoryUrl, limit);
+    if (trending.length > 0) {
+      this.cache.set(cacheKey, { data: trending, timestamp: Date.now() });
+    }
+    return trending;
   }
 
   /**
