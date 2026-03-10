@@ -125,6 +125,11 @@ router.get('/status', authenticate, async (req: AuthRequest, res) => {
     const qrCodeTimestamp = connectionInfo?.qrCodeTimestamp || (qrCode ? Date.now() : 0);
     const qrCodeDataURL = connectionInfo?.qrCodeDataURL;
 
+    // Trigger background initialization if we have auth files but aren't ready
+    if (hasAuthFiles && !isReady) {
+      service.initialize().catch((e: any) => logger.error('Background init failed', e));
+    }
+
     return res.json({
       success: true,
       isReady: isReady,
@@ -140,7 +145,7 @@ router.get('/status', authenticate, async (req: AuthRequest, res) => {
         : qrCode
           ? 'QR Code disponível. Escaneie para conectar.'
           : hasAuthFiles
-            ? 'Arquivos de autenticação encontrados. Tente inicializar.'
+            ? 'Conectando ao WhatsApp em segundo plano...'
             : 'Aguardando geração do QR code...',
     });
   } catch (error: any) {

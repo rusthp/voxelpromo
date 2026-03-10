@@ -63,7 +63,8 @@ export function SocialPlatforms() {
         // Also check WhatsApp connection status from API (overrides config)
         try {
           const whatsappResponse = await api.get('/whatsapp/status');
-          if (whatsappResponse.data?.isReady) {
+          const isWhatsAppConnected = whatsappResponse.data?.isReady || whatsappResponse.data?.hasAuthFiles;
+          if (isWhatsAppConnected) {
             setPlatforms(prev => prev.map(p =>
               p.id === 'whatsapp' ? { ...p, connected: true } : p
             ));
@@ -97,8 +98,9 @@ export function SocialPlatforms() {
     setIsWhatsAppModalOpen(false);
     // Refresh WhatsApp status after closing modal
     api.get('/whatsapp/status').then(response => {
+      const isConnected = response.data?.isReady || response.data?.hasAuthFiles || false;
       setPlatforms(prev => prev.map(p =>
-        p.id === 'whatsapp' ? { ...p, connected: response.data?.isReady || false } : p
+        p.id === 'whatsapp' ? { ...p, connected: isConnected } : p
       ));
     }).catch(console.error);
   };

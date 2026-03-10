@@ -38,12 +38,14 @@ export function WhatsAppModal({ isOpen, onClose }: WhatsAppModalProps) {
             const response = await api.get("/whatsapp/status");
             const data = response.data;
 
+            const isConnected = data.isReady || data.hasAuthFiles || false;
+            
             setStatus({
-                isReady: data.isReady || false,
+                isReady: isConnected,
                 hasQRCode: data.hasQRCode || false,
                 qrCode: data.qrCode || null,
                 qrCodeDataURL: data.qrCodeDataURL || null,
-                message: data.message || "",
+                message: data.isReady ? "WhatsApp conectado e pronto!" : data.hasAuthFiles ? "Conectando ao WhatsApp..." : data.message || "",
             });
 
             // Generate QR code image from the code string

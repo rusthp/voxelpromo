@@ -97,7 +97,8 @@ const Integrations = () => {
             // Also check WhatsApp connection status from API
             try {
                 const whatsappResponse = await api.get('/whatsapp/status');
-                if (whatsappResponse.data?.isReady) {
+                const isWhatsAppConnected = whatsappResponse.data?.isReady || whatsappResponse.data?.hasAuthFiles;
+                if (isWhatsAppConnected) {
                     setPlatforms(prev => prev.map(p =>
                         p.id === 'whatsapp' ? { ...p, connected: true } : p
                     ));
