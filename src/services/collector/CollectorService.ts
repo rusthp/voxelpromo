@@ -12,6 +12,7 @@ import { logger } from '../../utils/logger';
 import { retryWithBackoff } from '../../utils/retry';
 import { Offer } from '../../types';
 import { ScrapingBatchModel } from '../../models/ScrapingBatch';
+import { whatsappQueue } from '../../jobs/queues/whatsappQueue';
 
 /**
  * Dependency injection interface for CollectorService
@@ -46,6 +47,29 @@ export class CollectorService {
     this.offerService = deps.offerService ?? new OfferService();
     this.blacklistService = deps.blacklistService ?? new BlacklistService();
     this.userId = userId;
+  }
+
+  /**
+   * Wrapper to save offers and dispatch the best ones to WhatsApp Queue
+   */
+  private async saveAndDispatchOffers(offers: Offer[], overrideUserId?: string): Promise<number> {
+    const targetUserId = overrideUserId || this.userId;
+    const { savedCount, newOffers } = await this.offerService.saveOffersAndGetNew(offers, targetUserId);
+    
+    const bestDeals = newOffers.filter(o => 
+      (o.discountPercentage && o.discountPercentage >= 30) || 
+      (o.source as string) === 'mercadolivre-daily-deals' ||
+      (o as any).categoryContext === 'mais_vendidos' ||
+      (o as any).categoryContext === 'ofertas'
+    );
+
+    for (const deal of bestDeals) {
+      if (targetUserId) {
+         await whatsappQueue.add('send-offer', { offerData: deal, userId: targetUserId }, { jobId: `wa-${deal._id}` });
+         logger.info(`📤 [WhatsApp Queue] Offer queued: ${deal.title?.substring(0, 30)}...`);
+      }
+    }
+    return savedCount;
   }
 
   /**
@@ -132,7 +156,7 @@ export class CollectorService {
 
           // Tag offers with subcategory name for better context if possible (not modifying Offer model yet, just saving)
 
-          const count = await this.offerService.saveOffers(filteredOffers, this.userId);
+          const count = await this.saveAndDispatchOffers(filteredOffers, this.userId);
           totalSaved += count;
 
           // Small internal delay to avoid rate bursts
@@ -148,7 +172,7 @@ export class CollectorService {
           .map((product: AmazonProduct) => this.amazonService.convertToOffer(product, category))
           .filter((offer: Offer | null) => offer !== null);
         const filteredOffers = this.filterBlacklisted(offers);
-        return await this.offerService.saveOffers(filteredOffers, this.userId);
+        return await this.saveAndDispatchOffers(filteredOffers, this.userId);
       }
     } catch (error: any) {
       logger.error(`❌ Error collecting from Amazon: ${error.message}`, error);
@@ -426,7 +450,7 @@ export class CollectorService {
               logger.info(
                 `📰 Found ${aliExpressOffers.length} AliExpress offers from RSS feed: ${feedUrl}`
               );
-              const savedCount = await this.offerService.saveOffers(
+              const savedCount = await this.saveAndDispatchOffers(
                 aliExpressOffers,
                 this.userId
               );
@@ -455,7 +479,7 @@ export class CollectorService {
     const offers = offersResults.filter((offer): offer is Offer => offer !== null);
 
     logger.info(`✅ Converted ${offers.length} products to offers (filtered by discount)`);
-    const savedCount = await this.offerService.saveOffers(
+    const savedCount = await this.saveAndDispatchOffers(
       offers.filter((o): o is Offer => o !== null),
       this.userId
     );
@@ -471,7 +495,7 @@ export class CollectorService {
       logger.info(`Collecting offers from RSS: ${feedUrl}`);
       const offers = await this.rssService.parseFeed(feedUrl, source);
 
-      const savedCount = await this.offerService.saveOffers(offers, this.userId);
+      const savedCount = await this.saveAndDispatchOffers(offers, this.userId);
       logger.info(`Saved ${savedCount} offers from RSS`);
 
       return savedCount;
@@ -507,6 +531,10 @@ export class CollectorService {
         await ScrapingBatchModel.create({ source, date: today, status: 'pending' });
       }
 
+      if (this.userId) {
+        this.mercadoLivreService = await MercadoLivreService.createForUser(this.userId);
+      }
+
       const products = await this.mercadoLivreService.getDailyDeals();
 
       if (products.length === 0) {
@@ -524,7 +552,7 @@ export class CollectorService {
       );
       const offersResults = await Promise.all(offersPromises);
       const offers = offersResults.filter((o): o is Offer => o !== null);
-      const savedCount = await this.offerService.saveOffers(offers, this.userId);
+      const savedCount = await this.saveAndDispatchOffers(offers, this.userId);
 
       // Update batch
       await ScrapingBatchModel.findOneAndUpdate(
@@ -579,6 +607,10 @@ export class CollectorService {
   async collectFromMercadoLivreSingle(searchQuery: string, categoryContext: string): Promise<number> {
     logger.info(`🔍 Starting Mercado Livre collection - Query: "${searchQuery}"`);
 
+    if (this.userId) {
+      this.mercadoLivreService = await MercadoLivreService.createForUser(this.userId);
+    }
+
     let totalSaved = 0;
 
     // 0. Occasionally enrich database with highly-converting / deals products
@@ -591,7 +623,7 @@ export class CollectorService {
         
         // Convert array of products to Offer type
         const ofertasOffers = (await Promise.all(ofertas.map(p => this.mercadoLivreService.convertToOffer(p, 'ofertas')))).filter((o): o is Offer => o !== null);
-        const savedOfertas = await this.offerService.saveOffers(ofertasOffers, this.userId);
+        const savedOfertas = await this.saveAndDispatchOffers(ofertasOffers, this.userId);
         
         totalSaved += savedOfertas;
         logger.info(`💾 Saved ${savedOfertas} ML Ofertas`);
@@ -606,7 +638,7 @@ export class CollectorService {
         const maisVendidos = await this.mercadoLivreService.getMaisVendidos(trendingCategoryId, 10);
         
         const maisVendidosOffers = (await Promise.all(maisVendidos.map(p => this.mercadoLivreService.convertToOffer(p, 'mais_vendidos')))).filter((o): o is Offer => o !== null);
-        const savedMaisVendidos = await this.offerService.saveOffers(maisVendidosOffers, this.userId);
+        const savedMaisVendidos = await this.saveAndDispatchOffers(maisVendidosOffers, this.userId);
         
         totalSaved += savedMaisVendidos;
         logger.info(`💾 Saved ${savedMaisVendidos} ML Mais Vendidos`);
@@ -760,7 +792,7 @@ export class CollectorService {
     const offers = offersResults.filter((offer) => offer !== null);
 
     logger.info(`✅ Converted ${offers.length} products to offers (filtered by discount)`);
-    const savedCount = await this.offerService.saveOffers(
+    const savedCount = await this.saveAndDispatchOffers(
       offers.filter((o): o is Offer => o !== null),
       this.userId
     );
@@ -823,7 +855,7 @@ export class CollectorService {
       .filter((offer): offer is Offer => offer !== null);
 
     logger.info(`✅ Converted ${offers.length} products to offers`);
-    const savedCount = await this.offerService.saveOffers(offers, this.userId);
+    const savedCount = await this.saveAndDispatchOffers(offers, this.userId);
     logger.info(`💾 Saved ${savedCount} offers from Shopee to database`);
 
     return savedCount;
@@ -943,7 +975,7 @@ export class CollectorService {
 
             if (offers.length > 0) {
               // Save all offers - Awin feeds often don't have original price so no discount filter
-              const savedCount = await this.offerService.saveOffers(offers, this.userId);
+              const savedCount = await this.saveAndDispatchOffers(offers, this.userId);
               totalProducts += savedCount;
               logger.info(`✅ Collected ${savedCount} products from ${advertiserName}`);
             } else {
@@ -975,7 +1007,7 @@ export class CollectorService {
           });
 
           if (offers.length > 0) {
-            const savedCount = await this.offerService.saveOffers(offers, this.userId);
+            const savedCount = await this.saveAndDispatchOffers(offers, this.userId);
             totalSaved += savedCount;
           }
         } catch (error: any) {

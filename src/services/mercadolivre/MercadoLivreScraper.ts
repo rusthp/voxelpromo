@@ -13,15 +13,16 @@ export class MercadoLivreScraper {
   // Singleton instance
   private static instance: MercadoLivreScraper | null = null;
 
-  // Mutex for session operations - ensures one operation at a time
-  private sessionLock: Promise<void> = Promise.resolve();
+  // Mutex for browser launch
+  private launchLock: Promise<void> = Promise.resolve();
 
   private browser: Browser | null = null;
-  private page: Page | null = null;
-  private cookies: any[] = [];
   private userAgent: string = '';
   private lastActivity: number = 0;
   private SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+
+  // Active contexts counter to prevent closing while in use
+  private activeContexts: number = 0;
 
   private constructor() { } // Private constructor for singleton
 
@@ -36,21 +37,13 @@ export class MercadoLivreScraper {
   }
 
   /**
-   * Get current session cookies
+   * Acquire exclusive lock for browser launch
    */
-  getCookies(): any[] {
-    return this.cookies;
-  }
-
-  /**
-   * Acquire exclusive lock for browser operations
-   * This prevents race conditions when multiple requests try to use the browser
-   */
-  private async acquireLock(): Promise<() => void> {
+  private async acquireLaunchLock(): Promise<() => void> {
     let releaseFn: () => void;
-    const waitForLock = this.sessionLock;
+    const waitForLock = this.launchLock;
 
-    this.sessionLock = new Promise<void>((resolve) => {
+    this.launchLock = new Promise<void>((resolve) => {
       releaseFn = resolve;
     });
 
@@ -59,99 +52,117 @@ export class MercadoLivreScraper {
   }
 
   /**
-   * Execute an operation with exclusive session access
-   * Automatically handles session initialization and lock management
+   * Execute an operation with an isolated Incognito context
    */
-  async withSession<T>(operation: (page: Page) => Promise<T>): Promise<T> {
-    const release = await this.acquireLock();
+  async withContext<T>(
+    operation: (page: Page) => Promise<T>,
+    cookiesToLoad?: any[]
+  ): Promise<T> {
+    await this.initBrowser();
+    
+    if (!this.browser) {
+      throw new Error('Failed to initialize browser');
+    }
+
+    this.activeContexts++;
+    const context = await this.browser.createIncognitoBrowserContext();
+    const page = await context.newPage();
+
     try {
-      await this.initSession();
-      if (!this.page) {
-        throw new Error('Failed to initialize browser session');
+      // Use standard stealth UA if none resolved
+      if (this.userAgent) {
+        await page.setUserAgent(this.userAgent);
       }
-      const result = await operation(this.page);
+      
+      // Navigate once to ensure cookies can be set on the ML domain
+      if (cookiesToLoad && cookiesToLoad.length > 0) {
+        const urlToSet = 'https://www.mercadolivre.com.br';
+        await page.goto(urlToSet, { waitUntil: 'domcontentloaded' });
+        await page.setCookie(...cookiesToLoad);
+      } else {
+        await page.setViewport({ width: 1920, height: 1080 });
+      }
+
+      const result = await operation(page);
       this.lastActivity = Date.now();
       return result;
     } finally {
-      release();
+      await context.close().catch(e => logger.warn(`Error closing context: ${e.message}`));
+      this.activeContexts--;
     }
   }
 
   /**
-   * Initializes the browser session to bypass Cloudflare and get valid cookies
+   * Initializes the browser process (runs once)
    */
-  async initSession(): Promise<void> {
+  async initBrowser(): Promise<void> {
     if (this.browser && Date.now() - this.lastActivity < this.SESSION_TIMEOUT) {
-      return; // Session still valid
+      return; // Browser is active
     }
 
-    if (this.browser) {
-      await this.closeSession();
-    }
-
-    logger.info('🚀 Launching Stealth Browser for Mercado Livre...');
-
-    let executablePath: string | undefined = undefined;
-    let chromeSource = 'bundled';
-
-    // ✅ PRIORITY 1: Windows Chrome via WSL (most stable for stealth)
-    const windowsChromePaths = [
-      '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe',
-      '/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe',
-    ];
-
-    // ✅ PRIORITY 2: Google Chrome on Linux (better than Chromium)
-    const linuxChromePaths = ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable'];
-
-    // ⚠️ PRIORITY 3: Chromium (may have issues with stealth plugin)
-    const chromiumPaths = ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/snap/bin/chromium'];
-
-    // Check Windows Chrome first (best for WSL environments)
-    for (const path of windowsChromePaths) {
-      if (existsSync(path)) {
-        executablePath = path;
-        chromeSource = 'Windows Chrome via WSL';
-        break;
-      }
-    }
-
-    // If no Windows Chrome, try Google Chrome on Linux
-    if (!executablePath) {
-      for (const path of linuxChromePaths) {
-        if (existsSync(path)) {
-          executablePath = path;
-          chromeSource = 'Google Chrome (Linux)';
-          break;
-        }
-      }
-    }
-
-    // Last resort: Chromium (may cause issues with stealth)
-    if (!executablePath) {
-      for (const path of chromiumPaths) {
-        if (existsSync(path)) {
-          executablePath = path;
-          chromeSource = 'Chromium (Linux) - may have stealth issues';
-          logger.warn(
-            '⚠️ Using Chromium instead of Chrome. Stealth features may not work properly.'
-          );
-          break;
-        }
-      }
-    }
-
-    if (executablePath) {
-      logger.info(`🖥️ Browser: ${chromeSource}`);
-      logger.info(`   Path: ${executablePath}`);
-    } else {
-      logger.info('🖥️ Using Puppeteer bundled Chromium');
-    }
-
+    const release = await this.acquireLaunchLock();
     try {
+      // Check again after acquiring lock
+      if (this.browser && Date.now() - this.lastActivity < this.SESSION_TIMEOUT) {
+        return;
+      }
+
+      if (this.browser) {
+        await this.closeSession();
+      }
+
+      logger.info('🚀 Launching Stealth Browser for Mercado Livre...');
+
+      let executablePath: string | undefined = undefined;
+      let chromeSource = 'bundled';
+
+      // (Paths definition logic remains identical)
+      const windowsChromePaths = [
+        '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe',
+        '/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+      ];
+      const linuxChromePaths = ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable'];
+      const chromiumPaths = ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/snap/bin/chromium'];
+
+      for (const path of windowsChromePaths) {
+        if (existsSync(path)) {
+          executablePath = path;
+          chromeSource = 'Windows Chrome via WSL';
+          break;
+        }
+      }
+
+      if (!executablePath) {
+        for (const path of linuxChromePaths) {
+          if (existsSync(path)) {
+            executablePath = path;
+            chromeSource = 'Google Chrome (Linux)';
+            break;
+          }
+        }
+      }
+
+      if (!executablePath) {
+        for (const path of chromiumPaths) {
+          if (existsSync(path)) {
+            executablePath = path;
+            chromeSource = 'Chromium (Linux) - may have stealth issues';
+            logger.warn('⚠️ Using Chromium instead of Chrome. Stealth features may not work properly.');
+            break;
+          }
+        }
+      }
+
+      if (executablePath) {
+        logger.info(`🖥️ Browser: ${chromeSource} | Path: ${executablePath}`);
+      } else {
+        logger.info('🖥️ Using Puppeteer bundled Chromium');
+      }
+
       const args = [
         '--no-sandbox',
         '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage', // CRITICAL for VPS/Docker
+        '--disable-dev-shm-usage',
         '--disable-extensions',
         '--disable-infobars',
         '--window-position=0,0',
@@ -163,207 +174,132 @@ export class MercadoLivreScraper {
       ];
 
       const proxyUrl = process.env.PROXY_URL;
-      // Only use proxy if it's a valid URL (not a placeholder like 'user:pass@host:port')
       if (proxyUrl && !proxyUrl.includes('user:pass') && !proxyUrl.includes('host:port')) {
-        logger.info(`🌐 Using Proxy: ${proxyUrl.replace(/\/\/.*@/, '//***:***@')}`); // Mask credentials
+        logger.info(`🌐 Using Proxy: ${proxyUrl.replace(/\/\/.*@/, '//***:***@')}`);
         args.push(`--proxy-server=${proxyUrl}`);
-      } else if (proxyUrl) {
-        logger.warn(
-          '⚠️ PROXY_URL appears to be a placeholder - ignoring. Set a real proxy or remove the variable.'
-        );
       }
 
       this.browser = await puppeteer.launch({
         headless: 'new',
-        executablePath, // Use Windows/Linux Chrome if found, otherwise default to bundled
+        executablePath,
         args: args,
         ignoreHTTPSErrors: true,
       });
 
-      this.page = await this.browser.newPage();
+      // Quick test to get user agent
+      const startupPage = await this.browser.newPage();
+      this.userAgent = await startupPage.evaluate(() => navigator.userAgent);
+      await startupPage.close();
 
-      // Set a realistic viewport
-      await this.page.setViewport({ width: 1920, height: 1080 });
-
-      // Navigate to home page to generate cookies
-      logger.info('🌍 Navigating to Mercado Livre Home to generate cookies...');
-      await this.page.goto('https://www.mercadolivre.com.br', {
-        waitUntil: 'networkidle2',
-        timeout: 60000,
-      });
-
-      // Wait a bit for any JS challenges or cookie setting
-      await new Promise((r) => setTimeout(r, 3000));
-
-      // Extract cookies and UA
-      this.cookies = await this.page.cookies();
-      this.userAgent = await this.page.evaluate(() => navigator.userAgent);
       this.lastActivity = Date.now();
-
-      logger.info(`✅ Session Initialized! Got ${this.cookies.length} cookies.`);
-
-      // Log important cookies for debugging
-      const meliLab = this.cookies.find((c) => c.name === 'meli_lab');
-      if (meliLab) logger.debug(`   🍪 meli_lab: ${meliLab.value}`);
+      logger.info(`✅ Browser process started.`);
     } catch (error: any) {
-      const errMsg = error.message || String(error);
-      logger.error(`❌ Failed to init scraper session: ${errMsg}`);
-
-      // Provide helpful tips for common errors
-      if (errMsg.includes('Target closed') || errMsg.includes('Protocol error')) {
-        logger.error('   💡 This usually happens when using Chromium instead of Chrome.');
-        logger.error(
-          '   💡 Try installing Google Chrome: wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && sudo apt install ./google-chrome-stable_current_amd64.deb'
-        );
-      } else if (errMsg.includes('ERR_NO_SUPPORTED_PROXIES')) {
-        logger.error(
-          '   💡 Check your PROXY_URL environment variable. Remove it if not using a proxy.'
-        );
-      } else if (errMsg.includes('ENOENT') || errMsg.includes('spawn')) {
-        logger.error(
-          '   💡 Chrome/Chromium binary not found. Install Chrome or run: npx puppeteer browsers install chrome'
-        );
-      }
-
+      logger.error(`❌ Failed to init browser: ${error.message}`);
       await this.closeSession();
       throw error;
+    } finally {
+      release();
     }
   }
 
   /**
-   * Loads affiliate cookies from environment variable or file
+   * Helper to load affiliate cookies correctly from environment or json
    */
-  private async loadAffiliateCookies(): Promise<void> {
-    if (!this.page) return;
-
-    const cookieSource = process.env.MERCADOLIVRE_AFFILIATE_COOKIES;
-    if (!cookieSource) return;
-
+  private loadAffiliateCookiesFromSrc(cookieSource?: string): any[] {
+    if (!cookieSource) return [];
     try {
-      let cookies: any[] = [];
-
-      // Check if it's a file path
       if (cookieSource.endsWith('.json') && existsSync(cookieSource)) {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const fs = require('fs');
-        const content = fs.readFileSync(cookieSource, 'utf-8');
-        cookies = JSON.parse(content);
-      } else {
-        // Assume it's a JSON string
-        cookies = JSON.parse(cookieSource);
+        return JSON.parse(fs.readFileSync(cookieSource, 'utf-8'));
       }
-
-      if (Array.isArray(cookies) && cookies.length > 0) {
-        await this.page.setCookie(...cookies);
-        logger.info(`🍪 Loaded ${cookies.length} affiliate cookies`);
-
-        // Update local cookies array
-        this.cookies = await this.page.cookies();
-      }
+      return JSON.parse(cookieSource);
     } catch (error: any) {
-      logger.warn(`⚠️ Failed to load affiliate cookies: ${error.message}`);
+      logger.warn(`⚠️ Failed to parse affiliate cookies: ${error.message}`);
+      return [];
     }
   }
 
   /**
    * Generates an affiliate link using the authenticated session
    * Route A: Simulates the "Link Generator" request
+   * Modified to accept cookies to ensure Multi-Tenancy
    */
-  async generateAffiliateLink(productUrl: string): Promise<string> {
-    await this.initSession();
-    await this.loadAffiliateCookies();
-
-    if (!this.page) throw new Error('Page not initialized');
-
+  async generateAffiliateLink(productUrl: string, cookieSource?: string): Promise<string> {
     const generatorEndpoint = process.env.MERCADOLIVRE_LINK_GENERATOR_ENDPOINT;
-
     if (!generatorEndpoint) {
-      logger.warn(
-        '⚠️ MERCADOLIVRE_LINK_GENERATOR_ENDPOINT not configured. Returning original URL.'
-      );
+      logger.warn('⚠️ MERCADOLIVRE_LINK_GENERATOR_ENDPOINT not configured. Returning original URL.');
       return productUrl;
     }
 
-    try {
-      logger.info(`🔗 Generating affiliate link for: ${productUrl}`);
+    const cookies = this.loadAffiliateCookiesFromSrc(
+      cookieSource || process.env.MERCADOLIVRE_AFFILIATE_COOKIES
+    );
 
-      // Navigate to a safe page (e.g., home or affiliate panel) to ensure cookies are active
-      // We don't necessarily need to be on the generator page if we are just doing a fetch,
-      // but being on the domain is required for cookies to be sent.
-      if (this.page.url() === 'about:blank') {
-        await this.page.goto('https://www.mercadolivre.com.br', { waitUntil: 'domcontentloaded' });
-      }
+    return this.withContext(async (page) => {
+      try {
+        logger.info(`🔗 Generating affiliate link for: ${productUrl}`);
 
-      // Execute the request in the browser context to use the session cookies
-      const result = await this.page.evaluate(
-        async (endpoint, url) => {
-          try {
-            // This payload structure is a guess/example.
-            // The user needs to verify the actual payload required by the endpoint.
-            const payload = {
-              url: url,
-              // Add other required fields if known, e.g., campaign_id
-            };
-
-            const response = await fetch(endpoint, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-                // 'X-CSRF-Token': '...' // Might be needed
-              },
-              body: JSON.stringify(payload),
-            });
-
-            if (!response.ok) {
-              throw new Error(`HTTP ${response.status}`);
-            }
-
-            const data = await response.json();
-            // Adjust based on actual response structure
-            return data.link || data.url || data.short_url || null;
-          } catch (e: any) {
-            return { error: e.message };
-          }
-        },
-        generatorEndpoint,
-        productUrl
-      );
-
-      if (result && typeof result === 'string') {
-        logger.info('✅ Affiliate link generated successfully');
-        // Rate limit protection: Wait 300ms between link generations
-        await new Promise((r) => setTimeout(r, 300));
-        return result;
-      } else if (result && result.error) {
-        // Check for rate limit error
-        if (result.error.includes('429') || result.error.includes('Too Many')) {
-          logger.warn('⚠️ Rate limited by ML. Waiting 2 seconds before continuing...');
-          await new Promise((r) => setTimeout(r, 2000));
+        if (page.url() === 'about:blank') {
+          await page.goto('https://www.mercadolivre.com.br', { waitUntil: 'domcontentloaded' });
         }
-        logger.warn(`⚠️ Link generation error: ${result.error}`);
-      } else {
-        logger.warn('⚠️ Link generation returned unknown format');
-      }
 
-      return productUrl;
-    } catch (error: any) {
-      logger.error(`❌ Link Generation Failed: ${error.message}`);
-      return productUrl;
-    }
+        const result = await page.evaluate(
+          async (endpoint, url) => {
+            try {
+              const payload = { url: url };
+
+              const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Accept: 'application/json',
+                },
+                body: JSON.stringify(payload),
+              });
+
+              if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+              }
+
+              const data = await response.json();
+              return data.link || data.url || data.short_url || null;
+            } catch (e: any) {
+              return { error: e.message };
+            }
+          },
+          generatorEndpoint,
+          productUrl
+        );
+
+        if (result && typeof result === 'string') {
+          logger.info('✅ Affiliate link generated successfully');
+          await new Promise((r) => setTimeout(r, 300));
+          return result;
+        } else if (result && result.error) {
+          if (result.error.includes('429') || result.error.includes('Too Many')) {
+            logger.warn('⚠️ Rate limited by ML. Waiting 2 seconds before continuing...');
+            await new Promise((r) => setTimeout(r, 2000));
+          }
+          logger.warn(`⚠️ Link generation error: ${result.error}`);
+        } else {
+          logger.warn('⚠️ Link generation returned unknown format');
+        }
+
+        return productUrl;
+      } catch (error: any) {
+        logger.error(`❌ Link Generation Failed: ${error.message}`);
+        return productUrl;
+      }
+    }, cookies);
   }
 
   /**
-   * Returns headers (Cookie + UA) for use in Axios
+   * Returns generic headers since global cookies have been isolated per-context
    */
   async getHeaders(): Promise<Record<string, string>> {
-    await this.initSession();
-
-    const cookieString = this.cookies.map((c) => `${c.name}=${c.value}`).join('; ');
-
     return {
-      'User-Agent': this.userAgent,
-      Cookie: cookieString,
+      'User-Agent': this.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
       Accept:
         'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
       'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -383,33 +319,21 @@ export class MercadoLivreScraper {
    * Scrape search results directly from the DOM (More robust than Regex)
    */
   async scrapeSearchResults(url: string): Promise<any[]> {
-    await this.initSession();
-
-    if (!this.page) throw new Error('Page not initialized');
-
-    try {
+    return this.withContext(async (page) => {
       logger.info(`🕷️ Stealth Scraping DOM: ${url}`);
-      await this.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
       // Debug: Take screenshot and log title
-      const pageTitle = await this.page.title();
+      const pageTitle = await page.title();
       logger.info(`📄 Page Title: ${pageTitle}`);
 
-      try {
-        await this.page.screenshot({ path: 'scripts/debug_scraper.png' });
-        logger.info('📸 Debug screenshot saved to scripts/debug_scraper.png');
-      } catch {
-        // Screenshot failed, non-critical - ignore
-        logger.warn('⚠️ Failed to save debug screenshot');
-      }
-
       if (pageTitle.includes('CAPTCHA') || pageTitle.includes('Security Check')) {
-        logger.warn('⚠️ CAPTCHA detected! Session might be blocked.');
+        logger.warn('⚠️ CAPTCHA detected! Context might be blocked.');
       }
 
       // Wait for results to load (try multiple selectors)
       try {
-        await this.page.waitForFunction(
+        await page.waitForFunction(
           () =>
             document.querySelectorAll('.ui-search-layout__item, .poly-card, .andes-card').length >
             0,
@@ -421,7 +345,7 @@ export class MercadoLivreScraper {
 
       // Scroll to trigger lazy loading of images
       logger.info('📜 Scrolling to load lazy images...');
-      await this.page.evaluate(async () => {
+      await page.evaluate(async () => {
         const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
         const scrollStep = 400;
         const maxScrolls = 10;
@@ -437,7 +361,7 @@ export class MercadoLivreScraper {
       });
 
       // Extract data using DOM APIs with Multi-Selector Strategy
-      const products = await this.page.evaluate(() => {
+      const products = await page.evaluate(() => {
         const results: any[] = [];
 
         // Strategy: Try all known item selectors
@@ -481,7 +405,6 @@ export class MercadoLivreScraper {
 
         // Helper to extract original price for discount calculation
         const getOriginalPrice = (item: Element): number => {
-          // Try to find the crossed-out/previous price
           const originalPriceEl =
             item.querySelector('.andes-money-amount--previous .andes-money-amount__fraction') ||
             item.querySelector('.poly-price__previous .andes-money-amount__fraction') ||
@@ -500,7 +423,6 @@ export class MercadoLivreScraper {
 
         // Helper to get the CURRENT (promotional) price - the green/large one
         const getCurrentPrice = (item: Element): number => {
-          // First try to find specifically the current/promotional price
           const priceSelectors = [
             '.poly-price__current .andes-money-amount__fraction',
             '.ui-search-price__second-line .andes-money-amount__fraction', // This is usually the promotional price
@@ -516,7 +438,6 @@ export class MercadoLivreScraper {
             }
           }
 
-          // Fallback: Get all price fractions and pick the LOWEST (assuming it's the sale price)
           const allPriceEls = item.querySelectorAll('.andes-money-amount__fraction');
           let lowestPrice = Infinity;
 
@@ -531,7 +452,6 @@ export class MercadoLivreScraper {
           return lowestPrice === Infinity ? 0 : lowestPrice;
         };
 
-        // Helper to extract discount percentage from badge
         const getDiscountPercentage = (item: Element): number | undefined => {
           const discountEl =
             item.querySelector('.poly-component__discount') ||
@@ -550,26 +470,22 @@ export class MercadoLivreScraper {
 
         items.forEach((item: Element) => {
           try {
-            // Title Selectors
             const titleEl =
               item.querySelector('.ui-search-item__title') ||
               item.querySelector('.poly-component__title') ||
               item.querySelector('h2');
             const title = titleEl?.textContent?.trim() || '';
 
-            // Link Selectors
             const linkEl =
               item.querySelector('a.ui-search-link') ||
               item.querySelector('a.poly-component__title') ||
               item.querySelector('a');
             const permalink = linkEl?.getAttribute('href') || '';
 
-            // Get prices correctly
             const currentPrice = getCurrentPrice(item);
             const originalPrice = getOriginalPrice(item);
             const discountFromBadge = getDiscountPercentage(item);
 
-            // Image Selectors - Try multiple approaches
             const imgEl =
               item.querySelector('img.ui-search-result-image__element') ||
               item.querySelector('img.poly-component__picture') ||
@@ -577,7 +493,6 @@ export class MercadoLivreScraper {
               item.querySelector('img');
             const thumbnail = getImageUrl(imgEl);
 
-            // ID extraction
             let id = '';
             if (permalink) {
               const idMatch = permalink.match(/(MLB-?\d+)/i) || permalink.match(/\/p\/(MLB\d+)/);
@@ -607,27 +522,19 @@ export class MercadoLivreScraper {
         return results;
       });
 
-      this.lastActivity = Date.now();
       return products;
-    } catch (error: any) {
-      logger.error(`❌ DOM Scraping Failed: ${error.message}`);
-      throw error;
-    }
+    });
   }
 
   /**
    * Scrape "Ofertas do Dia" page (Page 1 only to avoid bans)
    */
   async scrapeDailyDeals(): Promise<any[]> {
-    await this.initSession();
-
-    if (!this.page) throw new Error('Page not initialized');
-
     const url = 'https://www.mercadolivre.com.br/ofertas#nav-header';
 
-    try {
+    return this.withContext(async (page) => {
       logger.info(`🕷️ Stealth Scraping Deals: ${url}`);
-      await this.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
       // Anti-ban: Random delay to simulate human reading
       const delay = Math.floor(Math.random() * 2000) + 1000;
@@ -635,13 +542,13 @@ export class MercadoLivreScraper {
 
       // Wait for results
       try {
-        await this.page.waitForSelector('.promotion-item, .poly-card', { timeout: 10000 });
+        await page.waitForSelector('.promotion-item, .poly-card', { timeout: 10000 });
       } catch (e) {
         logger.warn('⚠️ No deals selector found (might be empty or captcha)');
       }
 
       // Extract data
-      const products = await this.page.evaluate(() => {
+      const products = await page.evaluate(() => {
         const results: any[] = [];
 
         // Selectors for offers page
@@ -704,12 +611,8 @@ export class MercadoLivreScraper {
       });
 
       logger.info(`✅ Found ${products.length} daily deals`);
-      this.lastActivity = Date.now();
       return products;
-    } catch (error: any) {
-      logger.error(`❌ Deals Scraping Failed: ${error.message}`);
-      throw error;
-    }
+    });
   }
 
   /**
@@ -792,25 +695,23 @@ export class MercadoLivreScraper {
 
   /**
    * Close the browser session safely
-   * Handles errors gracefully to prevent crashes
+   * Checks if active contexts exist before closing
    */
   async closeSession(): Promise<void> {
-    const release = await this.acquireLock();
-    try {
-      if (this.browser) {
-        logger.info('🔒 Closing browser session...');
-        try {
-          await this.browser.close();
-        } catch (error: any) {
-          // Ignore errors during close (browser may already be crashed)
-          logger.warn(`⚠️ Error closing browser (ignored): ${error.message}`);
-        }
-      }
-    } finally {
-      this.browser = null;
-      this.page = null;
-      release();
+    if (this.activeContexts > 0) {
+      logger.info(`⏳ Deferring browser close - ${this.activeContexts} active contexts`);
+      return; // Do not close if there are active contexts
     }
+
+    if (this.browser) {
+      logger.info('🔒 Closing global browser session...');
+      try {
+        await this.browser.close();
+      } catch (error: any) {
+        logger.warn(`⚠️ Error closing browser: ${error.message}`);
+      }
+    }
+    this.browser = null;
   }
 
   /**

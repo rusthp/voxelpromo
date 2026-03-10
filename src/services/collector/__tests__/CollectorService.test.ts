@@ -153,12 +153,12 @@ describe('CollectorService', () => {
 
       mocks.amazonService.searchProducts!.mockResolvedValue(mockProducts);
       mocks.amazonService.convertToOffer!.mockReturnValue(createMockOffer({ source: 'amazon' }));
-      mocks.offerService.saveOffers!.mockResolvedValue(2);
+      jest.spyOn(collectorService as any, 'saveAndDispatchOffers').mockResolvedValue(2);
 
       const result = await collectorService.collectFromAmazon('notebook', 'electronics');
 
       expect(mocks.amazonService.searchProducts).toHaveBeenCalledWith('notebook', 20);
-      expect(mocks.offerService.saveOffers).toHaveBeenCalled();
+      expect((collectorService as any).saveAndDispatchOffers).toHaveBeenCalled();
       expect(result).toBe(2);
     });
 
@@ -183,10 +183,11 @@ describe('CollectorService', () => {
       ];
       mocks.amazonService.searchProducts!.mockResolvedValue(mockProducts);
       mocks.amazonService.convertToOffer!.mockReturnValue(createMockOffer());
+      jest.spyOn(collectorService as any, 'saveAndDispatchOffers').mockResolvedValue(0);
 
       const result = await collectorService.collectFromAmazon('test', 'electronics');
 
-      expect(mocks.offerService.saveOffers).toHaveBeenCalledWith([], undefined);
+      expect((collectorService as any).saveAndDispatchOffers).toHaveBeenCalledWith([], undefined);
       expect(result).toBe(0);
     });
   });
@@ -253,7 +254,7 @@ describe('CollectorService', () => {
 
       mocks.shopeeService.getProducts!.mockResolvedValue(mockProducts);
       mocks.shopeeService.convertToOffer!.mockReturnValue(createMockOffer({ source: 'shopee' }));
-      mocks.offerService.saveOffers!.mockResolvedValue(2);
+      jest.spyOn(collectorService as any, 'saveAndDispatchOffers').mockResolvedValue(2);
 
       const result = await collectorService.collectFromShopee('electronics');
 
@@ -275,7 +276,7 @@ describe('CollectorService', () => {
       const mockOffers = [createMockOffer({ source: 'rss' }), createMockOffer({ source: 'rss' })];
 
       mocks.rssService.parseFeed!.mockResolvedValue(mockOffers);
-      mocks.offerService.saveOffers!.mockResolvedValue(2);
+      jest.spyOn(collectorService as any, 'saveAndDispatchOffers').mockResolvedValue(2);
 
       const result = await collectorService.collectFromRSS('http://example.com/feed', 'rss');
 

@@ -130,6 +130,39 @@ export class MercadoLivreService {
     }
   }
 
+  /**
+   * Factory method: Create service for a specific user (Multi-tenant)
+   */
+  static async createForUser(userId: string): Promise<MercadoLivreService> {
+    const { getUserSettingsService } = require('../user/UserSettingsService'); // eslint-disable-line
+    const settingsService = getUserSettingsService();
+    const settings = await settingsService.getSettings(userId);
+
+    // Get default config (env/json)
+    const baseInstance = new MercadoLivreService();
+    const baseConfig = baseInstance.getConfig();
+
+    // Override with DB settings if available
+    const mlSettings = settings?.mercadolivre;
+    
+    const config: MercadoLivreConfig = {
+      clientId: mlSettings?.clientId || baseConfig.clientId,
+      clientSecret: mlSettings?.clientSecret || baseConfig.clientSecret,
+      redirectUri: mlSettings?.redirectUri || baseConfig.redirectUri,
+      accessToken: mlSettings?.accessToken || baseConfig.accessToken,
+      refreshToken: mlSettings?.refreshToken || baseConfig.refreshToken,
+      tokenExpiresAt: mlSettings?.tokenExpiresAt ? new Date(mlSettings.tokenExpiresAt).getTime() : baseConfig.tokenExpiresAt,
+      affiliateCode: mlSettings?.affiliateCode || baseConfig.affiliateCode,
+      codeVerifier: mlSettings?.codeVerifier || baseConfig.codeVerifier,
+      sessionCookies: mlSettings?.sessionCookies || baseConfig.sessionCookies,
+      csrfToken: mlSettings?.csrfToken || baseConfig.csrfToken,
+      affiliateTag: mlSettings?.affiliateTag || baseConfig.affiliateTag,
+      userId: userId,
+    };
+
+    return new MercadoLivreService(config);
+  }
+
   getConfig(): MercadoLivreConfig {
     // If instance config is present (Multi-tenant mode), use it directly
     if (this.config) {

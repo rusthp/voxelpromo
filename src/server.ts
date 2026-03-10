@@ -10,6 +10,7 @@ import path from 'path';
 import { connectDatabase } from './config/database';
 import { setupRoutes } from './routes';
 import { setupCronJobs } from './jobs/scheduler';
+import './jobs/workers/whatsappWorker';
 import { setupSwagger } from './config/swagger';
 import { logger } from './utils/logger';
 import { loadConfigFromFile } from './utils/loadConfig';
@@ -137,8 +138,12 @@ app.get('/health', (_req, res) => {
 // Swagger API Documentation
 setupSwagger(app);
 
-// Routes
+// Setup API routes
 setupRoutes(app);
+
+// Setup Admin Queue UI
+import bullBoardRouter from './routes/bullboard.routes';
+app.use('/admin/queues', bullBoardRouter);
 
 // Sentry error handler (MUST be after routes, before other error handlers)
 // Sentry v10+ uses setupExpressErrorHandler

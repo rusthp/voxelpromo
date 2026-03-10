@@ -318,12 +318,18 @@ export class OfferService {
    * Checks for existing offers by productUrl and product_id (if available)
    */
   async saveOffers(offers: Offer[], userId?: string): Promise<number> {
+    const { savedCount } = await this.saveOffersAndGetNew(offers, userId);
+    return savedCount;
+  }
+
+  async saveOffersAndGetNew(offers: Offer[], userId?: string): Promise<{ savedCount: number; newOffers: Offer[] }> {
     if (offers.length === 0) {
-      return 0;
+      return { savedCount: 0, newOffers: [] };
     }
 
     let savedCount = 0;
     let duplicateCount = 0;
+    const newOffers: Offer[] = [];
 
     // Extract all product URLs and IDs for batch checking
     const productUrls = offers.map((o) => o.productUrl).filter(Boolean);
@@ -416,6 +422,7 @@ export class OfferService {
           // Index reactivated offer
           const reactivatedOffer = { ...validatedOffer, _id: inactiveOffer._id.toString() };
           this.indexOffer(reactivatedOffer as Offer);
+          newOffers.push(validatedOffer as Offer);
 
           // Add to active sets to avoid duplicates in the same batch
           activeUrls.add(validatedOffer.productUrl);
@@ -429,6 +436,7 @@ export class OfferService {
         const newOffer = new OfferModel(validatedOffer);
         await newOffer.save();
         savedCount++;
+        newOffers.push(validatedOffer as Offer);
 
         // Index new offer
         const savedOffer = this.convertToOffer(newOffer.toObject());
@@ -451,7 +459,7 @@ export class OfferService {
       logger.info(`💾 Saved ${savedCount} new offers, skipped ${duplicateCount} duplicates`);
     }
 
-    return savedCount;
+    return { savedCount, newOffers };
   }
 
   /**

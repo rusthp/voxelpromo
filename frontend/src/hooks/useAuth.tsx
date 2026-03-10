@@ -56,6 +56,7 @@ interface AuthContextType {
 }
 
 const AUTH_TOKEN_KEY = 'token';
+const AUTH_REFRESH_TOKEN_KEY = 'refreshToken';
 const AUTH_USER_KEY = 'user';
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -120,6 +121,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             console.error('Failed to refresh profile:', error);
             // Token might be invalid, clear auth state
             localStorage.removeItem(AUTH_TOKEN_KEY);
+            localStorage.removeItem(AUTH_REFRESH_TOKEN_KEY);
             localStorage.removeItem(AUTH_USER_KEY);
             setUser(null);
         } finally {
@@ -134,9 +136,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     const login = async (email: string, password: string) => {
         const response = await api.post('/auth/login', { email, password });
-        const { accessToken, user: userData } = response.data;
+        const { accessToken, refreshToken, user: userData } = response.data;
 
         localStorage.setItem(AUTH_TOKEN_KEY, accessToken);
+        if (refreshToken) localStorage.setItem(AUTH_REFRESH_TOKEN_KEY, refreshToken);
         localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData));
         setUser(userData);
 
@@ -146,9 +149,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     const loginWithGoogle = async (idToken: string) => {
         const response = await api.post('/auth/google', { idToken });
-        const { accessToken, user: userData } = response.data;
+        const { accessToken, refreshToken, user: userData } = response.data;
 
         localStorage.setItem(AUTH_TOKEN_KEY, accessToken);
+        if (refreshToken) localStorage.setItem(AUTH_REFRESH_TOKEN_KEY, refreshToken);
         localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData));
         setUser(userData);
 
@@ -158,11 +162,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     const logout = async () => {
         try {
-            await api.post('/auth/logout');
+            const refreshToken = localStorage.getItem(AUTH_REFRESH_TOKEN_KEY);
+            await api.post('/auth/logout', { refreshToken });
         } catch (error) {
             console.error('Logout error:', error);
         } finally {
             localStorage.removeItem(AUTH_TOKEN_KEY);
+            localStorage.removeItem(AUTH_REFRESH_TOKEN_KEY);
             localStorage.removeItem(AUTH_USER_KEY);
             setUser(null);
         }
