@@ -1,4 +1,4 @@
-import TelegramBot from 'node-telegram-bot-api';
+import { Telegraf } from 'telegraf';
 import { Offer } from '../../types';
 import { logger } from '../../utils/logger';
 import { AIService } from '../ai/AIService';
@@ -9,7 +9,7 @@ export interface TelegramConfig {
 }
 
 export class TelegramService {
-  private bot: TelegramBot | null = null;
+  private bot: Telegraf | null = null;
   private chatId: string;
   private token: string | undefined;
   private aiService: AIService | null = null;
@@ -56,7 +56,7 @@ export class TelegramService {
       return;
     }
 
-    this.bot = new TelegramBot(token, { polling: false });
+    this.bot = new Telegraf(token);
     logger.debug('✅ Telegram bot initialized');
   }
 
@@ -112,13 +112,13 @@ export class TelegramService {
 
       if (offer.imageUrl) {
         logger.debug(`📷 Sending offer with image: ${offer.imageUrl}`);
-        await this.bot.sendPhoto(this.chatId, offer.imageUrl, {
+        await this.bot.telegram.sendPhoto(this.chatId, offer.imageUrl, {
           caption: message,
           parse_mode: 'HTML',
         });
       } else {
         logger.debug('📝 Sending offer without image');
-        await this.bot.sendMessage(this.chatId, message, {
+        await this.bot.telegram.sendMessage(this.chatId, message, {
           parse_mode: 'HTML',
         });
       }
@@ -353,7 +353,7 @@ export class TelegramService {
 Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
 
       logger.info(`📤 Sending test message to Telegram chat ${this.chatId}...`);
-      await this.bot.sendMessage(this.chatId, testMessage, {
+      await this.bot.telegram.sendMessage(this.chatId, testMessage, {
         parse_mode: 'HTML',
       });
 
@@ -375,7 +375,7 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
   /**
    * Get bot instance (for routes that need to call bot methods directly)
    */
-  getBot(): TelegramBot | null {
+  getBot(): Telegraf | null {
     this.initializeBot();
     return this.bot;
   }
@@ -394,12 +394,15 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
 
     try {
       // Get recent updates to discover chats
-      const updates = await this.bot.getUpdates({ limit: 100, offset: -100 });
+      const updates = await this.bot.telegram.getUpdates(0, 100, 0, []);
 
       const chatsMap = new Map<string, { id: string; title: string; type: string }>();
 
       for (const update of updates) {
-        const message = update.message || update.channel_post || update.my_chat_member?.chat;
+        const message = 'message' in update ? update.message :
+                        'channel_post' in update ? update.channel_post : undefined;
+        // 'my_chat_member' is also part of Update, but to keep it simple we can just check 'chat' in it
+        const my_chat_member = 'my_chat_member' in update ? update.my_chat_member : undefined;
 
         if (message && 'chat' in message) {
           const chat = message.chat;
@@ -410,7 +413,7 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
             if (!chatsMap.has(chatId)) {
               chatsMap.set(chatId, {
                 id: chatId,
-                title: chat.title || `Chat ${chatId}`,
+                title: 'title' in chat ? chat.title : `Chat ${chatId}`,
                 type: chat.type,
               });
             }
@@ -418,15 +421,15 @@ Se você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
         }
 
         // Also check my_chat_member updates (when bot is added to a group)
-        if (update.my_chat_member) {
-          const chat = update.my_chat_member.chat;
+        if (my_chat_member) {
+          const chat = my_chat_member.chat;
           const chatId = chat.id.toString();
 
           if (chat.type === 'group' || chat.type === 'supergroup' || chat.type === 'channel') {
             if (!chatsMap.has(chatId)) {
               chatsMap.set(chatId, {
                 id: chatId,
-                title: chat.title || `Chat ${chatId}`,
+                title: 'title' in chat ? chat.title : `Chat ${chatId}`,
                 type: chat.type,
               });
             }

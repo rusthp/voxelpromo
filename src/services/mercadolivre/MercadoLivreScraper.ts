@@ -65,7 +65,7 @@ export class MercadoLivreScraper {
     }
 
     this.activeContexts++;
-    const context = await this.browser.createIncognitoBrowserContext();
+    const context = await this.browser.createBrowserContext();
     const page = await context.newPage();
 
     try {
@@ -87,7 +87,7 @@ export class MercadoLivreScraper {
       this.lastActivity = Date.now();
       return result;
     } finally {
-      await context.close().catch(e => logger.warn(`Error closing context: ${e.message}`));
+      await context.close().catch((e: any) => logger.warn(`Error closing context: ${e.message}`));
       this.activeContexts--;
     }
   }
@@ -180,10 +180,9 @@ export class MercadoLivreScraper {
       }
 
       this.browser = await puppeteer.launch({
-        headless: 'new',
+        headless: true,
         executablePath,
         args: args,
-        ignoreHTTPSErrors: true,
       });
 
       // Quick test to get user agent

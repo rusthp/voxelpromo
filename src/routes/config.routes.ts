@@ -679,18 +679,18 @@ router.post('/test', authenticate, async (req: AuthRequest, res: Response) => {
         if (!botToken || botToken.trim().length === 0) {
           results.telegram = { success: false, message: 'Bot Token não configurado' };
         } else {
-          const TelegramBot = (await import('node-telegram-bot-api')).default;
-          const bot = new TelegramBot(botToken, { polling: false });
+          const { Telegraf } = await import('telegraf');
+          const bot = new Telegraf(botToken);
 
           // Test by getting bot info
-          const botInfo = await bot.getMe();
+          const botInfo = await bot.telegram.getMe();
           if (botInfo && botInfo.username) {
             if (chatId) {
               try {
                 const testMessage = `🤖 <b>Teste do VoxelPromo</b>\n\n✅ Bot configurado com sucesso!\n\n📅 Data/Hora: ${new Date().toLocaleString('pt-BR')}\n🔗 Sistema: VoxelPromo - Monitoramento de Ofertas\n\nSe você recebeu esta mensagem, o bot está funcionando corretamente! 🎉`;
 
                 logger.info(`Sending test message to Telegram chat ${chatId}`);
-                await bot.sendMessage(chatId, testMessage, { parse_mode: 'HTML' });
+                await bot.telegram.sendMessage(chatId, testMessage, { parse_mode: 'HTML' });
 
                 results.telegram = {
                   success: true,

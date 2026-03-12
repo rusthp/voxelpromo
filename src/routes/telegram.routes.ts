@@ -110,7 +110,7 @@ router.get('/status', authenticate, async (req: AuthRequest, res) => {
 
     // Try to get bot info to verify token is valid
     try {
-      const me = await bot.getMe();
+      const me = await bot.telegram.getMe();
       return res.json({
         success: true,
         configured: true,
