@@ -12,6 +12,25 @@ const redisConfig = {
 
 export const redisConnection = new Redis(redisConfig);
 
+// Handle Redis connection errors gracefully to prevent log flooding
+let redisErrorLogged = false;
+redisConnection.on('error', (err: any) => {
+  if (err.code === 'ECONNREFUSED') {
+    // Log only once, then suppress repeated ECONNREFUSED errors
+    if (!redisErrorLogged) {
+      logger.warn(`⚠️ Redis não disponível em ${redisConfig.host}:${redisConfig.port}. BullMQ tentará reconectar automaticamente.`);
+      redisErrorLogged = true;
+    }
+  } else {
+    logger.error('Redis connection error:', { code: err.code, message: err.message });
+  }
+});
+
+redisConnection.on('connect', () => {
+  redisErrorLogged = false;
+  logger.info('✅ Redis conectado com sucesso');
+});
+
 const queueOptions: QueueOptions = {
   connection: redisConnection as any,
   defaultJobOptions: {

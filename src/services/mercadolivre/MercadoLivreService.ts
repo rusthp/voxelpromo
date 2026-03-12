@@ -701,7 +701,7 @@ export class MercadoLivreService {
       this.cacheResults(cacheKey, validProducts);
       return validProducts;
     } catch (error: any) {
-      logger.error('Error searching Mercado Livre products via API:', error.message);
+      logger.error(`Error searching Mercado Livre products via API: ${error.message}`);
       if (error.response) {
         logger.error(`Response Data: ${JSON.stringify(error.response.data)}`);
       }

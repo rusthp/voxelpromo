@@ -158,6 +158,10 @@ export class VectorizerService {
 
       if (!response.ok) {
         const error = await response.text();
+        // Circuit-break on auth errors (401/403) to prevent log flooding
+        if (response.status === 401 || response.status === 403) {
+          this.isServiceAvailable = false;
+        }
         return { success: false, error: `HTTP ${response.status}: ${error}` };
       }
 
