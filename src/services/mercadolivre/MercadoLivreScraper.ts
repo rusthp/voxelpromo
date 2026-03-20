@@ -2,9 +2,7 @@ import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { Browser, Page } from 'puppeteer';
 import { logger } from '../../utils/logger';
-import { existsSync } from 'fs';
-import axios from 'axios';
-import * as cheerio from 'cheerio';
+import { existsSync, readFileSync } from 'fs';
 
 // Add stealth plugin
 puppeteer.use(StealthPlugin());
@@ -208,9 +206,7 @@ export class MercadoLivreScraper {
     if (!cookieSource) return [];
     try {
       if (cookieSource.endsWith('.json') && existsSync(cookieSource)) {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const fs = require('fs');
-        return JSON.parse(fs.readFileSync(cookieSource, 'utf-8'));
+        return JSON.parse(readFileSync(cookieSource, 'utf-8'));
       }
       return JSON.parse(cookieSource);
     } catch (error: any) {
@@ -338,7 +334,7 @@ export class MercadoLivreScraper {
             0,
           { timeout: 10000 }
         );
-      } catch (e) {
+      } catch (_e) {
         logger.warn('⚠️ No search results selector found (might be empty or captcha)');
       }
 
@@ -542,7 +538,7 @@ export class MercadoLivreScraper {
       // Wait for results
       try {
         await page.waitForSelector('.promotion-item, .poly-card', { timeout: 10000 });
-      } catch (e) {
+      } catch (_e) {
         logger.warn('⚠️ No deals selector found (might be empty or captcha)');
       }
 
@@ -615,39 +611,12 @@ export class MercadoLivreScraper {
   }
 
   /**
-   * Scrapes the Mercado Livre "/ofertas" page.
+   * Scrapes the Mercado Livre "/ofertas" page using Puppeteer (delegates to scrapeDailyDeals).
    */
   public async scrapeOfertas(limit: number = 20): Promise<any[]> {
     try {
-      const url = 'https://www.mercadolivre.com.br/ofertas';
-      const { data } = await axios.get(url);
-      const $ = cheerio.load(data);
-      const offers: any[] = [];
-
-      // Selectors adjusted for Mercado Livre's promo items (often change, using multiple fallbacks)
-      $('.promotion-item, .poly-card').each((i, element) => {
-        if (i >= limit) return false;
-
-        const title = $(element).find('.promotion-item__title, .poly-component__title').text().trim();
-        const priceText = $(element).find('.andes-money-amount__fraction').first().text().trim();
-        const link = $(element).find('a').attr('href');
-        const imageUrl = $(element).find('img').attr('src') || $(element).find('img').attr('data-src');
-
-        if (title && link) {
-          offers.push({
-            title,
-            price: priceText ? parseFloat(priceText.replace(/\./g, '').replace(',', '.')) : 0,
-            url: link,
-            imageUrl,
-            platform: 'MERCADO_LIVRE',
-            source: 'OFERTAS',
-            extractedAt: new Date()
-          });
-        }
-        return true;
-      });
-
-      return offers;
+      const deals = await this.scrapeDailyDeals();
+      return deals.slice(0, limit);
     } catch (error) {
       logger.error('❌ [MercadoLivreScraper] Error scraping /ofertas:', error);
       return [];
@@ -655,41 +624,73 @@ export class MercadoLivreScraper {
   }
 
   /**
-   * Scrapes the Mercado Livre "/mais-vendidos" categories.
+   * Scrapes the Mercado Livre "/mais-vendidos" categories using Puppeteer.
    */
   public async scrapeMaisVendidos(categoryUrl: string, limit: number = 20): Promise<any[]> {
-    try {
-      const { data } = await axios.get(categoryUrl);
-      const $ = cheerio.load(data);
-      const trending: any[] = [];
+    return this.withContext(async (page) => {
+      try {
+        logger.info(`🕷️ Stealth Scraping Mais Vendidos: ${categoryUrl}`);
+        await page.goto(categoryUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-      $('.ui-search-result__wrapper, .poly-card').each((i, element) => {
-        if (i >= limit) return false;
+        const delay = Math.floor(Math.random() * 2000) + 1000;
+        await new Promise((r) => setTimeout(r, delay));
 
-        const title = $(element).find('.ui-search-item__title, .poly-component__title').text().trim();
-        const priceText = $(element).find('.andes-money-amount__fraction').first().text().trim();
-        const link = $(element).find('a').attr('href');
-        const imageUrl = $(element).find('img').attr('src') || $(element).find('img').attr('data-src');
-
-        if (title && link) {
-          trending.push({
-            title,
-            price: priceText ? parseFloat(priceText.replace(/\./g, '').replace(',', '.')) : 0,
-            url: link,
-            imageUrl,
-            platform: 'MERCADO_LIVRE',
-            source: 'MAIS_VENDIDOS',
-            extractedAt: new Date()
-          });
+        try {
+          await page.waitForSelector('.ui-search-result__wrapper, .poly-card', { timeout: 10000 });
+        } catch {
+          logger.warn('⚠️ No mais-vendidos selector found');
         }
-        return true;
-      });
 
-      return trending;
-    } catch (error) {
-      logger.error('❌ [MercadoLivreScraper] Error scraping /mais-vendidos:', error);
-      return [];
-    }
+        const products = await page.evaluate((maxItems: number) => {
+          const results: any[] = [];
+          const items = document.querySelectorAll('.ui-search-result__wrapper, .poly-card');
+
+          items.forEach((item: Element) => {
+            if (results.length >= maxItems) return;
+            try {
+              const titleEl = item.querySelector('.ui-search-item__title, .poly-component__title, p');
+              const title = titleEl?.textContent?.trim() || '';
+              const linkEl = item.querySelector('a');
+              const permalink = linkEl?.getAttribute('href') || '';
+              const priceEl = item.querySelector('.andes-money-amount__fraction');
+              const priceText = priceEl?.textContent?.replace(/\./g, '') || '0';
+              const price = parseFloat(priceText);
+              const imgEl = item.querySelector('img');
+              const thumbnail = imgEl?.getAttribute('src') || imgEl?.getAttribute('data-src') || '';
+
+              let id = '';
+              if (permalink) {
+                const idMatch = permalink.match(/(MLB-?\d+)/i) || permalink.match(/\/p\/(MLB\d+)/);
+                id = idMatch ? idMatch[1].replace('-', '') : '';
+              }
+
+              if (title && price > 0 && permalink) {
+                results.push({
+                  id: id || `MLB${Date.now()}${Math.random().toString().slice(2, 5)}`,
+                  title,
+                  price,
+                  currency_id: 'BRL',
+                  available_quantity: 1,
+                  condition: 'new',
+                  permalink,
+                  thumbnail,
+                  pictures: [{ url: thumbnail }],
+                });
+              }
+            } catch {
+              // Skip item
+            }
+          });
+          return results;
+        }, limit);
+
+        logger.info(`✅ Found ${products.length} mais vendidos`);
+        return products;
+      } catch (error) {
+        logger.error('❌ [MercadoLivreScraper] Error scraping /mais-vendidos:', error);
+        return [];
+      }
+    });
   }
 
   /**

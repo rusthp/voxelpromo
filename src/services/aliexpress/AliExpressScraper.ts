@@ -101,7 +101,7 @@ export class AliExpressScraper {
 
         try {
           return JSON.parse(jsonStr);
-        } catch (parseError) {
+        } catch (_parseError) {
           logger.debug('Failed to parse runParams JSON, trying alternative extraction...');
         }
       }

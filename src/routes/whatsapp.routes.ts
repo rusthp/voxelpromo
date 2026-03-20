@@ -217,13 +217,13 @@ router.delete('/auth', authenticate, async (req: AuthRequest, res) => {
       try {
         unlinkSync(join(authDir, file));
         deletedCount++;
-      } catch (e) {
+      } catch (_e) {
         // ignore error
       }
     }
     try {
       rmdirSync(authDir);
-    } catch (e) {
+    } catch (_e) {
       // ignore error
     }
 

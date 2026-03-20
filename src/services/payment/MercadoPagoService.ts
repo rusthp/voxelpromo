@@ -19,22 +19,30 @@ export class MercadoPagoService implements IPaymentService {
     private payment: Payment;
     private preApproval: PreApproval;
 
+    private isConfigured: boolean;
+
     constructor() {
         const accessToken = process.env.MP_ACCESS_TOKEN;
+        this.isConfigured = !!accessToken;
 
         if (!accessToken) {
-            logger.warn('⚠️ MP_ACCESS_TOKEN not configured. Payment features disabled.');
-            // throw new Error('Mercado Pago not configured'); // Don't throw here to allow app startup even if MP is down/missing, but methods will fail
+            logger.warn('⚠️ MP_ACCESS_TOKEN not configured. Mercado Pago payment methods will fail.');
         }
 
         this.client = new MercadoPagoConfig({
-            accessToken: accessToken || 'dummy_token',
+            accessToken: accessToken || 'mp_not_configured',
             options: { timeout: 5000 },
         });
 
         this.preference = new Preference(this.client);
         this.payment = new Payment(this.client);
         this.preApproval = new PreApproval(this.client);
+    }
+
+    private ensureConfigured(): void {
+        if (!this.isConfigured) {
+            throw new Error('Mercado Pago is not configured. Set MP_ACCESS_TOKEN environment variable.');
+        }
     }
 
     /**
@@ -52,6 +60,7 @@ export class MercadoPagoService implements IPaymentService {
             number: string;
         };
     }): Promise<SubscriptionResult> {
+        this.ensureConfigured();
         try {
             const plan = getPlan(data.planId);
             if (!plan) {
@@ -200,6 +209,7 @@ export class MercadoPagoService implements IPaymentService {
      * Kept for legacy support or if we want to use MP Checkout for some reason
      */
     async createCheckout(userId: string, planId: string, userEmail: string, userName?: string, _options?: { hasUsedTrial?: boolean }): Promise<SubscriptionResult> {
+        this.ensureConfigured();
         try {
             const plan = getPlan(planId);
             if (!plan) throw new Error(`Invalid plan: ${planId}`);
@@ -259,6 +269,7 @@ export class MercadoPagoService implements IPaymentService {
         payerCpf: string;
         amount: number;
     }): Promise<PaymentResult> {
+        this.ensureConfigured();
         try {
             const plan = getPlan(data.planId);
             if (!plan) throw new Error(`Plano inválido: ${data.planId}`);
@@ -321,6 +332,7 @@ export class MercadoPagoService implements IPaymentService {
             federal_unit: string;
         };
     }): Promise<PaymentResult> {
+        this.ensureConfigured();
         try {
             const plan = getPlan(data.planId);
             if (!plan) throw new Error(`Plano inválido: ${data.planId}`);

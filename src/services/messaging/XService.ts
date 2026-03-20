@@ -301,7 +301,7 @@ export class XService {
       // Verify link before sending
       if (offer.affiliateUrl) {
         try {
-          const { LinkVerifier } = require('../link/LinkVerifier'); // eslint-disable-line @typescript-eslint/no-var-requires
+          const { LinkVerifier } = await import('../link/LinkVerifier');
           const isValid = await LinkVerifier.verify(offer.affiliateUrl);
           if (!isValid) {
             logger.warn(`🛑 Skipping X (Twitter) offer due to invalid link: ${offer.affiliateUrl}`);

@@ -7,18 +7,29 @@ import { getErrorMessage } from '../../types/domain.types';
 export class StripeService implements IPaymentService {
     private stripe: Stripe;
 
+    private isConfigured: boolean;
+
     constructor() {
         const secretKey = process.env.STRIPE_SECRET_KEY;
+        this.isConfigured = !!secretKey;
+
         if (!secretKey) {
-            logger.warn('⚠️ STRIPE_SECRET_KEY not configured. Stripe features disabled.');
+            logger.warn('⚠️ STRIPE_SECRET_KEY not configured. Stripe payment methods will fail.');
         }
 
-        this.stripe = new Stripe(secretKey || 'dummy_key', {
+        this.stripe = new Stripe(secretKey || 'sk_not_configured', {
             apiVersion: '2023-10-16' as any, // Suppress strict version check
         });
     }
 
+    private ensureConfigured(): void {
+        if (!this.isConfigured) {
+            throw new Error('Stripe is not configured. Set STRIPE_SECRET_KEY environment variable.');
+        }
+    }
+
     async createCheckout(userId: string, planId: string, userEmail: string, _userName?: string, options?: { hasUsedTrial?: boolean }): Promise<SubscriptionResult> {
+        this.ensureConfigured();
         try {
             const plan = getPlan(planId);
             if (!plan) throw new Error(`Invalid plan: ${planId}`);
@@ -189,10 +200,21 @@ export class StripeService implements IPaymentService {
         return { processed: false }; // Placeholder
     }
 
-    verifyWebhookSignature(_signature: string, _requestId: string, _body: any): boolean {
-        // Stripe verification uses raw body buffer, which we might not have easily here if body parser is already run
-        // Validation is usually done in the controller before calling service
-        return true;
+    verifyWebhookSignature(signature: string, _requestId: string, body: any): boolean {
+        // Stripe verification uses constructEvent with raw body + signature
+        // If called directly, attempt real verification
+        const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+        if (!endpointSecret) {
+            logger.warn('⚠️ STRIPE_WEBHOOK_SECRET not set, cannot verify webhook signature');
+            return process.env.NODE_ENV !== 'production';
+        }
+
+        try {
+            this.stripe.webhooks.constructEvent(body, signature, endpointSecret);
+            return true;
+        } catch {
+            return false;
+        }
     }
 
     /**

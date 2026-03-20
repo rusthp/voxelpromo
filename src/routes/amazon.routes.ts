@@ -251,7 +251,7 @@ router.post('/search', async (req, res) => {
           }
           // Add delay to avoid rate limiting
           await new Promise((r) => setTimeout(r, 1000));
-        } catch (e) {
+        } catch (_e) {
           logger.warn(`Failed to scrape product ${product.asin}`);
         }
       }

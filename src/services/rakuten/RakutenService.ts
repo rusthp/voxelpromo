@@ -91,7 +91,7 @@ export class RakutenService extends NetworkApiAbstract {
           logger.debug('✅ Rakuten config loaded from config.json');
         }
       }
-    } catch (error) {
+    } catch (_error) {
       logger.warn('⚠️ Could not load Rakuten config from config.json');
     }
 

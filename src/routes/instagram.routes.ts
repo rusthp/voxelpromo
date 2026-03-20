@@ -1,9 +1,18 @@
 import { Router, Request, Response } from 'express';
+import crypto from 'crypto';
 import { InstagramService } from '../services/messaging/InstagramService';
 import { logger } from '../utils/logger';
 
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { validate } from '../middleware/validate';
 import { getUserSettingsService } from '../services/user/UserSettingsService';
+import {
+  instagramConfigSchema,
+  instagramSettingsSchema,
+  instagramStorySchema,
+  instagramReelSchema,
+  instagramAuthExchangeSchema,
+} from '../validation/instagram.validation';
 
 const router = Router();
 
@@ -131,7 +140,7 @@ router.get('/auth/url', authenticate, async (req: AuthRequest, res: Response) =>
 
     // Generate state with userId encoded for CSRF protection + user identification
     const stateData = {
-      csrf: Math.random().toString(36).substring(2, 15),
+      csrf: crypto.randomBytes(16).toString('hex'),
       userId: userId,
     };
     const state = Buffer.from(JSON.stringify(stateData)).toString('base64');
@@ -243,7 +252,7 @@ router.get('/auth/callback', async (req: Request, res: Response) => {
  *     security:
  *       - bearerAuth: []
  */
-router.post('/auth/exchange', authenticate, async (req: AuthRequest, res: Response) => {
+router.post('/auth/exchange', authenticate, validate(instagramAuthExchangeSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { code, redirectUri } = req.body;
     const userId = req.user!.id; // Authenticated user
@@ -264,27 +273,10 @@ router.post('/auth/exchange', authenticate, async (req: AuthRequest, res: Respon
       });
     }
 
-    // Use provided redirectUri (required for OAuth security)
-    if (!redirectUri) {
-      return res.status(400).json({
-        success: false,
-        error: 'Redirect URI is required.',
-      });
-    }
-
     const tokenResponse = await service.exchangeCodeForToken(code, redirectUri);
-    // Tokens are returned but not automatically saved here? 
-    // The previous logic didn't save them to DB, just returned them.
-    // We should probably save them if this is a manual exchange.
+    // exchangeCodeForToken sets this.accessToken and this.igUserId internally
 
-    // Save tokens to UserSettings
     const settingsService = getUserSettingsService();
-    // Fetch account info to get ID
-    // We need to set the access token on the service temporarily to fetch info
-    service['accessToken'] = tokenResponse.access_token; // Hacky but needed if exchangeCodeForToken doesn't set it? 
-    // Actually exchangeCodeForToken sets this.accessToken and this.igUserId
-
-    // But let's be safe and use what we have
     const accountInfo = await service.getAccountInfo();
 
     await settingsService.updateInstagramTokens(userId, {
@@ -450,7 +442,7 @@ router.post('/test', authenticate, async (req: AuthRequest, res: Response) => {
  *     security:
  *       - bearerAuth: []
  */
-router.post('/config', authenticate, async (req: AuthRequest, res: Response) => {
+router.post('/config', authenticate, validate(instagramConfigSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { appId, appSecret, webhookVerifyToken, accessToken, igUserId } = req.body;
@@ -494,7 +486,7 @@ router.post('/config', authenticate, async (req: AuthRequest, res: Response) => 
           const d = new Date(); d.setDate(d.getDate() + 60);
           tokenExpiresAt = d;
         }
-      } catch (e) {
+      } catch (_e) {
         const d = new Date(); d.setDate(d.getDate() + 60);
         tokenExpiresAt = d;
       }
@@ -546,9 +538,10 @@ router.post('/config', authenticate, async (req: AuthRequest, res: Response) => 
  *     security:
  *       - bearerAuth: []
  */
-router.get('/rate-limit', (_req: Request, res: Response) => {
+router.get('/rate-limit', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const service = getGlobalInstagramService();
+    const userId = req.user!.id;
+    const service = await InstagramService.createForUser(userId);
     const status = service.getRateLimitStatus();
 
     return res.json({
@@ -669,7 +662,7 @@ router.get('/settings', authenticate, async (req: AuthRequest, res: Response) =>
  *     security:
  *       - bearerAuth: []
  */
-router.post('/settings', authenticate, async (req: AuthRequest, res: Response) => {
+router.post('/settings', authenticate, validate(instagramSettingsSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { autoReplyDM, welcomeMessage, keywordReplies, conversionKeywords } = req.body;
@@ -734,7 +727,7 @@ router.post('/settings', authenticate, async (req: AuthRequest, res: Response) =
  *                 enum: [IMAGE, VIDEO]
  *                 default: IMAGE
  */
-router.post('/story', authenticate, async (req: AuthRequest, res: Response) => {
+router.post('/story', authenticate, validate(instagramStorySchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { mediaUrl, mediaType = 'IMAGE' } = req.body;
@@ -806,7 +799,7 @@ router.post('/story', authenticate, async (req: AuthRequest, res: Response) => {
  *                 type: boolean
  *                 default: true
  */
-router.post('/reel', authenticate, async (req: AuthRequest, res: Response) => {
+router.post('/reel', authenticate, validate(instagramReelSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { videoUrl, caption, shareToFeed = true } = req.body;

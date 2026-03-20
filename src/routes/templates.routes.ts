@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { TemplateService } from '../services/automation/TemplateService';
 import { OfferModel } from '../models/Offer';
 import { logger } from '../utils/logger';
+import { AuthRequest } from '../middleware/auth';
 
 const router = Router();
 const templateService = new TemplateService();
@@ -257,19 +258,20 @@ router.delete('/:id', async (req: Request, res: Response) => {
  */
 router.post('/:id/test', async (req: Request, res: Response) => {
   try {
+    const userId = (req as AuthRequest).user?.id;
     const template = await templateService.getTemplate(req.params.id);
 
     if (!template) {
       return res.status(404).json({ error: 'Template not found' });
     }
 
-    // Get offer to test with
+    // Get offer to test with (scoped to current user)
     let offer;
     if (req.body.offerId) {
-      offer = await OfferModel.findById(req.body.offerId).lean();
+      offer = await OfferModel.findOne({ _id: req.body.offerId, userId }).lean();
     } else {
-      // Get a random active offer
-      const offers = await OfferModel.find({ isActive: true }).limit(1).lean();
+      // Get a random active offer from current user
+      const offers = await OfferModel.find({ isActive: true, userId }).limit(1).lean();
       offer = offers[0];
     }
 

@@ -1,5 +1,4 @@
 import { Router, Request, Response } from 'express';
-import mongoose from 'mongoose';
 import { PaymentFactory } from '../services/payment/PaymentFactory';
 import { UserModel } from '../models/User';
 import { TransactionModel } from '../models/Transaction';
@@ -7,14 +6,14 @@ import { LogService } from '../services/LogService';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { logger } from '../utils/logger';
 import { validate } from '../middleware/validate';
-import { createCheckoutSchema, createPixSchema, createBoletoSchema } from '../validation/payment.validation';
+import { createCheckoutSchema, createPixSchema, createBoletoSchema, processSubscriptionSchema } from '../validation/payment.validation';
 import { StripeWebhookService } from '../services/payment/StripeWebhookService';
 
 const router = Router();
 
 /**
  * POST /api/payments/create-checkout
- * Create a Mercado Pago checkout for a subscription plan
+ * Create a checkout session for a subscription plan (Stripe by default, or Mercado Pago)
  * PROTECTED ROUTE - Requires authentication
  */
 router.post('/create-checkout', authenticate, validate(createCheckoutSchema), async (req: AuthRequest, res: Response) => {
@@ -61,7 +60,7 @@ router.post('/create-checkout', authenticate, validate(createCheckoutSchema), as
  * Process a subscription using Transparent Checkout (card token from frontend)
  * PROTECTED ROUTE - Requires authentication
  */
-router.post('/process-subscription', authenticate, async (req: AuthRequest, res: Response) => {
+router.post('/process-subscription', authenticate, validate(processSubscriptionSchema), async (req: AuthRequest, res: Response) => {
   try {
     const {
       planId,
@@ -543,23 +542,40 @@ router.post('/webhook', async (req: Request, res: Response) => {
     if (type === 'chargebacks' || type === 'topic_chargebacks_wh') {
       logger.warn(`⚠️ Chargeback received: ${data?.id}`);
 
-      // Create chargeback transaction record
-      // Note: User lookup by payment ID would require storing payment->user mapping
-      // For now, log the chargeback event
       try {
-        await TransactionModel.create({
-          userId: new mongoose.Types.ObjectId(), // Placeholder - needs lookup
-          type: 'chargeback',
-          provider: 'mercadopago',
-          mpPaymentId: String(data?.id || 'unknown'),
-          planId: 'unknown',
-          amount: 0, // Would need to fetch from MP
-          currency: 'BRL',
-          status: 'cancelled',
-          paymentMethod: 'card',
+        // Lookup the user via existing transaction with this payment ID
+        const existingTransaction = await TransactionModel.findOne({
+          mpPaymentId: String(data?.id),
+          type: { $ne: 'chargeback' },
         });
+
+        if (existingTransaction) {
+          // Suspend user access immediately
+          const user = await UserModel.findById(existingTransaction.userId);
+          if (user) {
+            user.access.status = 'CANCELED';
+            await user.save();
+            logger.warn(`🚫 User ${user._id} access suspended due to chargeback on payment ${data?.id}`);
+          }
+
+          await TransactionModel.create({
+            userId: existingTransaction.userId,
+            type: 'chargeback',
+            provider: 'mercadopago',
+            mpPaymentId: String(data?.id),
+            planId: existingTransaction.planId || 'unknown',
+            amount: existingTransaction.amount || 0,
+            currency: 'BRL',
+            status: 'cancelled',
+            paymentMethod: existingTransaction.paymentMethod || 'card',
+            userEmail: existingTransaction.userEmail,
+            userName: existingTransaction.userName,
+          });
+        } else {
+          logger.warn(`⚠️ No matching transaction found for chargeback payment ${data?.id}`);
+        }
       } catch (chargebackErr) {
-        logger.error('Failed to record chargeback transaction:', chargebackErr);
+        logger.error('Failed to process chargeback:', chargebackErr);
       }
 
       res.status(200).json({ message: 'Chargeback acknowledged' });
@@ -742,10 +758,47 @@ router.post('/subscription/cancel', authenticate, async (req: AuthRequest, res: 
  * Pause user's subscription
  * PROTECTED ROUTE - Requires authentication
  */
-router.post('/subscription/pause', authenticate, async (_req: AuthRequest, res: Response) => {
-  // Logic similar to cancel, but calling pause
-  // For MVP, implementing placeholder or reusing logic structure
-  res.status(501).json({ error: 'Not implemented' });
+router.post('/subscription/pause', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const user = await UserModel.findById(userId);
+
+    if (!user) {
+      res.status(404).json({ success: false, error: 'User not found' });
+      return;
+    }
+
+    const provider = user.billing.provider?.toLowerCase() || 'mercadopago';
+    const subId = provider === 'stripe' ? user.billing.stripeSubscriptionId : user.billing.mpSubscriptionId;
+
+    if (!subId) {
+      res.status(400).json({ success: false, error: 'No active subscription found to pause' });
+      return;
+    }
+
+    const paymentService = PaymentFactory.getService(provider as any);
+    const result = await paymentService.pauseSubscription(subId);
+
+    if (result.success) {
+      user.access.status = 'PAUSED' as any;
+      await user.save();
+
+      await LogService.log({
+        action: 'SUBSCRIPTION_PAUSED',
+        category: 'BILLING',
+        resource: { type: 'Subscription', id: subId, name: user.access.plan },
+        details: { userId },
+        actor: user,
+      });
+
+      res.json({ success: true, message: 'Assinatura pausada.' });
+    } else {
+      res.status(500).json({ success: false, error: 'Não foi possível pausar a assinatura' });
+    }
+  } catch (error: any) {
+    logger.error('Error pausing subscription:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to pause subscription' });
+  }
 });
 
 /**

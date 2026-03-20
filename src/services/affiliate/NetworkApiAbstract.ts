@@ -198,7 +198,7 @@ export abstract class NetworkApiAbstract {
       }
 
       return currentUrl;
-    } catch (error) {
+    } catch (_error) {
       if (removeQueryParams) {
         const parsedUrl = new URL(currentUrl);
         const cleanUrl = `${parsedUrl.protocol}//${parsedUrl.host}${parsedUrl.pathname}`;

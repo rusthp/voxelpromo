@@ -28,7 +28,7 @@
     "enabled": false,
     "targetNumber": "",
     "targetGroups": [],
-    "library": "whatsapp-web.js"
+    "library": "baileys"
   },
   "x": {
     "bearerToken": "",

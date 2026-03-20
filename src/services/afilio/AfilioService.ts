@@ -82,7 +82,7 @@ export class AfilioService extends NetworkApiAbstract {
           logger.debug('✅ Afilio config loaded from config.json');
         }
       }
-    } catch (error) {
+    } catch (_error) {
       logger.warn('⚠️ Could not load Afilio config from config.json');
     }
 

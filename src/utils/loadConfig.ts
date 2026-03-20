@@ -35,7 +35,7 @@ export function loadConfigFromFile(force = false): void {
         if (mtime === configCache.mtime && Date.now() - mtime < CACHE_TTL) {
           return; // Use cached config - no logging needed
         }
-      } catch (error) {
+      } catch (_error) {
         // If stat fails, reload config
       }
     }

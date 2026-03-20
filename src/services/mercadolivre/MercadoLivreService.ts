@@ -193,7 +193,7 @@ export class MercadoLivreService {
           };
         }
       }
-    } catch (error) {
+    } catch (_error) {
       // Fall back to environment variables
     }
 
@@ -358,11 +358,12 @@ export class MercadoLivreService {
       const status = error.response?.status;
       const isRateLimit = status === 429;
       const isPolicyAgent = status === 403 && error.response?.data?.blocked_by === 'PolicyAgent';
+      const isNetworkError = !error.response && (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED' || error.code === 'EPIPE');
 
-      if ((isRateLimit || isPolicyAgent) && attempt < maxRetries) {
-        const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+      if ((isRateLimit || isPolicyAgent || isNetworkError) && attempt < maxRetries) {
+        const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 15000);
         logger.warn(
-          `Rate limit or PolicyAgent block (${status}). Retrying in ${waitTime}ms... (attempt ${attempt}/${maxRetries})`
+          `Request failed (${isNetworkError ? error.code : status}). Retrying in ${waitTime}ms... (attempt ${attempt}/${maxRetries})`
         );
         await new Promise((resolve) => setTimeout(resolve, waitTime));
         return this.retryRequest(requestFn, maxRetries, attempt + 1);
@@ -687,7 +688,7 @@ export class MercadoLivreService {
             'User-Agent':
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
           },
-          timeout: 10000,
+          timeout: 30000,
         });
       });
 
@@ -737,7 +738,7 @@ export class MercadoLivreService {
           });
         });
         return response.data;
-      } catch (primaryError: any) {
+      } catch (_primaryError: any) {
         logger.warn(`Primary endpoint /items/ failed for ${itemId}, trying /pdp/item/ fallback...`);
 
         // Fallback to /pdp/item/ endpoint - always returns correct price
@@ -978,6 +979,9 @@ export class MercadoLivreService {
 
       if (currentPrice <= 0) return null;
 
+      // Skip products with negligible discount (less than 5%)
+      if (discountPercentage > 0 && discountPercentage < 5) return null;
+
       let affiliateLink = product.permalink;
 
       // Priority 1: Try Internal API (createLink) - most reliable
@@ -990,8 +994,7 @@ export class MercadoLivreService {
         if (generatorEndpoint) {
           try {
             if (!this.scraper) {
-              // eslint-disable-next-line @typescript-eslint/no-var-requires
-              const { MercadoLivreScraper } = require('./MercadoLivreScraper');
+              const { MercadoLivreScraper } = await import('./MercadoLivreScraper');
               this.scraper = MercadoLivreScraper.getInstance();
             }
             affiliateLink = await this.scraper.generateAffiliateLink(product.permalink);
@@ -1069,8 +1072,7 @@ export class MercadoLivreService {
 
       // Lazy load scraper to avoid overhead if not needed
       if (!this.scraper) {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { MercadoLivreScraper } = require('./MercadoLivreScraper');
+        const { MercadoLivreScraper } = await import('./MercadoLivreScraper');
         this.scraper = MercadoLivreScraper.getInstance();
       }
 
@@ -1084,7 +1086,7 @@ export class MercadoLivreService {
         const headers = await this.scraper.getHeaders();
         const response = await axios.get(url, { headers, timeout: 15000 });
         html = response.data;
-      } catch (axiosError) {
+      } catch (_axiosError) {
         logger.warn('⚠️ Axios with Stealth Headers failed, switching to Full Browser Scraping...');
         // Step 2: Fallback to Full Browser DOM Extraction (Slow but Robust)
         return await this.scraper.scrapeSearchResults(url);
@@ -1139,7 +1141,7 @@ export class MercadoLivreService {
               pictures: [{ url: thumbnail }],
             });
           }
-        } catch (err) {
+        } catch (_err) {
           // Skip item
         }
       }
@@ -1161,8 +1163,7 @@ export class MercadoLivreService {
 
       // Lazy load scraper
       if (!this.scraper) {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { MercadoLivreScraper } = require('./MercadoLivreScraper');
+        const { MercadoLivreScraper } = await import('./MercadoLivreScraper');
         this.scraper = MercadoLivreScraper.getInstance();
       }
 

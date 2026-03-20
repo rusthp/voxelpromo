@@ -630,9 +630,14 @@ export class InstagramService {
   private async sendRecentOffers(recipientId: string): Promise<void> {
     try {
       // Dynamic import to avoid circular dependencies
-      const { OfferModel } = require('../../models/Offer'); // eslint-disable-line @typescript-eslint/no-var-requires
+      const { OfferModel } = await import('../../models/Offer');
 
-      const recentOffers = await OfferModel.find({ status: 'approved' })
+      const query: any = { isActive: true };
+      if (this.userId) {
+        query.userId = this.userId;
+      }
+
+      const recentOffers = await OfferModel.find(query)
         .sort({ createdAt: -1 })
         .limit(3)
         .lean();
@@ -646,7 +651,7 @@ export class InstagramService {
       }
 
       for (const offer of recentOffers) {
-        const message = await this.formatMessage(offer);
+        const message = await this.formatMessage(offer as any);
         await this.sendDirectMessage(recipientId, message);
         await this.delay(1500); // Delay between messages
       }
@@ -775,7 +780,7 @@ export class InstagramService {
     try {
       // Verify affiliate link before posting
       if (offer.affiliateUrl) {
-        const { LinkVerifier } = require('../link/LinkVerifier'); // eslint-disable-line @typescript-eslint/no-var-requires
+        const { LinkVerifier } = await import('../link/LinkVerifier');
         const isValid = await LinkVerifier.verify(offer.affiliateUrl);
         if (!isValid) {
           logger.warn(`🛑 Skipping Instagram offer due to invalid link: ${offer.affiliateUrl}`);

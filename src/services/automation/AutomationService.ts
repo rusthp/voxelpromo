@@ -399,8 +399,7 @@ export class AutomationService {
           : ['telegram'];
 
       // Initialize OfferService dynamically to avoid circular dependencies
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { OfferService } = require('../offer/OfferService');
+      const { OfferService } = await import('../offer/OfferService');
       const offerService = new OfferService();
 
       // Actually post using OfferService
@@ -614,8 +613,7 @@ export class AutomationService {
       }
 
       // Initialize OfferService
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { OfferService } = require('../offer/OfferService');
+      const { OfferService } = await import('../offer/OfferService');
       const offerService = new OfferService();
 
       let scheduledCount = 0;

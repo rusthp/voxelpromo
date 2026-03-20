@@ -169,6 +169,8 @@ const InstagramSettingsSchema = new Schema(
     conversionKeywords: { type: [String], default: ['quero', 'eu quero', 'link', 'comprar'] },
     _oauthState: String,
     _oauthRedirectUri: String,
+    tokenStatus: { type: String, enum: ['active', 'expiring', 'expired'], default: 'active' },
+    tokenExpiresAt: Date,
   },
   { _id: false }
 );

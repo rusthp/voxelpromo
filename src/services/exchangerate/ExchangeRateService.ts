@@ -95,7 +95,7 @@ export class ExchangeRateService {
           if (rate && rate > 3 && rate < 7) {
             return rate;
           }
-        } catch (error) {
+        } catch (_error) {
           // Silent fail, try next API
         }
         return null;
@@ -112,7 +112,7 @@ export class ExchangeRateService {
           if (rate && rate > 3 && rate < 7) {
             return rate;
           }
-        } catch (error) {
+        } catch (_error) {
           // Silent fail, try next API
         }
         return null;
@@ -131,7 +131,7 @@ export class ExchangeRateService {
           if (rate && rate > 3 && rate < 7) {
             return rate;
           }
-        } catch (error) {
+        } catch (_error) {
           // Silent fail
         }
         return null;
@@ -145,7 +145,7 @@ export class ExchangeRateService {
         if (rate) {
           return rate;
         }
-      } catch (error) {
+      } catch (_error) {
         // Continue to next API
         continue;
       }
@@ -163,7 +163,7 @@ export class ExchangeRateService {
         const cache = JSON.parse(readFileSync(this.cacheFile, 'utf-8'));
         return cache;
       }
-    } catch (error) {
+    } catch (_error) {
       // Cache file doesn't exist or is invalid
     }
     return null;
@@ -207,7 +207,7 @@ export class ExchangeRateService {
           return parseFloat(config.aliexpress.exchangeRate);
         }
       }
-    } catch (error) {
+    } catch (_error) {
       // Config doesn't exist or is invalid
     }
     return null;

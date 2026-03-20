@@ -1,0 +1,1655 @@
+{
+  "add": [
+    {
+      "name": "path-expression-matcher",
+      "version": "1.1.3",
+      "path": "B:\\voxelpromo\\node_modules\\path-expression-matcher"
+    },
+    {
+      "name": "fast-xml-builder",
+      "version": "1.1.2",
+      "path": "B:\\voxelpromo\\node_modules\\fast-xml-builder"
+    }
+  ],
+  "added": 2,
+  "audited": 1213,
+  "change": [
+    {
+      "from": {
+        "name": "undici",
+        "version": "7.16.0",
+        "path": "B:\\voxelpromo\\node_modules\\undici"
+      },
+      "to": {
+        "name": "undici",
+        "version": "7.23.0",
+        "path": "B:\\voxelpromo\\node_modules\\undici"
+      }
+    },
+    {
+      "from": {
+        "name": "minimatch",
+        "version": "3.1.2",
+        "path": "B:\\voxelpromo\\node_modules\\test-exclude\\node_modules\\minimatch"
+      },
+      "to": {
+        "name": "minimatch",
+        "version": "3.1.5",
+        "path": "B:\\voxelpromo\\node_modules\\test-exclude\\node_modules\\minimatch"
+      }
+    },
+    {
+      "from": {
+        "name": "minimatch",
+        "version": "3.1.2",
+        "path": "B:\\voxelpromo\\node_modules\\swagger-jsdoc\\node_modules\\minimatch"
+      },
+      "to": {
+        "name": "minimatch",
+        "version": "3.1.5",
+        "path": "B:\\voxelpromo\\node_modules\\swagger-jsdoc\\node_modules\\minimatch"
+      }
+    },
+    {
+      "from": {
+        "name": "strnum",
+        "version": "2.1.2",
+        "path": "B:\\voxelpromo\\node_modules\\strnum"
+      },
+      "to": {
+        "name": "strnum",
+        "version": "2.2.0",
+        "path": "B:\\voxelpromo\\node_modules\\strnum"
+      }
+    },
+    {
+      "from": {
+        "name": "qs",
+        "version": "6.5.3",
+        "path": "B:\\voxelpromo\\node_modules\\request\\node_modules\\qs"
+      },
+      "to": {
+        "name": "qs",
+        "version": "6.5.5",
+        "path": "B:\\voxelpromo\\node_modules\\request\\node_modules\\qs"
+      }
+    },
+    {
+      "from": {
+        "name": "qs",
+        "version": "6.14.0",
+        "path": "B:\\voxelpromo\\node_modules\\qs"
+      },
+      "to": {
+        "name": "qs",
+        "version": "6.14.2",
+        "path": "B:\\voxelpromo\\node_modules\\qs"
+      }
+    },
+    {
+      "from": {
+        "name": "minimatch",
+        "version": "3.1.2",
+        "path": "B:\\voxelpromo\\node_modules\\nodemon\\node_modules\\minimatch"
+      },
+      "to": {
+        "name": "minimatch",
+        "version": "3.1.5",
+        "path": "B:\\voxelpromo\\node_modules\\nodemon\\node_modules\\minimatch"
+      }
+    },
+    {
+      "from": {
+        "name": "multer",
+        "version": "2.0.2",
+        "path": "B:\\voxelpromo\\node_modules\\multer"
+      },
+      "to": {
+        "name": "multer",
+        "version": "2.1.1",
+        "path": "B:\\voxelpromo\\node_modules\\multer"
+      }
+    },
+    {
+      "from": {
+        "name": "lodash",
+        "version": "4.17.21",
+        "path": "B:\\voxelpromo\\node_modules\\lodash"
+      },
+      "to": {
+        "name": "lodash",
+        "version": "4.17.23",
+        "path": "B:\\voxelpromo\\node_modules\\lodash"
+      }
+    },
+    {
+      "from": {
+        "name": "ip-address",
+        "version": "10.0.1",
+        "path": "B:\\voxelpromo\\node_modules\\ip-address"
+      },
+      "to": {
+        "name": "ip-address",
+        "version": "10.1.0",
+        "path": "B:\\voxelpromo\\node_modules\\ip-address"
+      }
+    },
+    {
+      "from": {
+        "name": "minimatch",
+        "version": "3.1.2",
+        "path": "B:\\voxelpromo\\node_modules\\glob\\node_modules\\minimatch"
+      },
+      "to": {
+        "name": "minimatch",
+        "version": "3.1.5",
+        "path": "B:\\voxelpromo\\node_modules\\glob\\node_modules\\minimatch"
+      }
+    },
+    {
+      "from": {
+        "name": "file-type",
+        "version": "21.1.1",
+        "path": "B:\\voxelpromo\\node_modules\\file-type"
+      },
+      "to": {
+        "name": "file-type",
+        "version": "21.3.1",
+        "path": "B:\\voxelpromo\\node_modules\\file-type"
+      }
+    },
+    {
+      "from": {
+        "name": "fast-xml-parser",
+        "version": "5.2.5",
+        "path": "B:\\voxelpromo\\node_modules\\fast-xml-parser"
+      },
+      "to": {
+        "name": "fast-xml-parser",
+        "version": "5.4.1",
+        "path": "B:\\voxelpromo\\node_modules\\fast-xml-parser"
+      }
+    },
+    {
+      "from": {
+        "name": "express-rate-limit",
+        "version": "8.2.1",
+        "path": "B:\\voxelpromo\\node_modules\\express-rate-limit"
+      },
+      "to": {
+        "name": "express-rate-limit",
+        "version": "8.3.1",
+        "path": "B:\\voxelpromo\\node_modules\\express-rate-limit"
+      }
+    },
+    {
+      "from": {
+        "name": "minimatch",
+        "version": "3.1.2",
+        "path": "B:\\voxelpromo\\node_modules\\eslint\\node_modules\\minimatch"
+      },
+      "to": {
+        "name": "minimatch",
+        "version": "3.1.5",
+        "path": "B:\\voxelpromo\\node_modules\\eslint\\node_modules\\minimatch"
+      }
+    },
+    {
+      "from": {
+        "name": "diff",
+        "version": "4.0.2",
+        "path": "B:\\voxelpromo\\node_modules\\diff"
+      },
+      "to": {
+        "name": "diff",
+        "version": "4.0.4",
+        "path": "B:\\voxelpromo\\node_modules\\diff"
+      }
+    },
+    {
+      "from": {
+        "name": "bowser",
+        "version": "2.13.1",
+        "path": "B:\\voxelpromo\\node_modules\\bowser"
+      },
+      "to": {
+        "name": "bowser",
+        "version": "2.14.1",
+        "path": "B:\\voxelpromo\\node_modules\\bowser"
+      }
+    },
+    {
+      "from": {
+        "name": "basic-ftp",
+        "version": "5.0.5",
+        "path": "B:\\voxelpromo\\node_modules\\basic-ftp"
+      },
+      "to": {
+        "name": "basic-ftp",
+        "version": "5.2.0",
+        "path": "B:\\voxelpromo\\node_modules\\basic-ftp"
+      }
+    },
+    {
+      "from": {
+        "name": "axios",
+        "version": "1.13.2",
+        "path": "B:\\voxelpromo\\node_modules\\axios"
+      },
+      "to": {
+        "name": "axios",
+        "version": "1.13.6",
+        "path": "B:\\voxelpromo\\node_modules\\axios"
+      }
+    },
+    {
+      "from": {
+        "name": "ajv",
+        "version": "6.12.6",
+        "path": "B:\\voxelpromo\\node_modules\\ajv"
+      },
+      "to": {
+        "name": "ajv",
+        "version": "6.14.0",
+        "path": "B:\\voxelpromo\\node_modules\\ajv"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/uuid",
+        "version": "1.1.0",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\uuid"
+      },
+      "to": {
+        "name": "@smithy/uuid",
+        "version": "1.1.2",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\uuid"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/util-utf8",
+        "version": "4.2.0",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-utf8"
+      },
+      "to": {
+        "name": "@smithy/util-utf8",
+        "version": "4.2.2",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-utf8"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/util-uri-escape",
+        "version": "4.2.0",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-uri-escape"
+      },
+      "to": {
+        "name": "@smithy/util-uri-escape",
+        "version": "4.2.2",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-uri-escape"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/util-stream",
+        "version": "4.5.8",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-stream"
+      },
+      "to": {
+        "name": "@smithy/util-stream",
+        "version": "4.5.17",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-stream"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/util-retry",
+        "version": "4.2.7",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-retry"
+      },
+      "to": {
+        "name": "@smithy/util-retry",
+        "version": "4.2.11",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-retry"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/util-middleware",
+        "version": "4.2.7",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-middleware"
+      },
+      "to": {
+        "name": "@smithy/util-middleware",
+        "version": "4.2.11",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-middleware"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/util-hex-encoding",
+        "version": "4.2.0",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-hex-encoding"
+      },
+      "to": {
+        "name": "@smithy/util-hex-encoding",
+        "version": "4.2.2",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-hex-encoding"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/util-endpoints",
+        "version": "3.2.7",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-endpoints"
+      },
+      "to": {
+        "name": "@smithy/util-endpoints",
+        "version": "3.3.2",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-endpoints"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/util-defaults-mode-node",
+        "version": "4.2.21",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-defaults-mode-node"
+      },
+      "to": {
+        "name": "@smithy/util-defaults-mode-node",
+        "version": "4.2.42",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-defaults-mode-node"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/util-defaults-mode-browser",
+        "version": "4.3.18",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-defaults-mode-browser"
+      },
+      "to": {
+        "name": "@smithy/util-defaults-mode-browser",
+        "version": "4.3.39",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-defaults-mode-browser"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/util-config-provider",
+        "version": "4.2.0",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-config-provider"
+      },
+      "to": {
+        "name": "@smithy/util-config-provider",
+        "version": "4.2.2",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-config-provider"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/util-buffer-from",
+        "version": "4.2.0",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-buffer-from"
+      },
+      "to": {
+        "name": "@smithy/util-buffer-from",
+        "version": "4.2.2",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-buffer-from"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/util-body-length-node",
+        "version": "4.2.1",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-body-length-node"
+      },
+      "to": {
+        "name": "@smithy/util-body-length-node",
+        "version": "4.2.3",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-body-length-node"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/util-body-length-browser",
+        "version": "4.2.0",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-body-length-browser"
+      },
+      "to": {
+        "name": "@smithy/util-body-length-browser",
+        "version": "4.2.2",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-body-length-browser"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/util-base64",
+        "version": "4.3.0",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-base64"
+      },
+      "to": {
+        "name": "@smithy/util-base64",
+        "version": "4.3.2",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\util-base64"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/url-parser",
+        "version": "4.2.7",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\url-parser"
+      },
+      "to": {
+        "name": "@smithy/url-parser",
+        "version": "4.2.11",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\url-parser"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/types",
+        "version": "4.11.0",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\types"
+      },
+      "to": {
+        "name": "@smithy/types",
+        "version": "4.13.0",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\types"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/smithy-client",
+        "version": "4.10.4",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\smithy-client"
+      },
+      "to": {
+        "name": "@smithy/smithy-client",
+        "version": "4.12.3",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\smithy-client"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/signature-v4",
+        "version": "5.3.7",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\signature-v4"
+      },
+      "to": {
+        "name": "@smithy/signature-v4",
+        "version": "5.3.11",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\signature-v4"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/shared-ini-file-loader",
+        "version": "4.4.2",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\shared-ini-file-loader"
+      },
+      "to": {
+        "name": "@smithy/shared-ini-file-loader",
+        "version": "4.4.6",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\shared-ini-file-loader"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/service-error-classification",
+        "version": "4.2.7",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\service-error-classification"
+      },
+      "to": {
+        "name": "@smithy/service-error-classification",
+        "version": "4.2.11",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\service-error-classification"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/querystring-parser",
+        "version": "4.2.7",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\querystring-parser"
+      },
+      "to": {
+        "name": "@smithy/querystring-parser",
+        "version": "4.2.11",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\querystring-parser"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/querystring-builder",
+        "version": "4.2.7",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\querystring-builder"
+      },
+      "to": {
+        "name": "@smithy/querystring-builder",
+        "version": "4.2.11",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\querystring-builder"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/protocol-http",
+        "version": "5.3.7",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\protocol-http"
+      },
+      "to": {
+        "name": "@smithy/protocol-http",
+        "version": "5.3.11",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\protocol-http"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/property-provider",
+        "version": "4.2.7",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\property-provider"
+      },
+      "to": {
+        "name": "@smithy/property-provider",
+        "version": "4.2.11",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\property-provider"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/node-http-handler",
+        "version": "4.4.7",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\node-http-handler"
+      },
+      "to": {
+        "name": "@smithy/node-http-handler",
+        "version": "4.4.14",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\node-http-handler"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/node-config-provider",
+        "version": "4.3.7",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\node-config-provider"
+      },
+      "to": {
+        "name": "@smithy/node-config-provider",
+        "version": "4.3.11",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\node-config-provider"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/middleware-stack",
+        "version": "4.2.7",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\middleware-stack"
+      },
+      "to": {
+        "name": "@smithy/middleware-stack",
+        "version": "4.2.11",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\middleware-stack"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/middleware-serde",
+        "version": "4.2.8",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\middleware-serde"
+      },
+      "to": {
+        "name": "@smithy/middleware-serde",
+        "version": "4.2.12",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\middleware-serde"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/middleware-retry",
+        "version": "4.4.19",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\middleware-retry"
+      },
+      "to": {
+        "name": "@smithy/middleware-retry",
+        "version": "4.4.40",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\middleware-retry"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/middleware-endpoint",
+        "version": "4.4.3",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\middleware-endpoint"
+      },
+      "to": {
+        "name": "@smithy/middleware-endpoint",
+        "version": "4.4.23",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\middleware-endpoint"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/middleware-content-length",
+        "version": "4.2.7",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\middleware-content-length"
+      },
+      "to": {
+        "name": "@smithy/middleware-content-length",
+        "version": "4.2.11",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\middleware-content-length"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/is-array-buffer",
+        "version": "4.2.0",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\is-array-buffer"
+      },
+      "to": {
+        "name": "@smithy/is-array-buffer",
+        "version": "4.2.2",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\is-array-buffer"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/invalid-dependency",
+        "version": "4.2.7",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\invalid-dependency"
+      },
+      "to": {
+        "name": "@smithy/invalid-dependency",
+        "version": "4.2.11",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\invalid-dependency"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/hash-node",
+        "version": "4.2.7",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\hash-node"
+      },
+      "to": {
+        "name": "@smithy/hash-node",
+        "version": "4.2.11",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\hash-node"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/fetch-http-handler",
+        "version": "5.3.8",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\fetch-http-handler"
+      },
+      "to": {
+        "name": "@smithy/fetch-http-handler",
+        "version": "5.3.13",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\fetch-http-handler"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/credential-provider-imds",
+        "version": "4.2.7",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\credential-provider-imds"
+      },
+      "to": {
+        "name": "@smithy/credential-provider-imds",
+        "version": "4.2.11",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\credential-provider-imds"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/core",
+        "version": "3.20.2",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\core"
+      },
+      "to": {
+        "name": "@smithy/core",
+        "version": "3.23.9",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\core"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/config-resolver",
+        "version": "4.4.5",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\config-resolver"
+      },
+      "to": {
+        "name": "@smithy/config-resolver",
+        "version": "4.4.10",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\config-resolver"
+      }
+    },
+    {
+      "from": {
+        "name": "@smithy/abort-controller",
+        "version": "4.2.7",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\abort-controller"
+      },
+      "to": {
+        "name": "@smithy/abort-controller",
+        "version": "4.2.11",
+        "path": "B:\\voxelpromo\\node_modules\\@smithy\\abort-controller"
+      }
+    },
+    {
+      "from": {
+        "name": "minimatch",
+        "version": "3.1.2",
+        "path": "B:\\voxelpromo\\node_modules\\@humanwhocodes\\config-array\\node_modules\\minimatch"
+      },
+      "to": {
+        "name": "minimatch",
+        "version": "3.1.5",
+        "path": "B:\\voxelpromo\\node_modules\\@humanwhocodes\\config-array\\node_modules\\minimatch"
+      }
+    },
+    {
+      "from": {
+        "name": "minimatch",
+        "version": "3.1.2",
+        "path": "B:\\voxelpromo\\node_modules\\@eslint\\eslintrc\\node_modules\\minimatch"
+      },
+      "to": {
+        "name": "minimatch",
+        "version": "3.1.5",
+        "path": "B:\\voxelpromo\\node_modules\\@eslint\\eslintrc\\node_modules\\minimatch"
+      }
+    },
+    {
+      "from": {
+        "name": "@cypress/request",
+        "version": "3.0.9",
+        "path": "B:\\voxelpromo\\node_modules\\@cypress\\request"
+      },
+      "to": {
+        "name": "@cypress/request",
+        "version": "3.0.10",
+        "path": "B:\\voxelpromo\\node_modules\\@cypress\\request"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/xml-builder",
+        "version": "3.965.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\xml-builder"
+      },
+      "to": {
+        "name": "@aws-sdk/xml-builder",
+        "version": "3.972.10",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\xml-builder"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/util-user-agent-node",
+        "version": "3.966.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\util-user-agent-node"
+      },
+      "to": {
+        "name": "@aws-sdk/util-user-agent-node",
+        "version": "3.973.5",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\util-user-agent-node"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/util-user-agent-browser",
+        "version": "3.965.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\util-user-agent-browser"
+      },
+      "to": {
+        "name": "@aws-sdk/util-user-agent-browser",
+        "version": "3.972.7",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\util-user-agent-browser"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/util-locate-window",
+        "version": "3.965.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\util-locate-window"
+      },
+      "to": {
+        "name": "@aws-sdk/util-locate-window",
+        "version": "3.965.5",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\util-locate-window"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/util-endpoints",
+        "version": "3.965.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\util-endpoints"
+      },
+      "to": {
+        "name": "@aws-sdk/util-endpoints",
+        "version": "3.996.4",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\util-endpoints"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/util-arn-parser",
+        "version": "3.966.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\util-arn-parser"
+      },
+      "to": {
+        "name": "@aws-sdk/util-arn-parser",
+        "version": "3.972.3",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\util-arn-parser"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/types",
+        "version": "3.965.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\types"
+      },
+      "to": {
+        "name": "@aws-sdk/types",
+        "version": "3.973.5",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\types"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/token-providers",
+        "version": "3.966.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\token-providers"
+      },
+      "to": {
+        "name": "@aws-sdk/token-providers",
+        "version": "3.1005.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\token-providers"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/signature-v4-multi-region",
+        "version": "3.966.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\signature-v4-multi-region"
+      },
+      "to": {
+        "name": "@aws-sdk/signature-v4-multi-region",
+        "version": "3.996.7",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\signature-v4-multi-region"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/region-config-resolver",
+        "version": "3.965.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\region-config-resolver"
+      },
+      "to": {
+        "name": "@aws-sdk/region-config-resolver",
+        "version": "3.972.7",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\region-config-resolver"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/nested-clients",
+        "version": "3.966.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\nested-clients"
+      },
+      "to": {
+        "name": "@aws-sdk/nested-clients",
+        "version": "3.996.8",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\nested-clients"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/middleware-user-agent",
+        "version": "3.966.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\middleware-user-agent"
+      },
+      "to": {
+        "name": "@aws-sdk/middleware-user-agent",
+        "version": "3.972.20",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\middleware-user-agent"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/middleware-sdk-s3",
+        "version": "3.966.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\middleware-sdk-s3"
+      },
+      "to": {
+        "name": "@aws-sdk/middleware-sdk-s3",
+        "version": "3.972.19",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\middleware-sdk-s3"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/middleware-recursion-detection",
+        "version": "3.965.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\middleware-recursion-detection"
+      },
+      "to": {
+        "name": "@aws-sdk/middleware-recursion-detection",
+        "version": "3.972.7",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\middleware-recursion-detection"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/middleware-logger",
+        "version": "3.965.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\middleware-logger"
+      },
+      "to": {
+        "name": "@aws-sdk/middleware-logger",
+        "version": "3.972.7",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\middleware-logger"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/middleware-host-header",
+        "version": "3.965.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\middleware-host-header"
+      },
+      "to": {
+        "name": "@aws-sdk/middleware-host-header",
+        "version": "3.972.7",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\middleware-host-header"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/credential-provider-web-identity",
+        "version": "3.966.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\credential-provider-web-identity"
+      },
+      "to": {
+        "name": "@aws-sdk/credential-provider-web-identity",
+        "version": "3.972.18",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\credential-provider-web-identity"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/credential-provider-sso",
+        "version": "3.966.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\credential-provider-sso"
+      },
+      "to": {
+        "name": "@aws-sdk/credential-provider-sso",
+        "version": "3.972.18",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\credential-provider-sso"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/credential-provider-process",
+        "version": "3.966.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\credential-provider-process"
+      },
+      "to": {
+        "name": "@aws-sdk/credential-provider-process",
+        "version": "3.972.17",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\credential-provider-process"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/credential-provider-node",
+        "version": "3.966.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\credential-provider-node"
+      },
+      "to": {
+        "name": "@aws-sdk/credential-provider-node",
+        "version": "3.972.19",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\credential-provider-node"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/credential-provider-login",
+        "version": "3.966.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\credential-provider-login"
+      },
+      "to": {
+        "name": "@aws-sdk/credential-provider-login",
+        "version": "3.972.18",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\credential-provider-login"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/credential-provider-ini",
+        "version": "3.966.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\credential-provider-ini"
+      },
+      "to": {
+        "name": "@aws-sdk/credential-provider-ini",
+        "version": "3.972.18",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\credential-provider-ini"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/credential-provider-http",
+        "version": "3.966.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\credential-provider-http"
+      },
+      "to": {
+        "name": "@aws-sdk/credential-provider-http",
+        "version": "3.972.19",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\credential-provider-http"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/credential-provider-env",
+        "version": "3.966.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\credential-provider-env"
+      },
+      "to": {
+        "name": "@aws-sdk/credential-provider-env",
+        "version": "3.972.17",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\credential-provider-env"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/core",
+        "version": "3.966.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\core"
+      },
+      "to": {
+        "name": "@aws-sdk/core",
+        "version": "3.973.19",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\core"
+      }
+    },
+    {
+      "from": {
+        "name": "@aws-sdk/client-sesv2",
+        "version": "3.966.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\client-sesv2"
+      },
+      "to": {
+        "name": "@aws-sdk/client-sesv2",
+        "version": "3.1007.0",
+        "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\client-sesv2"
+      }
+    }
+  ],
+  "changed": 89,
+  "funding": 209,
+  "remove": [
+    {
+      "name": "qs",
+      "version": "6.14.1",
+      "path": "B:\\voxelpromo\\node_modules\\superagent\\node_modules\\qs"
+    },
+    {
+      "name": "mkdirp",
+      "version": "0.5.6",
+      "path": "B:\\voxelpromo\\node_modules\\mkdirp"
+    },
+    {
+      "name": "@img/sharp-linuxmusl-x64",
+      "version": "0.34.5",
+      "path": "B:\\voxelpromo\\node_modules\\@img\\sharp-linuxmusl-x64"
+    },
+    {
+      "name": "@img/sharp-linux-x64",
+      "version": "0.34.5",
+      "path": "B:\\voxelpromo\\node_modules\\@img\\sharp-linux-x64"
+    },
+    {
+      "name": "@img/sharp-libvips-linuxmusl-x64",
+      "version": "1.2.4",
+      "path": "B:\\voxelpromo\\node_modules\\@img\\sharp-libvips-linuxmusl-x64"
+    },
+    {
+      "name": "@img/sharp-libvips-linux-x64",
+      "version": "1.2.4",
+      "path": "B:\\voxelpromo\\node_modules\\@img\\sharp-libvips-linux-x64"
+    },
+    {
+      "name": "@aws-sdk/client-sso",
+      "version": "3.966.0",
+      "path": "B:\\voxelpromo\\node_modules\\@aws-sdk\\client-sso"
+    }
+  ],
+  "removed": 7,
+  "audit": {
+    "auditReportVersion": 2,
+    "vulnerabilities": {
+      "@cypress/request-promise": {
+        "name": "@cypress/request-promise",
+        "severity": "moderate",
+        "isDirect": false,
+        "via": [
+          "request-promise-core"
+        ],
+        "effects": [
+          "node-telegram-bot-api"
+        ],
+        "range": "*",
+        "nodes": [
+          "node_modules/@cypress/request-promise"
+        ],
+        "fixAvailable": {
+          "name": "node-telegram-bot-api",
+          "version": "0.63.0",
+          "isSemVerMajor": true
+        }
+      },
+      "@puppeteer/browsers": {
+        "name": "@puppeteer/browsers",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          "tar-fs"
+        ],
+        "effects": [
+          "puppeteer",
+          "puppeteer-core"
+        ],
+        "range": "1.4.2 - 2.2.3",
+        "nodes": [
+          "node_modules/@puppeteer/browsers"
+        ],
+        "fixAvailable": {
+          "name": "puppeteer",
+          "version": "24.39.0",
+          "isSemVerMajor": true
+        }
+      },
+      "@typescript-eslint/eslint-plugin": {
+        "name": "@typescript-eslint/eslint-plugin",
+        "severity": "high",
+        "isDirect": true,
+        "via": [
+          "@typescript-eslint/type-utils",
+          "@typescript-eslint/utils"
+        ],
+        "effects": [],
+        "range": "6.16.0 - 7.5.0",
+        "nodes": [
+          "node_modules/@typescript-eslint/eslint-plugin"
+        ],
+        "fixAvailable": true
+      },
+      "@typescript-eslint/parser": {
+        "name": "@typescript-eslint/parser",
+        "severity": "high",
+        "isDirect": true,
+        "via": [
+          "@typescript-eslint/typescript-estree"
+        ],
+        "effects": [],
+        "range": "6.16.0 - 7.5.0",
+        "nodes": [
+          "node_modules/@typescript-eslint/parser"
+        ],
+        "fixAvailable": true
+      },
+      "@typescript-eslint/type-utils": {
+        "name": "@typescript-eslint/type-utils",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          "@typescript-eslint/typescript-estree",
+          "@typescript-eslint/utils"
+        ],
+        "effects": [
+          "@typescript-eslint/eslint-plugin"
+        ],
+        "range": "6.16.0 - 7.5.0",
+        "nodes": [
+          "node_modules/@typescript-eslint/type-utils"
+        ],
+        "fixAvailable": true
+      },
+      "@typescript-eslint/typescript-estree": {
+        "name": "@typescript-eslint/typescript-estree",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          "minimatch"
+        ],
+        "effects": [
+          "@typescript-eslint/parser",
+          "@typescript-eslint/type-utils",
+          "@typescript-eslint/utils"
+        ],
+        "range": "6.16.0 - 7.5.0",
+        "nodes": [
+          "node_modules/@typescript-eslint/typescript-estree"
+        ],
+        "fixAvailable": true
+      },
+      "@typescript-eslint/utils": {
+        "name": "@typescript-eslint/utils",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          "@typescript-eslint/typescript-estree"
+        ],
+        "effects": [],
+        "range": "6.16.0 - 7.5.0",
+        "nodes": [
+          "node_modules/@typescript-eslint/utils"
+        ],
+        "fixAvailable": true
+      },
+      "form-data": {
+        "name": "form-data",
+        "severity": "critical",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1109540,
+            "name": "form-data",
+            "dependency": "form-data",
+            "title": "form-data uses unsafe random function in form-data for choosing boundary",
+            "url": "https://github.com/advisories/GHSA-fjxv-7rqg-78g4",
+            "severity": "critical",
+            "cwe": [
+              "CWE-330"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": "<2.5.4"
+          }
+        ],
+        "effects": [
+          "request"
+        ],
+        "range": "<2.5.4",
+        "nodes": [
+          "node_modules/request/node_modules/form-data"
+        ],
+        "fixAvailable": {
+          "name": "node-telegram-bot-api",
+          "version": "0.63.0",
+          "isSemVerMajor": true
+        }
+      },
+      "minimatch": {
+        "name": "minimatch",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1113465,
+            "name": "minimatch",
+            "dependency": "minimatch",
+            "title": "minimatch has a ReDoS via repeated wildcards with non-matching literal in pattern",
+            "url": "https://github.com/advisories/GHSA-3ppc-4f35-3m26",
+            "severity": "high",
+            "cwe": [
+              "CWE-1333"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": ">=9.0.0 <9.0.6"
+          },
+          {
+            "source": 1113544,
+            "name": "minimatch",
+            "dependency": "minimatch",
+            "title": "minimatch has ReDoS: matchOne() combinatorial backtracking via multiple non-adjacent GLOBSTAR segments",
+            "url": "https://github.com/advisories/GHSA-7r86-cg39-jmmj",
+            "severity": "high",
+            "cwe": [
+              "CWE-407"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": ">=9.0.0 <9.0.7"
+          },
+          {
+            "source": 1113552,
+            "name": "minimatch",
+            "dependency": "minimatch",
+            "title": "minimatch ReDoS: nested *() extglobs generate catastrophically backtracking regular expressions",
+            "url": "https://github.com/advisories/GHSA-23c5-xmqv-rm74",
+            "severity": "high",
+            "cwe": [
+              "CWE-1333"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": ">=9.0.0 <9.0.7"
+          }
+        ],
+        "effects": [
+          "@typescript-eslint/typescript-estree"
+        ],
+        "range": "9.0.0 - 9.0.6",
+        "nodes": [
+          "node_modules/minimatch"
+        ],
+        "fixAvailable": true
+      },
+      "node-telegram-bot-api": {
+        "name": "node-telegram-bot-api",
+        "severity": "moderate",
+        "isDirect": true,
+        "via": [
+          "@cypress/request-promise"
+        ],
+        "effects": [],
+        "range": ">=0.64.0",
+        "nodes": [
+          "node_modules/node-telegram-bot-api"
+        ],
+        "fixAvailable": {
+          "name": "node-telegram-bot-api",
+          "version": "0.63.0",
+          "isSemVerMajor": true
+        }
+      },
+      "puppeteer": {
+        "name": "puppeteer",
+        "severity": "high",
+        "isDirect": true,
+        "via": [
+          "@puppeteer/browsers",
+          "puppeteer-core"
+        ],
+        "effects": [],
+        "range": "18.2.0 - 22.13.0",
+        "nodes": [
+          "node_modules/puppeteer"
+        ],
+        "fixAvailable": {
+          "name": "puppeteer",
+          "version": "24.39.0",
+          "isSemVerMajor": true
+        }
+      },
+      "puppeteer-core": {
+        "name": "puppeteer-core",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          "@puppeteer/browsers",
+          "ws"
+        ],
+        "effects": [
+          "puppeteer"
+        ],
+        "range": "11.0.0 - 22.13.0",
+        "nodes": [
+          "node_modules/puppeteer-core"
+        ],
+        "fixAvailable": {
+          "name": "puppeteer",
+          "version": "24.39.0",
+          "isSemVerMajor": true
+        }
+      },
+      "qs": {
+        "name": "qs",
+        "severity": "moderate",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1113719,
+            "name": "qs",
+            "dependency": "qs",
+            "title": "qs's arrayLimit bypass in its bracket notation allows DoS via memory exhaustion",
+            "url": "https://github.com/advisories/GHSA-6rw7-vpxm-498p",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-20"
+            ],
+            "cvss": {
+              "score": 3.7,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L"
+            },
+            "range": "<6.14.1"
+          }
+        ],
+        "effects": [
+          "request"
+        ],
+        "range": "<6.14.1",
+        "nodes": [
+          "node_modules/request/node_modules/qs"
+        ],
+        "fixAvailable": {
+          "name": "node-telegram-bot-api",
+          "version": "0.63.0",
+          "isSemVerMajor": true
+        }
+      },
+      "request": {
+        "name": "request",
+        "severity": "critical",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1096727,
+            "name": "request",
+            "dependency": "request",
+            "title": "Server-Side Request Forgery in Request",
+            "url": "https://github.com/advisories/GHSA-p8p7-x288-28g6",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-918"
+            ],
+            "cvss": {
+              "score": 6.1,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+            },
+            "range": "<=2.88.2"
+          },
+          "form-data",
+          "qs",
+          "tough-cookie"
+        ],
+        "effects": [
+          "request-promise-core"
+        ],
+        "range": "*",
+        "nodes": [
+          "node_modules/request"
+        ],
+        "fixAvailable": {
+          "name": "node-telegram-bot-api",
+          "version": "0.63.0",
+          "isSemVerMajor": true
+        }
+      },
+      "request-promise-core": {
+        "name": "request-promise-core",
+        "severity": "moderate",
+        "isDirect": false,
+        "via": [
+          "request"
+        ],
+        "effects": [
+          "@cypress/request-promise"
+        ],
+        "range": "*",
+        "nodes": [
+          "node_modules/request-promise-core"
+        ],
+        "fixAvailable": {
+          "name": "node-telegram-bot-api",
+          "version": "0.63.0",
+          "isSemVerMajor": true
+        }
+      },
+      "tar-fs": {
+        "name": "tar-fs",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1109534,
+            "name": "tar-fs",
+            "dependency": "tar-fs",
+            "title": "tar-fs has a symlink validation bypass if destination directory is predictable with a specific tarball",
+            "url": "https://github.com/advisories/GHSA-vj76-c3g6-qr5v",
+            "severity": "high",
+            "cwe": [
+              "CWE-22",
+              "CWE-61"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": ">=3.0.0 <3.1.1"
+          },
+          {
+            "source": 1109542,
+            "name": "tar-fs",
+            "dependency": "tar-fs",
+            "title": "tar-fs can extract outside the specified dir with a specific tarball",
+            "url": "https://github.com/advisories/GHSA-8cj5-5rvv-wf4v",
+            "severity": "high",
+            "cwe": [
+              "CWE-22"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": ">=3.0.0 <3.0.9"
+          },
+          {
+            "source": 1109551,
+            "name": "tar-fs",
+            "dependency": "tar-fs",
+            "title": "tar-fs Vulnerable to Link Following and Path Traversal via Extracting a Crafted tar File",
+            "url": "https://github.com/advisories/GHSA-pq67-2wwv-3xjx",
+            "severity": "high",
+            "cwe": [
+              "CWE-22"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N"
+            },
+            "range": ">=3.0.0 <3.0.7"
+          }
+        ],
+        "effects": [
+          "@puppeteer/browsers"
+        ],
+        "range": "3.0.0 - 3.1.0",
+        "nodes": [
+          "node_modules/tar-fs"
+        ],
+        "fixAvailable": {
+          "name": "puppeteer",
+          "version": "24.39.0",
+          "isSemVerMajor": true
+        }
+      },
+      "tough-cookie": {
+        "name": "tough-cookie",
+        "severity": "moderate",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1097682,
+            "name": "tough-cookie",
+            "dependency": "tough-cookie",
+            "title": "tough-cookie Prototype Pollution vulnerability",
+            "url": "https://github.com/advisories/GHSA-72xf-g2v4-qvf3",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-1321"
+            ],
+            "cvss": {
+              "score": 6.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"
+            },
+            "range": "<4.1.3"
+          }
+        ],
+        "effects": [
+          "request"
+        ],
+        "range": "<4.1.3",
+        "nodes": [
+          "node_modules/request/node_modules/tough-cookie"
+        ],
+        "fixAvailable": {
+          "name": "node-telegram-bot-api",
+          "version": "0.63.0",
+          "isSemVerMajor": true
+        }
+      },
+      "ws": {
+        "name": "ws",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1098392,
+            "name": "ws",
+            "dependency": "ws",
+            "title": "ws affected by a DoS when handling a request with many HTTP headers",
+            "url": "https://github.com/advisories/GHSA-3h5v-q93c-6h6q",
+            "severity": "high",
+            "cwe": [
+              "CWE-476"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": ">=8.0.0 <8.17.1"
+          }
+        ],
+        "effects": [
+          "puppeteer-core"
+        ],
+        "range": "8.0.0 - 8.17.0",
+        "nodes": [
+          "node_modules/puppeteer-core/node_modules/ws"
+        ],
+        "fixAvailable": {
+          "name": "puppeteer",
+          "version": "24.39.0",
+          "isSemVerMajor": true
+        }
+      }
+    },
+    "metadata": {
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 5,
+        "high": 11,
+        "critical": 2,
+        "total": 18
+      },
+      "dependencies": {
+        "prod": 816,
+        "dev": 380,
+        "optional": 7,
+        "peer": 11,
+        "peerOptional": 0,
+        "total": 1212
+      }
+    }
+  }
+}

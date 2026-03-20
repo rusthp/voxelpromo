@@ -117,7 +117,7 @@ export function validateUrl(url: string): ValidationResult {
       };
     }
     return { isValid: true };
-  } catch (error) {
+  } catch (_error) {
     return {
       isValid: false,
       error: 'Invalid URL format',

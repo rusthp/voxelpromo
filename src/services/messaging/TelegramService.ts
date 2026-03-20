@@ -82,7 +82,7 @@ export class TelegramService {
       if (offer.affiliateUrl) {
         // Use a shorter timeout for Telegram to avoid blocking too long
         // require('../link/LinkVerifier').LinkVerifier to avoid circular deps if any or just import
-        const { LinkVerifier } = require('../link/LinkVerifier'); // eslint-disable-line @typescript-eslint/no-var-requires
+        const { LinkVerifier } = await import('../link/LinkVerifier');
         const isValid = await LinkVerifier.verify(offer.affiliateUrl);
         if (!isValid) {
           logger.warn(`🛑 Skipping Telegram offer due to invalid link: ${offer.affiliateUrl}`);

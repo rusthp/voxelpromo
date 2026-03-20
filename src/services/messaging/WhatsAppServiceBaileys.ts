@@ -72,7 +72,7 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
       if (service.sock) {
         try {
           service.sock.end(undefined);
-        } catch (e) {
+        } catch (_e) {
           // Ignore close errors
         }
       }
@@ -359,14 +359,14 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
                 for (const file of files) {
                   try {
                     unlinkSync(join(authDir, file));
-                  } catch (error) {
+                  } catch (_error) {
                     // Ignore errors
                   }
                 }
                 try {
                   rmdirSync(authDir);
                   logger.info('✅ Arquivos de autenticação limpos. Gere um novo QR code.');
-                } catch (error) {
+                } catch (_error) {
                   // Ignore if directory not empty
                 }
               }
@@ -416,7 +416,7 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
                 for (const file of files) {
                   try {
                     unlinkSync(join(authDir, file));
-                  } catch (error) {
+                  } catch (_error) {
                     // Ignore errors deleting individual files
                   }
                 }
@@ -425,7 +425,7 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
                   logger.info(
                     '✅ Authentication files cleared - new QR code will be generated on next initialization'
                   );
-                } catch (error) {
+                } catch (_error) {
                   // Ignore if directory not empty or other errors
                 }
               }
@@ -583,7 +583,7 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
       if (this.sock) {
         try {
           await this.sock.end(undefined);
-        } catch (error) {
+        } catch (_error) {
           // Ignore errors when ending socket
         }
         this.sock = null;
@@ -599,14 +599,14 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
           for (const file of files) {
             try {
               unlinkSync(join(authDir, file));
-            } catch (error) {
+            } catch (_error) {
               // Ignore errors deleting individual files
             }
           }
           try {
             rmdirSync(authDir);
             logger.info('✅ Old authentication files cleared');
-          } catch (error) {
+          } catch (_error) {
             // Ignore if directory not empty or other errors
           }
         }
@@ -704,7 +704,7 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
     // Verify link before sending
     if (offer.affiliateUrl) {
       try {
-        const { LinkVerifier } = require('../link/LinkVerifier'); // eslint-disable-line @typescript-eslint/no-var-requires
+        const { LinkVerifier } = await import('../link/LinkVerifier');
         const isValid = await LinkVerifier.verify(offer.affiliateUrl);
         if (!isValid) {
           logger.warn(`🛑 Skipping WhatsApp offer due to invalid link: ${offer.affiliateUrl}`);
@@ -782,10 +782,8 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
 
                   // Use sharp to convert WebP to JPEG to prevent Baileys crashing
                   try {
-                    // eslint-disable-next-line @typescript-eslint/no-var-requires
-                    const axios = require('axios');
-                    // eslint-disable-next-line @typescript-eslint/no-var-requires
-                    const sharp = require('sharp');
+                      const axios = (await import('axios')).default;
+                    const sharp = (await import('sharp')).default;
                     const response = await axios.get(offer.imageUrl, { responseType: 'arraybuffer', timeout: 5000 });
                     const imageBuffer = Buffer.from(response.data);
 
@@ -1159,7 +1157,7 @@ ${offer.reviewsCount ? `📊 ${offer.reviewsCount} avaliações` : ''}`;
                   }
                 }
               }
-            } catch (groupError) {
+            } catch (_groupError) {
               // Skip groups we can't access
             }
             // Stop if we have enough contacts (limit to prevent timeout)

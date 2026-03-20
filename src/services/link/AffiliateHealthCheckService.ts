@@ -291,13 +291,17 @@ export class AffiliateHealthCheckService {
   /**
    * Generate health report for all active offers
    */
-  async generateHealthReport(limit: number = 100): Promise<HealthCheckSummary> {
+  async generateHealthReport(limit: number = 100, userId?: string): Promise<HealthCheckSummary> {
     try {
-      // Get active offers with affiliate URLs
-      const offers = await OfferModel.find({
+      // Get active offers with affiliate URLs (scoped to user if provided)
+      const query: any = {
         isActive: true,
         affiliateUrl: { $exists: true, $ne: '' },
-      })
+      };
+      if (userId) {
+        query.userId = userId;
+      }
+      const offers = await OfferModel.find(query)
         .limit(limit)
         .select('affiliateUrl')
         .lean();
@@ -334,8 +338,8 @@ export class AffiliateHealthCheckService {
   /**
    * Get only broken links from health report
    */
-  async getBrokenLinks(limit: number = 100): Promise<LinkHealthReport[]> {
-    const report = await this.generateHealthReport(limit);
+  async getBrokenLinks(limit: number = 100, userId?: string): Promise<LinkHealthReport[]> {
+    const report = await this.generateHealthReport(limit, userId);
     return report.details.filter((r) => !r.isValid);
   }
 

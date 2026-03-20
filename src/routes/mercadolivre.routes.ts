@@ -409,7 +409,7 @@ router.post('/scrape-url', authenticate, async (req: AuthRequest, res: Response)
           try {
             // Bind context to user-specific service
             return await mercadoLivreService.convertToOffer(product, 'ofertas');
-          } catch (e) {
+          } catch (_e) {
             return null;
           }
         })
@@ -464,7 +464,7 @@ router.get('/collect-daily-offers', authenticate, async (req: AuthRequest, res: 
       products.map(async (product: any) => {
         try {
           return await mercadoLivreService.convertToOffer(product, 'ofertas');
-        } catch (e) {
+        } catch (_e) {
           return null;
         }
       })

@@ -110,19 +110,15 @@ export class VectorizerService {
   async searchAll(query: string, maxResults = 10): Promise<VectorizerResponse<SearchResult[]>> {
     try {
       const collections = ['voxelpromo-backend', 'voxelpromo-services', 'voxelpromo-docs'];
-      const allResults: SearchResult[] = [];
+      const perCollection = Math.ceil(maxResults / collections.length);
 
-      for (const collection of collections) {
-        const result = await this.search(query, {
-          collection,
-          maxResults: Math.ceil(maxResults / 3),
-        });
-        if (result.data) {
-          allResults.push(...result.data);
-        }
-      }
+      const results = await Promise.all(
+        collections.map(collection =>
+          this.search(query, { collection, maxResults: perCollection })
+        )
+      );
 
-      // Ordenar por score
+      const allResults = results.flatMap(r => r.data || []);
       allResults.sort((a, b) => b.score - a.score);
       return { success: true, data: allResults.slice(0, maxResults) };
     } catch (error) {
@@ -168,7 +164,7 @@ export class VectorizerService {
       const data = await response.json();
       this.isServiceAvailable = true;
       return { success: true, data: { vector_id: data.vector_id || data.id } };
-    } catch (error) {
+    } catch (_error) {
       this.isServiceAvailable = false;
       return { success: false, error: 'Vectorizer offline or unreachable' };
     }

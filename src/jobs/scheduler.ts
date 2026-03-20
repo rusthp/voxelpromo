@@ -237,7 +237,7 @@ export function setupCronJobs(): void {
           await user.save();
           syncedCount++;
           await new Promise((resolve) => setTimeout(resolve, 6000)); // Rate limit
-        } catch (error) {
+        } catch (_error) {
           // Log error
         }
       }
@@ -268,7 +268,7 @@ export function setupCronJobs(): void {
             await feedManager.getProducts(feed.advertiserId, { forceRefresh: true });
             refreshedCount++;
             await new Promise((resolve) => setTimeout(resolve, 15000));
-          } catch (e) {
+          } catch (_e) {
             /* Ignore individual feed refresh errors */
           }
         }

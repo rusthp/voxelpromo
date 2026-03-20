@@ -613,10 +613,8 @@ export class CollectorService {
 
     let totalSaved = 0;
 
-    // 0. Occasionally enrich database with highly-converting / deals products
-    const shouldEnrichWithDeals = Math.random() < 0.20;
-
-    if (shouldEnrichWithDeals) {
+    // 0. Always enrich database with deals and top sellers for better ML coverage
+    {
       try {
         logger.info('🎯 Enriching ML deals and top sellers...');
         const ofertas = await this.mercadoLivreService.getOfertas(10);
@@ -1062,21 +1060,19 @@ export class CollectorService {
     }
 
     // 2. Fallback: config.json (Legacy)
-    const legacyConfig = this.getConfig();
+    const legacyConfig = await this.getConfig();
     let rssFeeds: string[] = [];
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const fs = require('fs');
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const path = require('path');
+      const fs = await import('fs');
+      const path = await import('path');
       const configPath = path.join(process.cwd(), 'config.json');
 
       if (fs.existsSync(configPath)) {
         const fileContent = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
         rssFeeds = fileContent.rss || [];
       }
-    } catch (error) {
+    } catch (_error) {
       // Ignore error, use empty array
     }
 
@@ -1098,19 +1094,17 @@ export class CollectorService {
   /**
    * Get config from config.json or environment (Legacy Helper)
    */
-  private getConfig(): { sources?: string[]; enabled?: boolean } {
+  private async getConfig(): Promise<{ sources?: string[]; enabled?: boolean }> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const fs = require('fs');
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const path = require('path');
+      const fs = await import('fs');
+      const path = await import('path');
       const configPath = path.join(process.cwd(), 'config.json');
 
       if (fs.existsSync(configPath)) {
         const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
         return config.collection || {};
       }
-    } catch (error) {
+    } catch (_error) {
       logger.debug('Error reading config.json, using defaults');
     }
 

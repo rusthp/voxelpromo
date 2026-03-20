@@ -89,7 +89,7 @@ export class AliExpressService {
             return this.safeParseFloat(config.aliexpress.exchangeRate, 5.0);
           }
         }
-      } catch (configError) {
+      } catch (_configError) {
         // Fall through to default
       }
 
@@ -127,7 +127,7 @@ export class AliExpressService {
           };
         }
       }
-    } catch (error) {
+    } catch (_error) {
       // Fall back to environment variables
     }
 
@@ -1290,7 +1290,7 @@ export class AliExpressService {
             sort: 'volumeDesc',
           });
           return featuredResult.products;
-        } catch (fallbackError) {
+        } catch (_fallbackError) {
           logger.warn('Featured promo also failed, using basic product search');
           const keywords = options.keywords || (options.categoryIds ? 'electronics' : 'hot deals');
           return await this.searchProducts(keywords, options.pageSize || 20);
@@ -1363,7 +1363,7 @@ export class AliExpressService {
                   }
                 }
               }
-            } catch (altError) {
+            } catch (_altError) {
               logger.debug(`Alternative method ${method} failed`);
               continue;
             }
@@ -2225,7 +2225,7 @@ export class AliExpressService {
             coupons.push(...apiCoupons);
           }
         }
-      } catch (error: any) {
+      } catch (_error: any) {
         // API method not available - this is expected, silently continue to alternative methods
         // The API endpoint 'aliexpress.affiliate.product.coupon.query' is not available for this app
       }
@@ -2243,7 +2243,7 @@ export class AliExpressService {
           if (couponParam) {
             coupons.push(couponParam);
           }
-        } catch (error) {
+        } catch (_error) {
           // Invalid URL, skip
         }
       }

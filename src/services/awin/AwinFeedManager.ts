@@ -71,7 +71,7 @@ export class AwinFeedManager {
         const data = JSON.parse(readFileSync(this.cacheIndexPath, 'utf-8'));
         this.cacheIndex = new Map(Object.entries(data));
       }
-    } catch (error) {
+    } catch (_error) {
       logger.warn('⚠️ Could not load feed cache index');
       this.cacheIndex = new Map();
     }
@@ -85,7 +85,7 @@ export class AwinFeedManager {
       this.ensureCacheDir();
       const data = Object.fromEntries(this.cacheIndex);
       writeFileSync(this.cacheIndexPath, JSON.stringify(data, null, 2));
-    } catch (error) {
+    } catch (_error) {
       logger.error('❌ Could not save feed cache index');
     }
   }
@@ -166,7 +166,7 @@ export class AwinFeedManager {
       this.saveCacheIndex();
 
       logger.info(`💾 Cached ${products.length} products for advertiser ${advertiserId}`);
-    } catch (error) {
+    } catch (_error) {
       logger.error('❌ Failed to cache products');
     }
   }

@@ -18,12 +18,14 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
 
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
     const [total, posted, notPosted, avgDiscountResult] = await Promise.all([
-      OfferModel.countDocuments({ userId }),
-      OfferModel.countDocuments({ userId, isPosted: true }),
-      OfferModel.countDocuments({ userId, isPosted: false }),
+      OfferModel.countDocuments({ userId: userObjectId }),
+      OfferModel.countDocuments({ userId: userObjectId, isPosted: true }),
+      OfferModel.countDocuments({ userId: userObjectId, isPosted: false }),
       OfferModel.aggregate([
-        { $match: { userId: userId } },
+        { $match: { userId: userObjectId } },
         {
           $group: {
             _id: null,
@@ -116,80 +118,83 @@ router.get('/analytics', async (req: AuthRequest, res: Response) => {
       : new Date(end.getTime() - parseInt(days as string) * 24 * 60 * 60 * 1000);
 
     // Base match for all queries (userId + date range)
+    const userObjectId = new mongoose.Types.ObjectId(userId);
     const baseMatch = {
-      userId: userId,
+      userId: userObjectId,
       createdAt: { $gte: start, $lte: end },
     };
 
-    // Get offers by source
-    const offersBySource = await OfferModel.aggregate([
-      { $match: baseMatch },
-      {
-        $group: {
-          _id: '$source',
-          count: { $sum: 1 },
-          avgDiscount: { $avg: '$discountPercentage' },
-          totalRevenue: { $sum: '$currentPrice' },
-        },
-      },
-      { $sort: { count: -1 } },
-    ]);
-
-    // Get offers by category
-    const offersByCategory = await OfferModel.aggregate([
-      { $match: baseMatch },
-      {
-        $group: {
-          _id: '$category',
-          count: { $sum: 1 },
-          avgDiscount: { $avg: '$discountPercentage' },
-        },
-      },
-      { $sort: { count: -1 } },
-      { $limit: 10 },
-    ]);
-
-    // Get offers by day (time series)
-    const offersByDay = await OfferModel.aggregate([
-      { $match: baseMatch },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
-          },
-          count: { $sum: 1 },
-          avgDiscount: { $avg: '$discountPercentage' },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]);
-
-    // Get top offers by discount
-    const topOffers = await OfferModel.find({
-      userId: userId,
-      createdAt: { $gte: start, $lte: end },
-    })
-      .sort({ discountPercentage: -1 })
-      .limit(10)
-      .select(
-        'title currentPrice originalPrice discountPercentage source createdAt productUrl imageUrl'
-      );
-
-    // Get posting statistics
-    const postingStats = await OfferModel.aggregate([
-      { $match: baseMatch },
-      {
-        $group: {
-          _id: null,
-          totalOffers: { $sum: 1 },
-          postedOffers: {
-            $sum: { $cond: ['$isPosted', 1, 0] },
-          },
-          scheduledOffers: {
-            $sum: { $cond: ['$scheduledAt', 1, 0] },
+    const [offersBySource, offersByCategory, offersByDay, topOffers, postingStats] = await Promise.all([
+      // Get offers by source
+      OfferModel.aggregate([
+        { $match: baseMatch },
+        {
+          $group: {
+            _id: '$source',
+            count: { $sum: 1 },
+            avgDiscount: { $avg: '$discountPercentage' },
+            totalRevenue: { $sum: '$currentPrice' },
           },
         },
-      },
+        { $sort: { count: -1 } },
+      ]),
+
+      // Get offers by category
+      OfferModel.aggregate([
+        { $match: baseMatch },
+        {
+          $group: {
+            _id: '$category',
+            count: { $sum: 1 },
+            avgDiscount: { $avg: '$discountPercentage' },
+          },
+        },
+        { $sort: { count: -1 } },
+        { $limit: 10 },
+      ]),
+
+      // Get offers by day (time series)
+      OfferModel.aggregate([
+        { $match: baseMatch },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+            },
+            count: { $sum: 1 },
+            avgDiscount: { $avg: '$discountPercentage' },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]),
+
+      // Get top offers by discount
+      OfferModel.find({
+        userId: userObjectId,
+        createdAt: { $gte: start, $lte: end },
+      })
+        .sort({ discountPercentage: -1 })
+        .limit(10)
+        .select(
+          'title currentPrice originalPrice discountPercentage source createdAt productUrl imageUrl'
+        ),
+
+      // Get posting statistics
+      OfferModel.aggregate([
+        { $match: baseMatch },
+        {
+          $group: {
+            _id: null,
+            totalOffers: { $sum: 1 },
+            postedOffers: {
+              $sum: { $cond: ['$isPosted', 1, 0] },
+            },
+            scheduledOffers: {
+              $sum: { $cond: ['$scheduledAt', 1, 0] },
+            },
+          },
+        },
+      ]),
     ]);
 
     // Calculate conversion rate
@@ -246,7 +251,7 @@ router.get('/sources', async (req: AuthRequest, res: Response) => {
     const userId = req.user!.id;
 
     const sourceStats = await OfferModel.aggregate([
-      { $match: { userId: userId } },
+      { $match: { userId: new mongoose.Types.ObjectId(userId) } },
       {
         $group: {
           _id: '$source',

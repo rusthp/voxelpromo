@@ -94,7 +94,7 @@ export class LomadeeService extends NetworkApiAbstract {
           logger.debug('✅ Lomadee config loaded from config.json');
         }
       }
-    } catch (error) {
+    } catch (_error) {
       logger.warn('⚠️ Could not load Lomadee config from config.json');
     }
 

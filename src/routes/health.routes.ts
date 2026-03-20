@@ -75,26 +75,21 @@ router.get('/sources', async (_req, res) => {
 
     for (const source of sources) {
       try {
-        // Get last collection time and count for this source
+        // Check if source has recent activity (without exposing counts)
         const lastOffer = await OfferModel.findOne({ source })
           .sort({ createdAt: -1 })
           .select('createdAt')
           .lean();
 
-        const offersCount = await OfferModel.countDocuments({
-          source,
-          createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // Last 24h
-        });
-
-        // Source is considered healthy if it has collected offers in the last 24h
-        const isHealthy = offersCount > 0;
+        const hasRecentActivity = lastOffer?.createdAt
+          ? (Date.now() - new Date(lastOffer.createdAt).getTime()) < 24 * 60 * 60 * 1000
+          : false;
 
         results.push({
           name: source,
           enabled: true,
-          status: isHealthy ? 'healthy' : 'warning',
+          status: hasRecentActivity ? 'healthy' : 'warning',
           lastCollection: lastOffer?.createdAt,
-          offersCount,
         });
       } catch (error: any) {
         logger.error(`Health check failed for source ${source}:`, error);
@@ -141,13 +136,12 @@ router.get('/sources', async (_req, res) => {
  */
 router.get('/database', async (_req, res) => {
   try {
-    // Simple database ping
-    const result = await OfferModel.countDocuments();
+    // Simple database ping - verify connection without exposing data counts
+    await mongoose.connection.db!.admin().ping();
 
     res.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      totalOffers: result,
     });
   } catch (error: any) {
     logger.error('Database health check error:', error);
@@ -177,13 +171,6 @@ router.get('/detailed', async (_req, res) => {
     // Database check
     const dbState = mongoose.connection.readyState;
     const dbStatus = dbState === 1 ? 'connected' : dbState === 2 ? 'connecting' : 'disconnected';
-
-    // Get offer stats
-    const [totalOffers, postedOffers, activeOffers] = await Promise.all([
-      OfferModel.countDocuments(),
-      OfferModel.countDocuments({ isPosted: true }),
-      OfferModel.countDocuments({ isActive: true }),
-    ]);
 
     // Response times (simple tracking)
     const checks = {
@@ -215,10 +202,6 @@ router.get('/detailed', async (_req, res) => {
       },
       database: {
         status: dbStatus,
-        totalOffers,
-        postedOffers,
-        activeOffers,
-        pendingOffers: activeOffers - postedOffers,
       },
       checks,
     });
