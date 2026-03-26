@@ -25,6 +25,7 @@ import lomadeeRoutes from './lomadee.routes';
 import afilioRoutes from './afilio.routes';
 import rakutenRoutes from './rakuten.routes';
 import instagramRoutes from './instagram.routes';
+import facebookRoutes from './facebook.routes';
 import { shopeeRoutes } from './shopee.routes';
 import linksRoutes from './links.routes';
 import { shorturlRoutes } from './shorturl.routes';
@@ -90,6 +91,7 @@ export function setupRoutes(app: Express): void {
   app.use('/api/whatsapp', authenticate, apiLimiter, whatsappRoutes); // PROTECTED: WhatsApp access
   app.use('/api/telegram', authenticate, apiLimiter, telegramRoutes); // PROTECTED: Telegram access
   app.use('/api/instagram', instagramRoutes); // Instagram (webhook needs to be public for Meta verification)
+  app.use('/api/facebook', facebookRoutes);  // Facebook (webhook needs to be public for Meta verification)
   app.use('/api/shopee', authenticate, apiLimiter, shopeeRoutes); // Shopee affiliate integration
   app.use('/api/admin', authenticate, apiLimiter, adminRoutes);
   app.use('/api/posts', authenticate, apiLimiter, postsRoutes); // Post history
