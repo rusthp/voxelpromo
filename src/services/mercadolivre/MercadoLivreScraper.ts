@@ -398,47 +398,107 @@ export class MercadoLivreScraper {
           return '';
         };
 
-        // Helper to extract original price for discount calculation
-        const getOriginalPrice = (item: Element): number => {
-          const originalPriceEl =
-            item.querySelector('.andes-money-amount--previous .andes-money-amount__fraction') ||
-            item.querySelector('.poly-price__previous .andes-money-amount__fraction') ||
-            item.querySelector('[class*="original"] .andes-money-amount__fraction') ||
-            item.querySelector('.ui-search-price__original-value .andes-money-amount__fraction') ||
-            item.querySelector('s .andes-money-amount__fraction') || // <s> tag means strikethrough
-            item.querySelector('del .andes-money-amount__fraction'); // <del> tag also strikethrough
-
-          if (originalPriceEl) {
-            const priceText =
-              originalPriceEl.textContent?.replace(/\./g, '').replace(/,/g, '.') || '0';
-            return parseFloat(priceText);
+        // Helper to extract cents from an .andes-money-amount element
+        const getCents = (container: Element, scope?: string): number => {
+          const prefix = scope ? `${scope} ` : '';
+          const centsEl = container.querySelector(`${prefix}.andes-money-amount__cents`);
+          if (centsEl) {
+            const c = parseInt(centsEl.textContent || '0', 10);
+            return isNaN(c) ? 0 : c;
           }
           return 0;
         };
 
-        // Helper to get the CURRENT (promotional) price - the green/large one
-        const getCurrentPrice = (item: Element): number => {
-          const priceSelectors = [
-            '.poly-price__current .andes-money-amount__fraction',
-            '.ui-search-price__second-line .andes-money-amount__fraction', // This is usually the promotional price
-            '.ui-search-price__part--medium .andes-money-amount__fraction',
+        // Helper to extract original price for discount calculation
+        const getOriginalPrice = (item: Element): number => {
+          // Selectors for the "previous" (strikethrough) price
+          const previousSelectors = [
+            '.andes-money-amount--previous',
+            '.poly-price__previous .andes-money-amount',
+            '[class*="original"] .andes-money-amount',
+            '.ui-search-price__original-value .andes-money-amount',
+            's .andes-money-amount',
+            'del .andes-money-amount',
           ];
 
-          for (const selector of priceSelectors) {
-            const el = item.querySelector(selector);
-            if (el) {
-              const priceText = el.textContent?.replace(/\./g, '').replace(/,/g, '.') || '0';
-              const price = parseFloat(priceText);
-              if (price > 0) return price;
+          for (const sel of previousSelectors) {
+            const container = item.querySelector(sel);
+            if (container) {
+              const fractionEl = container.querySelector('.andes-money-amount__fraction');
+              if (fractionEl) {
+                const intPart = parseFloat(
+                  (fractionEl.textContent || '0').replace(/\./g, '').replace(/,/g, '.')
+                );
+                const cents = getCents(container);
+                return intPart + cents / 100;
+              }
             }
           }
 
-          const allPriceEls = item.querySelectorAll('.andes-money-amount__fraction');
+          // Fallback: look for fraction directly under previous-type classes
+          const fallbackEl =
+            item.querySelector('.andes-money-amount--previous .andes-money-amount__fraction') ||
+            item.querySelector('.poly-price__previous .andes-money-amount__fraction') ||
+            item.querySelector('s .andes-money-amount__fraction') ||
+            item.querySelector('del .andes-money-amount__fraction');
+
+          if (fallbackEl) {
+            return parseFloat(
+              (fallbackEl.textContent || '0').replace(/\./g, '').replace(/,/g, '.')
+            );
+          }
+          return 0;
+        };
+
+        // Helper to get the CURRENT (promotional/Pix) price — the green/large one
+        const getCurrentPrice = (item: Element): number => {
+          // Strategy 1: Look for the current/promotional price container
+          const currentContainerSelectors = [
+            '.poly-price__current .andes-money-amount',
+            '.ui-search-price__second-line .andes-money-amount',
+            '.ui-search-price__part--medium .andes-money-amount',
+          ];
+
+          for (const sel of currentContainerSelectors) {
+            // Exclude "previous" prices that might be nested
+            const containers = item.querySelectorAll(sel);
+            for (const container of Array.from(containers)) {
+              if (container.closest('.andes-money-amount--previous') ||
+                  container.closest('.poly-price__previous') ||
+                  container.classList.contains('andes-money-amount--previous')) {
+                continue; // Skip strikethrough prices
+              }
+              const fractionEl = container.querySelector('.andes-money-amount__fraction');
+              if (fractionEl) {
+                const intPart = parseFloat(
+                  (fractionEl.textContent || '0').replace(/\./g, '').replace(/,/g, '.')
+                );
+                const cents = getCents(container);
+                const price = intPart + cents / 100;
+                if (price > 0) return price;
+              }
+            }
+          }
+
+          // Strategy 2: Find all non-previous .andes-money-amount__fraction and pick lowest
+          const allFractions = item.querySelectorAll('.andes-money-amount__fraction');
           let lowestPrice = Infinity;
 
-          allPriceEls.forEach((el) => {
-            const priceText = el.textContent?.replace(/\./g, '').replace(/,/g, '.') || '0';
-            const price = parseFloat(priceText);
+          allFractions.forEach((el) => {
+            // Skip if inside a "previous" (strikethrough) container
+            if (el.closest('.andes-money-amount--previous') ||
+                el.closest('.poly-price__previous') ||
+                el.closest('s') ||
+                el.closest('del')) {
+              return;
+            }
+            const intPart = parseFloat(
+              (el.textContent || '0').replace(/\./g, '').replace(/,/g, '.')
+            );
+            // Try to find cents sibling
+            const parent = el.closest('.andes-money-amount');
+            const cents = parent ? getCents(parent) : 0;
+            const price = intPart + cents / 100;
             if (price > 0 && price < lowestPrice) {
               lowestPrice = price;
             }
@@ -542,12 +602,81 @@ export class MercadoLivreScraper {
         logger.warn('⚠️ No deals selector found (might be empty or captcha)');
       }
 
-      // Extract data
+      // Extract data — reuse same price extraction logic as scrapeSearchResults
       const products = await page.evaluate(() => {
         const results: any[] = [];
 
         // Selectors for offers page
         const items = document.querySelectorAll('.promotion-item, .poly-card');
+
+        // Cents helper
+        const getCents = (container: Element): number => {
+          const centsEl = container.querySelector('.andes-money-amount__cents');
+          if (centsEl) {
+            const c = parseInt(centsEl.textContent || '0', 10);
+            return isNaN(c) ? 0 : c;
+          }
+          return 0;
+        };
+
+        // Get original (strikethrough) price
+        const getOriginalPrice = (item: Element): number => {
+          const previousSelectors = [
+            '.andes-money-amount--previous',
+            '.poly-price__previous .andes-money-amount',
+            's .andes-money-amount',
+            'del .andes-money-amount',
+          ];
+          for (const sel of previousSelectors) {
+            const container = item.querySelector(sel);
+            if (container) {
+              const fractionEl = container.querySelector('.andes-money-amount__fraction');
+              if (fractionEl) {
+                const intPart = parseFloat(
+                  (fractionEl.textContent || '0').replace(/\./g, '').replace(/,/g, '.')
+                );
+                const cents = getCents(container);
+                return intPart + cents / 100;
+              }
+            }
+          }
+          return 0;
+        };
+
+        // Get current (promotional/Pix) price
+        const getCurrentPrice = (item: Element): number => {
+          const allFractions = item.querySelectorAll('.andes-money-amount__fraction');
+          let lowestPrice = Infinity;
+          allFractions.forEach((el) => {
+            if (el.closest('.andes-money-amount--previous') ||
+                el.closest('.poly-price__previous') ||
+                el.closest('s') || el.closest('del')) {
+              return;
+            }
+            const intPart = parseFloat(
+              (el.textContent || '0').replace(/\./g, '').replace(/,/g, '.')
+            );
+            const parent = el.closest('.andes-money-amount');
+            const cents = parent ? getCents(parent) : 0;
+            const price = intPart + cents / 100;
+            if (price > 0 && price < lowestPrice) lowestPrice = price;
+          });
+          return lowestPrice === Infinity ? 0 : lowestPrice;
+        };
+
+        // Get discount badge
+        const getDiscountPercentage = (item: Element): number | undefined => {
+          const discountEl =
+            item.querySelector('.promotion-item__discount') ||
+            item.querySelector('.poly-component__discount') ||
+            item.querySelector('[class*="discount"]') ||
+            item.querySelector('.andes-badge__content');
+          if (discountEl) {
+            const match = (discountEl.textContent || '').match(/(\d+)%/);
+            if (match) return parseInt(match[1]);
+          }
+          return undefined;
+        };
 
         items.forEach((item: Element) => {
           try {
@@ -565,10 +694,10 @@ export class MercadoLivreScraper {
               item.querySelector('a');
             const permalink = linkEl?.getAttribute('href') || '';
 
-            // Price
-            const priceEl = item.querySelector('.andes-money-amount__fraction');
-            const priceText = priceEl?.textContent?.replace(/\./g, '') || '0';
-            const price = parseFloat(priceText);
+            // Prices with discount logic
+            const currentPrice = getCurrentPrice(item);
+            const originalPrice = getOriginalPrice(item);
+            const discountFromBadge = getDiscountPercentage(item);
 
             // Image
             const imgEl =
@@ -584,11 +713,13 @@ export class MercadoLivreScraper {
               id = idMatch ? idMatch[1].replace('-', '') : '';
             }
 
-            if (title && price > 0 && permalink) {
+            if (title && currentPrice > 0 && permalink) {
               results.push({
                 id: id || `MLB${Date.now()}${Math.random().toString().slice(2, 5)}`,
                 title,
-                price,
+                price: currentPrice,
+                original_price: originalPrice > currentPrice ? originalPrice : undefined,
+                discount_percentage: discountFromBadge,
                 currency_id: 'BRL',
                 available_quantity: 1,
                 condition: 'new',
@@ -645,6 +776,74 @@ export class MercadoLivreScraper {
           const results: any[] = [];
           const items = document.querySelectorAll('.ui-search-result__wrapper, .poly-card');
 
+          // Cents helper
+          const getCents = (container: Element): number => {
+            const centsEl = container.querySelector('.andes-money-amount__cents');
+            if (centsEl) {
+              const c = parseInt(centsEl.textContent || '0', 10);
+              return isNaN(c) ? 0 : c;
+            }
+            return 0;
+          };
+
+          // Get original (strikethrough) price
+          const getOriginalPrice = (item: Element): number => {
+            const previousSelectors = [
+              '.andes-money-amount--previous',
+              '.poly-price__previous .andes-money-amount',
+              's .andes-money-amount',
+              'del .andes-money-amount',
+            ];
+            for (const sel of previousSelectors) {
+              const container = item.querySelector(sel);
+              if (container) {
+                const fractionEl = container.querySelector('.andes-money-amount__fraction');
+                if (fractionEl) {
+                  const intPart = parseFloat(
+                    (fractionEl.textContent || '0').replace(/\./g, '').replace(/,/g, '.')
+                  );
+                  const cents = getCents(container);
+                  return intPart + cents / 100;
+                }
+              }
+            }
+            return 0;
+          };
+
+          // Get current (promotional/Pix) price
+          const getCurrentPrice = (item: Element): number => {
+            const allFractions = item.querySelectorAll('.andes-money-amount__fraction');
+            let lowestPrice = Infinity;
+            allFractions.forEach((el) => {
+              if (el.closest('.andes-money-amount--previous') ||
+                  el.closest('.poly-price__previous') ||
+                  el.closest('s') || el.closest('del')) {
+                return;
+              }
+              const intPart = parseFloat(
+                (el.textContent || '0').replace(/\./g, '').replace(/,/g, '.')
+              );
+              const parent = el.closest('.andes-money-amount');
+              const cents = parent ? getCents(parent) : 0;
+              const price = intPart + cents / 100;
+              if (price > 0 && price < lowestPrice) lowestPrice = price;
+            });
+            return lowestPrice === Infinity ? 0 : lowestPrice;
+          };
+
+          // Get discount badge
+          const getDiscountPercentage = (item: Element): number | undefined => {
+            const discountEl =
+              item.querySelector('.poly-component__discount') ||
+              item.querySelector('[class*="discount"]') ||
+              item.querySelector('.andes-badge__content');
+            if (discountEl) {
+              const match = (discountEl.textContent || '').match(/(\d+)%/);
+              if (match) return parseInt(match[1]);
+            }
+            return undefined;
+          };
+
           items.forEach((item: Element) => {
             if (results.length >= maxItems) return;
             try {
@@ -652,9 +851,11 @@ export class MercadoLivreScraper {
               const title = titleEl?.textContent?.trim() || '';
               const linkEl = item.querySelector('a');
               const permalink = linkEl?.getAttribute('href') || '';
-              const priceEl = item.querySelector('.andes-money-amount__fraction');
-              const priceText = priceEl?.textContent?.replace(/\./g, '') || '0';
-              const price = parseFloat(priceText);
+
+              const currentPrice = getCurrentPrice(item);
+              const originalPrice = getOriginalPrice(item);
+              const discountFromBadge = getDiscountPercentage(item);
+
               const imgEl = item.querySelector('img');
               const thumbnail = imgEl?.getAttribute('src') || imgEl?.getAttribute('data-src') || '';
 
@@ -664,11 +865,13 @@ export class MercadoLivreScraper {
                 id = idMatch ? idMatch[1].replace('-', '') : '';
               }
 
-              if (title && price > 0 && permalink) {
+              if (title && currentPrice > 0 && permalink) {
                 results.push({
                   id: id || `MLB${Date.now()}${Math.random().toString().slice(2, 5)}`,
                   title,
-                  price,
+                  price: currentPrice,
+                  original_price: originalPrice > currentPrice ? originalPrice : undefined,
+                  discount_percentage: discountFromBadge,
                   currency_id: 'BRL',
                   available_quantity: 1,
                   condition: 'new',

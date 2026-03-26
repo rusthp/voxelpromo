@@ -1118,21 +1118,48 @@ export class MercadoLivreService {
             id = idMatch ? idMatch[1].replace('-', '') : '';
           }
 
-          // Extract Price
-          const priceMatch = itemHtml.match(
-            /<span class="andes-money-amount__fraction">([\d.]+)<\/span>/
-          );
-          const price = priceMatch ? parseFloat(priceMatch[1].replace(/\./g, '')) : 0;
+          // Extract all prices (fraction + optional cents)
+          const priceRegex = /<span class="andes-money-amount__fraction">([\d.]+)<\/span>(?:\s*<span[^>]*class="[^"]*andes-money-amount__cents[^"]*"[^>]*>(\d+)<\/span>)?/g;
+          const prices: number[] = [];
+          let priceMatch;
+          while ((priceMatch = priceRegex.exec(itemHtml)) !== null) {
+            const intPart = parseFloat(priceMatch[1].replace(/\./g, ''));
+            const cents = priceMatch[2] ? parseInt(priceMatch[2], 10) : 0;
+            prices.push(intPart + cents / 100);
+          }
+
+          // If multiple prices: highest = original, lowest = current
+          let currentPrice = 0;
+          let originalPrice: number | undefined;
+          let discountPercentage: number | undefined;
+
+          if (prices.length >= 2) {
+            originalPrice = Math.max(...prices);
+            currentPrice = Math.min(...prices);
+            if (originalPrice > currentPrice) {
+              discountPercentage = Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
+            }
+          } else if (prices.length === 1) {
+            currentPrice = prices[0];
+          }
+
+          // Extract discount badge
+          const discountBadge = itemHtml.match(/(\d+)%\s*OFF/i);
+          if (discountBadge) {
+            discountPercentage = parseInt(discountBadge[1]);
+          }
 
           // Extract Thumbnail
           const imgMatch = itemHtml.match(/src="(https:\/\/[^"]+)"/);
           const thumbnail = imgMatch ? imgMatch[1] : '';
 
-          if (title && price > 0 && permalink) {
+          if (title && currentPrice > 0 && permalink) {
             products.push({
               id: id || `MLB${Date.now()}${Math.random().toString().slice(2, 5)}`,
               title,
-              price,
+              price: currentPrice,
+              original_price: originalPrice && originalPrice > currentPrice ? originalPrice : undefined,
+              discount_percentage: discountPercentage,
               currency_id: 'BRL',
               available_quantity: 1,
               condition: 'new',

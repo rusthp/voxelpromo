@@ -984,6 +984,55 @@ export class OfferService {
         }
       }
 
+      // Send to Facebook
+      if (channels.includes('facebook') && !offer.postedChannels?.includes('facebook')) {
+        try {
+          const { UserSettingsModel } = await import('../../models/UserSettings');
+          const settings = await UserSettingsModel.findOne({ userId: offer.userId });
+
+          if (settings?.facebook?.tokenStatus === 'expired') {
+            logger.error(`🛑 BLOCKED: Facebook posting aborted for user ${offer.userId} — token expired.`);
+            await PostHistoryModel.create({
+              offerId,
+              platform: 'facebook',
+              postContent,
+              status: 'failed',
+              error: 'BLOCKED: Facebook Token Expired. Please reconnect.',
+              userId: offer.userId,
+            });
+          } else {
+            logger.info(`📤 Attempting to post offer ${offerId} to Facebook`);
+            const { FacebookService } = await import('../messaging/FacebookService');
+            const fbService = await FacebookService.createForUser(offer.userId!);
+
+            if (!fbService.isConfigured()) {
+              logger.warn(`⚠️ Facebook not configured for user ${offer.userId}`);
+            } else {
+              const fbOk = await fbService.sendOffer(offer);
+              if (fbOk) {
+                postedChannels.push('facebook');
+                success = true;
+                logger.info(`✅ Successfully posted offer ${offerId} to Facebook`);
+              } else {
+                logger.warn(`⚠️ Failed to post offer ${offerId} to Facebook`);
+              }
+            }
+          }
+        } catch (facebookError: unknown) {
+          logger.error(
+            `❌ Error posting offer ${offerId} to Facebook: ${getErrorMessage(facebookError)}`,
+            facebookError
+          );
+          await PostHistoryModel.create({
+            offerId,
+            platform: 'facebook',
+            postContent,
+            status: 'failed',
+            error: getErrorMessage(facebookError),
+          });
+        }
+      }
+
       // Update offer status
       if (success) {
         await OfferModel.findByIdAndUpdate(offerId, {

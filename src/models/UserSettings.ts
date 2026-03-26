@@ -295,6 +295,28 @@ export interface TwitterSettings {
   isConfigured: boolean;
 }
 
+export interface FacebookSettings {
+  pageId?: string;
+  pageAccessToken?: string;
+  appId?: string;
+  appSecret?: string;
+  tokenExpiresAt?: Date;
+  tokenStatus?: 'active' | 'expiring' | 'expired';
+  pageName?: string;
+  isConfigured: boolean;
+}
+
+const FacebookSettingsSchema = new Schema({
+  pageId: { type: String },
+  pageAccessToken: { type: String },
+  appId: { type: String },
+  appSecret: { type: String },
+  tokenExpiresAt: { type: Date },
+  tokenStatus: { type: String, enum: ['active', 'expiring', 'expired'] },
+  pageName: { type: String },
+  isConfigured: { type: Boolean, default: false },
+}, { _id: false });
+
 export interface AISettings {
   provider: 'groq' | 'openai';
   groqApiKey?: string;
@@ -322,10 +344,11 @@ export interface IUserSettings extends Document {
   mercadolivre?: MercadoLivreSettings;
   awin?: AwinSettings;
   shopee?: ShopeeSettings; // Already defined previously
-  telegram?: TelegramSettings; // Ensure this exists or use any if not found, checking...
+  telegram?: TelegramSettings;
   instagram?: InstagramSettings;
   whatsapp?: WhatsAppSettings;
   x?: TwitterSettings;
+  facebook?: FacebookSettings;
   ai?: AISettings;
   automation?: AutomationSettings;
   rss?: string[];
@@ -358,6 +381,7 @@ const UserSettingsSchema = new Schema<IUserSettings>(
     instagram: { type: InstagramSettingsSchema, default: () => ({ isConfigured: false }) },
     whatsapp: { type: WhatsAppSettingsSchema, default: () => ({ isConfigured: false }) },
     x: { type: XSettingsSchema, default: () => ({ isConfigured: false }) },
+    facebook: { type: FacebookSettingsSchema, default: () => ({ isConfigured: false }) },
 
     // IA
     ai: { type: AISettingsSchema, default: () => ({ provider: 'groq', isConfigured: false }) },
