@@ -4,6 +4,7 @@ import { UserModel } from '../models/User';
 import { logger } from '../utils/logger';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
 import { LogService } from '../services/LogService';
+import { sanitizeSearchTerm } from '../utils/regex';
 
 const router = Router();
 
@@ -23,9 +24,10 @@ router.get('/users', async (req: Request, res: Response) => {
 
     const query: any = {};
     if (search) {
+      const safeSearch = sanitizeSearchTerm(search);
       query.$or = [
-        { username: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
+        { username: { $regex: safeSearch, $options: 'i' } },
+        { email: { $regex: safeSearch, $options: 'i' } },
       ];
     }
     if (role) {
@@ -250,30 +252,54 @@ function getJwtSecret(): string {
 router.post('/impersonate/:userId', async (req: AuthRequest, res: Response) => {
   try {
     const { userId } = req.params;
+    const { confirmPassword } = req.body;
 
-    // 1. Find the target user
-    const targetUser = await UserModel.findById(userId);
-    if (!targetUser) {
-      res.status(404).json({ success: false, error: 'Target user not found' });
+    // 1. Re-authenticate admin: require password confirmation
+    if (!confirmPassword) {
+      res.status(400).json({ success: false, error: 'Confirmação de senha é obrigatória para impersonar usuários' });
       return;
     }
 
-    // 2. Security Check: Prevent impersonating other admins (optional, but good practice)
-    // For now, allowing it, but logging heavily.
+    const adminUser = await UserModel.findById(req.user!.id).select('+password');
+    if (!adminUser) {
+      res.status(401).json({ success: false, error: 'Admin não encontrado' });
+      return;
+    }
 
-    // 3. Generate Token for the Target User
-    // We use a shorter expiry for impersonation tokens (e.g., 1 hour) to reduce risk
+    const passwordValid = await adminUser.comparePassword(confirmPassword);
+    if (!passwordValid) {
+      logger.warn(`👮 Failed impersonation attempt by admin ${req.user?.username} — wrong password`);
+      res.status(403).json({ success: false, error: 'Senha incorreta' });
+      return;
+    }
+
+    // 2. Find target user
+    const targetUser = await UserModel.findById(userId);
+    if (!targetUser) {
+      res.status(404).json({ success: false, error: 'Usuário não encontrado' });
+      return;
+    }
+
+    // 3. Block impersonation of other admins
+    if (targetUser.role === 'admin') {
+      logger.warn(`👮 Admin ${req.user?.username} attempted to impersonate another admin (${targetUser.username}) — blocked`);
+      res.status(403).json({ success: false, error: 'Não é permitido impersonar outros administradores' });
+      return;
+    }
+
+    // 4. Generate short-lived token with impersonation marker for traceability
     const accessToken = jwt.sign(
       {
         id: targetUser._id.toString(),
         username: targetUser.username,
         role: targetUser.role,
+        impersonatedBy: req.user!.id,
       },
       getJwtSecret(),
       { expiresIn: '1h' }
     );
 
-    // 4. Log the Impersonation Action
+    // 5. Log the action
     await LogService.log({
       req,
       action: 'AUTH_IMPERSONATE',
@@ -285,7 +311,8 @@ router.post('/impersonate/:userId', async (req: AuthRequest, res: Response) => {
       },
       details: {
         adminId: req.user?.id,
-        reason: 'Support/Troubleshooting',
+        adminUsername: req.user?.username,
+        reason: req.body.reason || 'Support/Troubleshooting',
       },
       actor: req.user as any,
     });

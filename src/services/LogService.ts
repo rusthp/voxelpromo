@@ -1,6 +1,7 @@
 import { AuditLogModel } from '../models/AuditLog';
 import { Request } from 'express';
 import { IUser } from '../models/User';
+import { sanitizeSearchTerm } from '../utils/regex';
 
 export type LogCategory = 'AUTH' | 'OFFER' | 'USER' | 'SYSTEM' | 'BILLING';
 
@@ -75,7 +76,7 @@ export class LogService {
     const query: any = {};
     if (filter.category) query.category = filter.category;
     if (filter.userId) query['actor.userId'] = filter.userId;
-    if (filter.action) query.action = { $regex: filter.action, $options: 'i' };
+    if (filter.action) query.action = { $regex: sanitizeSearchTerm(filter.action), $options: 'i' };
 
     const [logs, total] = await Promise.all([
       AuditLogModel.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),

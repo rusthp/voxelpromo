@@ -8,6 +8,8 @@ import { logger } from '../utils/logger';
 import { validate } from '../middleware/validate';
 import { createCheckoutSchema, createPixSchema, createBoletoSchema, processSubscriptionSchema } from '../validation/payment.validation';
 import { StripeWebhookService } from '../services/payment/StripeWebhookService';
+import { getPlan } from '../config/plans.config';
+import { getEmailService } from '../services/EmailService';
 
 const router = Router();
 
@@ -85,6 +87,19 @@ router.post('/process-subscription', authenticate, validate(processSubscriptionS
     const user = await UserModel.findById(userId);
     if (!user) {
       res.status(404).json({ success: false, error: 'Usuário não encontrado' });
+      return;
+    }
+
+    // Guard: prevent duplicate subscriptions
+    if (
+      user.billing.provider === 'MERCADOPAGO' &&
+      user.billing.mpSubscriptionId &&
+      user.access.status === 'ACTIVE'
+    ) {
+      res.status(409).json({
+        success: false,
+        error: 'Você já possui uma assinatura ativa. Cancele a atual antes de criar uma nova.',
+      });
       return;
     }
 
@@ -359,6 +374,14 @@ router.post('/webhook', async (req: Request, res: Response) => {
       logger.info(`Subscription payment received: id=${data?.id}`);
 
       try {
+        // Idempotency: skip if this payment was already processed
+        const alreadyProcessed = await TransactionModel.exists({ mpPaymentId: String(data?.id) });
+        if (alreadyProcessed) {
+          logger.info(`Webhook already processed for payment ${data?.id}, skipping`);
+          res.status(200).json({ message: 'Already processed' });
+          return;
+        }
+
         // Fetch payment details using processWebhookNotification
         const paymentResult = await paymentService.processWebhookNotification({
           type: 'payment',
@@ -413,13 +436,19 @@ router.post('/webhook', async (req: Request, res: Response) => {
           // Handle failed recurring payment
           const user = await UserModel.findById(userId);
           if (user) {
-            // Optional: Set to PAST_DUE
-            // user.access.status = 'PAST_DUE';
-            // await user.save();
+            user.access.status = 'PAST_DUE';
+            await user.save();
 
             logger.warn(
-              `❌ Recurring payment failed for user ${userId}`
+              `❌ Recurring payment failed for user ${userId} — access set to PAST_DUE`
             );
+
+            // Notify user of failed payment
+            getEmailService().sendPaymentFailed(
+              user.email,
+              user.username,
+              planId || 'Pro'
+            ).catch((err: unknown) => logger.error('Failed to send payment failed email:', err));
 
             // Create failed transaction record
             await TransactionModel.create({
@@ -451,6 +480,14 @@ router.post('/webhook', async (req: Request, res: Response) => {
     // REGULAR PAYMENT (PIX/BOLETO)
     // ============================================
     if (type === 'payment') {
+      // Idempotency: skip if this payment was already processed
+      const alreadyProcessed = await TransactionModel.exists({ mpPaymentId: String(data?.id) });
+      if (alreadyProcessed) {
+        logger.info(`Webhook already processed for payment ${data?.id}, skipping`);
+        res.status(200).json({ message: 'Already processed' });
+        return;
+      }
+
       const result = await paymentService.processWebhookNotification(req.body);
 
       if (!result.processed) {
@@ -472,8 +509,11 @@ router.post('/webhook', async (req: Request, res: Response) => {
         const user = await UserModel.findById(result.userId);
 
         if (user) {
+          const plan = getPlan(result.planId);
+          const accessDays = plan?.billingCycle === 'yearly' ? 365 : 30;
+
           user.access.status = 'ACTIVE';
-          user.access.validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days fixed
+          user.access.validUntil = new Date(Date.now() + accessDays * 24 * 60 * 60 * 1000);
 
           user.billing.mpPaymentId = String(result.paymentId);
           user.billing.provider = 'MERCADOPAGO';
@@ -543,6 +583,14 @@ router.post('/webhook', async (req: Request, res: Response) => {
       logger.warn(`⚠️ Chargeback received: ${data?.id}`);
 
       try {
+        // Idempotency: skip if chargeback was already processed
+        const chargebackExists = await TransactionModel.exists({ mpPaymentId: String(data?.id), type: 'chargeback' });
+        if (chargebackExists) {
+          logger.info(`Chargeback already processed for payment ${data?.id}, skipping`);
+          res.status(200).json({ message: 'Already processed' });
+          return;
+        }
+
         // Lookup the user via existing transaction with this payment ID
         const existingTransaction = await TransactionModel.findOne({
           mpPaymentId: String(data?.id),
@@ -556,6 +604,13 @@ router.post('/webhook', async (req: Request, res: Response) => {
             user.access.status = 'CANCELED';
             await user.save();
             logger.warn(`🚫 User ${user._id} access suspended due to chargeback on payment ${data?.id}`);
+
+            // Notify user of chargeback
+            getEmailService().sendChargebackNotification(
+              user.email,
+              user.username,
+              String(data?.id)
+            ).catch((err: unknown) => logger.error('Failed to send chargeback email:', err));
           }
 
           await TransactionModel.create({
@@ -841,6 +896,63 @@ router.post('/subscription/reactivate', authenticate, async (req: AuthRequest, r
   }
 });
 
+
+/**
+ * POST /api/payments/refund
+ * Refund a Mercado Pago payment (full or partial)
+ * PROTECTED ROUTE - Requires authentication (admin use)
+ */
+router.post('/refund', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { paymentId, amount } = req.body;
+
+    if (!paymentId) {
+      res.status(400).json({ success: false, error: 'paymentId é obrigatório' });
+      return;
+    }
+
+    // Verify the payment belongs to the requesting user
+    const userId = req.user!.id;
+    const transaction = await TransactionModel.findOne({
+      mpPaymentId: String(paymentId),
+      userId,
+    });
+
+    if (!transaction) {
+      res.status(404).json({ success: false, error: 'Pagamento não encontrado para este usuário' });
+      return;
+    }
+
+    const paymentService = PaymentFactory.getService('mercadopago');
+    if (!paymentService.refund) {
+      res.status(501).json({ success: false, error: 'Reembolso não disponível para este provedor' });
+      return;
+    }
+
+    const result = await paymentService.refund(String(paymentId), amount);
+
+    // Create refund transaction record
+    await TransactionModel.create({
+      userId: transaction.userId,
+      type: 'refund',
+      provider: 'mercadopago',
+      mpPaymentId: String(paymentId),
+      planId: transaction.planId,
+      amount: amount ?? transaction.amount,
+      currency: 'BRL',
+      status: result.status,
+      paymentMethod: transaction.paymentMethod,
+      userEmail: transaction.userEmail,
+      userName: transaction.userName,
+    });
+
+    logger.info(`Refund processed for payment ${paymentId} by user ${userId}`);
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    logger.error('Error processing refund:', error);
+    res.status(500).json({ success: false, error: error.message || 'Erro ao processar reembolso' });
+  }
+});
 
 /**
  * POST /api/payments/stripe/webhook

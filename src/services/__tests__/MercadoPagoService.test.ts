@@ -27,6 +27,9 @@ jest.mock('mercadopago', () => ({
     update: jest.fn(),
     get: jest.fn(),
   })),
+  PaymentRefund: jest.fn().mockImplementation(() => ({
+    create: jest.fn(),
+  })),
 }));
 
 // Mock logger to avoid console noise during tests
@@ -219,8 +222,8 @@ describe('MercadoPagoService', () => {
       // Current implementation: accepts old timestamps (signature is valid)
       // TODO: Future improvement - reject timestamps older than 5 minutes
       const result = service.verifyWebhookSignature(signature, requestId, body);
-      // For now, this passes - document this as technical debt
-      expect(result).toBe(true); // Should be false after implementing timestamp check
+      // Anti-replay protection is implemented: old timestamps are rejected
+      expect(result).toBe(false);
     });
 
     it('should reject in production when secret is not configured', () => {

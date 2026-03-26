@@ -39,6 +39,8 @@ function sanitizeObject(obj: any): any {
     const sanitized: any = {};
     for (const key in obj) {
       if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        // Block MongoDB operators to prevent NoSQL injection
+        if (key.startsWith('$')) continue;
         sanitized[key] = sanitizeObject(obj[key]);
       }
     }

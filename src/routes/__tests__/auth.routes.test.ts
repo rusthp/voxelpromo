@@ -185,7 +185,8 @@ describe('Auth Routes', () => {
         .send({ email: 'test@test.com', password: 'validPassword123' });
 
       expect(response.status).toBe(401);
-      expect(response.body.error).toContain('inativo');
+      // Security: unified response prevents user enumeration (no "inativo" revealed)
+      expect(response.body.error).toContain('Credenciais');
     });
 
     it('should reject unverified email', async () => {
@@ -199,7 +200,8 @@ describe('Auth Routes', () => {
         .send({ email: 'test@test.com', password: 'validPassword123' });
 
       expect(response.status).toBe(401);
-      expect(response.body.requiresVerification).toBe(true);
+      // Security: unified response prevents user enumeration (no requiresVerification flag)
+      expect(response.body.error).toContain('Credenciais');
     });
   });
 
@@ -222,7 +224,7 @@ describe('Auth Routes', () => {
 
       expect(response.status).toBe(423); // Locked
       expect(response.body.error).toContain('bloqueada');
-      expect(response.body.lockedUntil).toBeDefined();
+      // Security: lockedUntil not exposed in response to prevent timing oracle
     });
 
     it('should increment failed attempts on wrong password', async () => {

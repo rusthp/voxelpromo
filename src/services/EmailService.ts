@@ -381,6 +381,76 @@ class EmailService {
   }
 
   /**
+   * Send payment failed notification (recurring subscription)
+   */
+  async sendPaymentFailed(to: string, userName: string, planName: string): Promise<boolean> {
+    return this.sendEmail({
+      to,
+      subject: `⚠️ Falha no pagamento da sua assinatura VoxelPromo`,
+      html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h1 style="color: #06b6d4;">VoxelPromo</h1>
+                    <h2>Olá, ${userName}!</h2>
+
+                    <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0;">
+                        <strong>❌ Não conseguimos processar o pagamento do seu plano ${planName}.</strong>
+                        <p style="margin: 8px 0 0 0; font-size: 14px;">Seu acesso foi suspenso temporariamente até a regularização.</p>
+                    </div>
+
+                    <p>Para restaurar seu acesso, atualize seus dados de pagamento:</p>
+
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="${process.env.FRONTEND_URL || 'https://voxelpromo.com'}/settings?tab=subscription"
+                           style="background-color: #ef4444; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                            Atualizar Pagamento
+                        </a>
+                    </div>
+
+                    <p style="color: #666; font-size: 12px;">
+                        Se precisar de ajuda, responda este e-mail.
+                    </p>
+                </div>
+            `,
+      text: `Olá ${userName}! Não conseguimos processar o pagamento do plano ${planName}. Acesse ${process.env.FRONTEND_URL}/settings?tab=subscription para atualizar seus dados.`,
+    });
+  }
+
+  /**
+   * Send chargeback notification — access suspended
+   */
+  async sendChargebackNotification(to: string, userName: string, paymentId: string): Promise<boolean> {
+    return this.sendEmail({
+      to,
+      subject: `🚨 Contestação de pagamento detectada - VoxelPromo`,
+      html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h1 style="color: #06b6d4;">VoxelPromo</h1>
+                    <h2>Olá, ${userName}!</h2>
+
+                    <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0;">
+                        <strong>🚫 Sua conta foi suspensa por contestação de pagamento.</strong>
+                        <p style="margin: 8px 0 0 0; font-size: 14px;">Identificamos uma contestação (chargeback) no pagamento <strong>#${paymentId}</strong>.</p>
+                    </div>
+
+                    <p>Se isso foi um engano, entre em contato com nosso suporte para regularizar sua situação.</p>
+
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="mailto:contato@voxelpromo.com"
+                           style="background-color: #06b6d4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                            Falar com Suporte
+                        </a>
+                    </div>
+
+                    <p style="color: #666; font-size: 12px;">
+                        Este é um e-mail automático de segurança.
+                    </p>
+                </div>
+            `,
+      text: `Olá ${userName}! Sua conta VoxelPromo foi suspensa devido a uma contestação de pagamento (#${paymentId}). Entre em contato: contato@voxelpromo.com`,
+    });
+  }
+
+  /**
    * Send password reset email
    * Token expires in 15 minutes for security
    */

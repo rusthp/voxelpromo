@@ -1,4 +1,4 @@
-import { MercadoPagoConfig, Preference, Payment, PreApproval } from 'mercadopago';
+import { MercadoPagoConfig, Preference, Payment, PreApproval, PaymentRefund } from 'mercadopago';
 import { logger } from '../../utils/logger';
 import { getPlan } from '../../config/plans.config';
 import crypto from 'crypto';
@@ -7,7 +7,7 @@ import {
     PaymentStatus,
     getErrorMessage,
 } from '../../types/domain.types';
-import { IPaymentService, SubscriptionResult, PaymentResult, WebhookResult } from './IPaymentService';
+import { IPaymentService, SubscriptionResult, PaymentResult, RefundResult, WebhookResult } from './IPaymentService';
 
 /**
  * Mercado Pago Payment Service
@@ -18,6 +18,7 @@ export class MercadoPagoService implements IPaymentService {
     private preference: Preference;
     private payment: Payment;
     private preApproval: PreApproval;
+    private paymentRefund: PaymentRefund;
 
     private isConfigured: boolean;
 
@@ -37,6 +38,7 @@ export class MercadoPagoService implements IPaymentService {
         this.preference = new Preference(this.client);
         this.payment = new Payment(this.client);
         this.preApproval = new PreApproval(this.client);
+        this.paymentRefund = new PaymentRefund(this.client);
     }
 
     private ensureConfigured(): void {
@@ -386,6 +388,33 @@ export class MercadoPagoService implements IPaymentService {
     }
 
     /**
+     * Refund a payment (full or partial)
+     */
+    async refund(paymentId: string, amount?: number): Promise<RefundResult> {
+        this.ensureConfigured();
+        try {
+            const body: Record<string, unknown> = {};
+            if (amount !== undefined) body.amount = amount;
+
+            const response = await this.paymentRefund.create({
+                payment_id: Number(paymentId),
+                body,
+            });
+
+            logger.info(`MP Refund created for payment ${paymentId}: ${response.id}`);
+
+            return {
+                success: true,
+                refundId: response.id?.toString(),
+                status: response.status || 'approved',
+            };
+        } catch (error: unknown) {
+            logger.error(`Error creating refund for payment ${paymentId}:`, error);
+            throw new Error('Erro ao processar reembolso no Mercado Pago.');
+        }
+    }
+
+    /**
      * Process webhook notification
      */
     async processWebhookNotification(
@@ -451,6 +480,13 @@ export class MercadoPagoService implements IPaymentService {
             const hash = parts['v1'];
 
             if (!ts || !hash) return false;
+
+            // Replay attack protection: reject webhooks older than 5 minutes
+            const tsMs = parseInt(ts, 10) * 1000;
+            if (isNaN(tsMs) || Math.abs(Date.now() - tsMs) > 5 * 60 * 1000) {
+                logger.warn('Webhook rejected: timestamp outside 5-minute window', { ts });
+                return false;
+            }
 
             const dataId = (body as any)?.data?.id || (body as any)?.id || '';
             const manifest = `${dataId};${requestId};${ts}`;

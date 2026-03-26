@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import { UserModel } from '../models/User';
 import { RefreshTokenModel } from '../models/RefreshToken';
 import { logger } from '../utils/logger';
@@ -297,30 +298,26 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
     // Find user and include password + lockout fields
     const user = await UserModel.findOne({ email }).select('+password +lockUntil');
 
+    // Generic error used for all pre-password failures to prevent user enumeration
+    const INVALID_CREDENTIALS = { error: 'Credenciais inválidas' };
+
     if (!user) {
-      return res.status(401).json({ error: 'Credenciais inválidas' });
+      // Simulate bcrypt timing to prevent timing-based enumeration
+      await bcrypt.compare(password, '$2b$10$invalidhashpaddingtomimicbcryptX');
+      return res.status(401).json(INVALID_CREDENTIALS);
     }
 
     // BRUTE FORCE PROTECTION: Check if account is locked
     if (user.isLocked()) {
-      const minutesRemaining = Math.ceil((user.lockUntil!.getTime() - Date.now()) / 60000);
-      logger.warn(`🔒 Account locked for ${email}, ${minutesRemaining} min remaining`);
-      return res.status(423).json({
-        error: `Conta temporariamente bloqueada. Tente novamente em ${minutesRemaining} minutos.`,
-        lockedUntil: user.lockUntil,
-      });
+      logger.warn(`🔒 Account locked for user, ${Math.ceil((user.lockUntil!.getTime() - Date.now()) / 60000)} min remaining`);
+      // Generic message — do not reveal lockUntil timestamp
+      return res.status(423).json({ error: 'Conta temporariamente bloqueada. Tente novamente mais tarde.' });
     }
 
-    if (!user.isActive) {
-      return res.status(401).json({ error: 'Usuário inativo' });
-    }
-
-    // Check email verification
-    if (!user.emailVerified) {
-      return res.status(401).json({
-        error: 'Email não verificado. Verifique sua caixa de entrada.',
-        requiresVerification: true,
-      });
+    if (!user.isActive || !user.emailVerified) {
+      // Unified response — do not reveal which condition failed
+      await bcrypt.compare(password, '$2b$10$invalidhashpaddingtomimicbcryptX');
+      return res.status(401).json(INVALID_CREDENTIALS);
     }
 
     // Check password
@@ -401,21 +398,30 @@ router.post('/refresh', refreshLimiter, async (req: Request, res: Response) => {
       isRevoked: false,
     });
 
-    if (!tokenDoc) {
-      return res.status(401).json({ error: 'Refresh token inválido' });
-    }
-
-    // Check if token is expired
-    if (tokenDoc.expiresAt < new Date()) {
-      return res.status(401).json({ error: 'Refresh token expirado' });
+    if (!tokenDoc || tokenDoc.expiresAt < new Date()) {
+      return res.status(401).json({ error: 'Refresh token inválido ou expirado' });
     }
 
     // Get user
     const user = await UserModel.findById(tokenDoc.userId);
-
     if (!user || !user.isActive) {
       return res.status(401).json({ error: 'Usuário inválido ou inativo' });
     }
+
+    // TOKEN ROTATION: revoke current token and issue a new one
+    await RefreshTokenModel.updateOne({ _id: tokenDoc._id }, { isRevoked: true });
+
+    const newRefreshToken = crypto.randomBytes(40).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);
+
+    await RefreshTokenModel.create({
+      token: newRefreshToken,
+      userId: user._id,
+      expiresAt,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
 
     // Generate new access token
     const accessToken = jwt.sign(
@@ -424,11 +430,12 @@ router.post('/refresh', refreshLimiter, async (req: Request, res: Response) => {
       { expiresIn: ACCESS_TOKEN_EXPIRY }
     );
 
-    logger.info(`Access token refreshed for user: ${user.username}`);
+    logger.info(`Tokens rotated for user: ${user.username}`);
 
     return res.json({
       success: true,
       accessToken,
+      refreshToken: newRefreshToken,
       user: {
         id: user._id,
         username: user.username,

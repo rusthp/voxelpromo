@@ -82,6 +82,9 @@ export interface IPaymentService {
         };
     }): Promise<PaymentResult>;
 
+    // Refund
+    refund?(paymentId: string, amount?: number): Promise<RefundResult>;
+
     // Webhook
     processWebhookNotification(notificationData: any): Promise<WebhookResult>;
     verifyWebhookSignature(signature: string | undefined, requestId: string | undefined, body: any): boolean;
