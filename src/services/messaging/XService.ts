@@ -449,8 +449,12 @@ export class XService {
       parts.push(`🎟️ CUPOM: ${offer.coupons[0]}`);
     }
 
-    // Link (shortened if possible)
-    parts.push(`🔗 ${offer.affiliateUrl}`);
+    // Link — prefer tracked short URL, fallback to affiliateUrl
+    const baseUrl = process.env.FRONTEND_URL || 'https://voxelpromo.com';
+    const xLink = (offer as any).shortCode
+      ? `${baseUrl}/s/${(offer as any).shortCode}?ch=x`
+      : offer.affiliateUrl;
+    parts.push(`🔗 ${xLink}`);
 
     // Hashtags (limit to fit in 280 chars)
     const hashtags = this.generateHashtags(offer);
@@ -490,28 +494,38 @@ export class XService {
     // Step 2: If already within limit, return as-is
     if (text.length <= 280) return text;
 
-    // Step 3: Extract URLs to protect them from truncation
+    // Step 3: Extract URLs — X wraps all URLs to 23 chars (t.co), but we keep the real URL
     const urlRegex = /https?:\/\/[^\s]+/g;
     const urls = text.match(urlRegex) || [];
+    const mainUrl = urls[0] || ''; // Only keep the first (most important) URL
 
-    // Remove URLs from text to truncate only the copy
-    let textWithoutUrls = text;
-    for (const url of urls) {
-      textWithoutUrls = textWithoutUrls.replace(url, '').trim();
+    // Step 4: Extract hashtags (last line of the text)
+    const lines = text.split('\n');
+    const hashtagLine = [...lines].reverse().find((l: string) => l.trim().startsWith('#')) || '';
+
+    // Step 5: Remove URL and hashtags from body to truncate only the copy
+    let body = text;
+    if (mainUrl) body = body.replace(mainUrl, '').trim();
+    if (hashtagLine) body = body.replace(hashtagLine, '').trim();
+
+    // Step 6: Build in priority order: body → URL → hashtags (sacrificed if no space)
+    // X counts URLs as 23 chars (t.co), but we use real length for safety
+    const urlBlock = mainUrl ? `\n\n${mainUrl}` : '';
+    const urlLen = mainUrl ? mainUrl.length + 2 : 0; // +2 for \n\n
+    const hashLen = hashtagLine ? hashtagLine.length + 2 : 0; // +2 for \n\n
+    const maxBodyLen = 280 - urlLen - hashLen;
+
+    let result: string;
+    if (body.length <= maxBodyLen) {
+      result = body + urlBlock + (hashtagLine ? `\n\n${hashtagLine}` : '');
+    } else {
+      // Hashtags don't fit — sacrifice them, keep URL
+      const maxBodyNoHash = 280 - urlLen;
+      const truncatedBody = body.substring(0, maxBodyNoHash - 3).trimEnd() + '...';
+      result = truncatedBody + urlBlock;
     }
 
-    // Calculate available space: 280 - urls - separators
-    const urlsText = urls.join('\n');
-    const maxTextLen = 280 - urlsText.length - (urls.length > 0 ? 2 : 0); // -2 for \n\n separator
-
-    if (maxTextLen > 20) {
-      // Truncate only the copy, preserve full URLs
-      const truncatedText = textWithoutUrls.substring(0, maxTextLen - 3).trimEnd() + '...';
-      return urls.length > 0 ? `${truncatedText}\n\n${urlsText}` : truncatedText;
-    }
-
-    // Edge case: URL alone is > 280 — just truncate the whole thing (rare)
-    return text.substring(0, 277) + '...';
+    return result.length <= 280 ? result : result.substring(0, 277) + '...';
   }
 
   /**
