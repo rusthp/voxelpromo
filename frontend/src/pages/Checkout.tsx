@@ -50,9 +50,11 @@ export default function Checkout() {
     const [pixQrCodeBase64, setPixQrCodeBase64] = useState<string | null>(null);
     const [pixExpiration, setPixExpiration] = useState<Date | null>(null);
     const [pixTimeLeft, setPixTimeLeft] = useState<number>(0);
+    const [pixPaymentId, setPixPaymentId] = useState<string | null>(null);
     const [boletoUrl, setBoletoUrl] = useState<string | null>(null);
     const [boletoBarcode, setBoletoBarcode] = useState<string | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
     const plan = planId ? getPlanById(planId) : null;
 
@@ -138,6 +140,33 @@ export default function Checkout() {
         }
     }, [step, pixExpiration, toast]);
 
+    // Pix payment confirmation polling — checks every 5s while awaiting
+    useEffect(() => {
+        if (step !== 'awaiting' || !pixPaymentId) return;
+
+        const poll = async () => {
+            try {
+                const res = await api.get(`/payments/status/${pixPaymentId}`);
+                const status = res.data?.data?.subscription?.status;
+                if (status === 'active') {
+                    if (pollingRef.current) clearInterval(pollingRef.current);
+                    if (timerRef.current) clearInterval(timerRef.current);
+                    toast({ title: "Pagamento confirmado!", description: "Bem-vindo ao VoxelPromo 🎉" });
+                    navigate('/payment/success');
+                }
+            } catch {
+                // Silently ignore polling errors — timer expiration handles the error state
+            }
+        };
+
+        poll(); // immediate first check
+        pollingRef.current = setInterval(poll, 5000);
+
+        return () => {
+            if (pollingRef.current) clearInterval(pollingRef.current);
+        };
+    }, [step, pixPaymentId, navigate, toast]);
+
     // Calculate prices
     const subtotal = plan?.price || 0;
     const discountAmount = discount;
@@ -205,6 +234,7 @@ export default function Checkout() {
             if (response.data.success) {
                 setPixCode(response.data.qrCode || response.data.pixCopiaECola);
                 setPixQrCodeBase64(response.data.qrCodeBase64);
+                setPixPaymentId(response.data.paymentId ? String(response.data.paymentId) : null);
                 const expiration = response.data.expirationDate
                     ? new Date(response.data.expirationDate)
                     : new Date(Date.now() + 5 * 60 * 1000);
