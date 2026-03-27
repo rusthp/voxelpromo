@@ -1,5 +1,6 @@
 import { UserSettingsModel, IUserSettings } from '../../models/UserSettings';
 import { logger } from '../../utils/logger';
+import { decryptSettingsDoc } from '../../utils/encryption';
 
 /**
  * Service for managing user-specific settings
@@ -14,6 +15,13 @@ export class UserSettingsService {
     if (!settings) {
       settings = await UserSettingsModel.create({ userId });
       logger.info(`Created new UserSettings for user: ${userId}`);
+    }
+    // Decrypt sensitive fields in-place so all callers receive plaintext values.
+    // Mutates _doc directly to bypass Mongoose dirty-tracking (avoids write amplification).
+    try {
+      decryptSettingsDoc((settings as any)._doc);
+    } catch (err) {
+      logger.error('Failed to decrypt user settings:', err);
     }
     return settings;
   }

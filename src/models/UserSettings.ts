@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { encryptSettingsDoc } from '../utils/encryption';
 
 /**
  * UserSettings - Configurações de integrações por usuário
@@ -407,5 +408,16 @@ const UserSettingsSchema = new Schema<IUserSettings>(
 
 // Índice único para garantir uma configuração por usuário
 UserSettingsSchema.index({ userId: 1 }, { unique: true, name: 'user_settings_unique' });
+
+// Encrypt sensitive fields before every save
+// Uses encryptSettingsDoc which skips already-encrypted values (idempotent)
+UserSettingsSchema.pre('save', function (next) {
+  try {
+    encryptSettingsDoc((this as any)._doc);
+  } catch (err) {
+    return next(err as Error);
+  }
+  next();
+});
 
 export const UserSettingsModel = mongoose.model<IUserSettings>('UserSettings', UserSettingsSchema);
