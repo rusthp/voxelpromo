@@ -40,10 +40,26 @@ const router = Router();
  *       500:
  *         description: Failed to send message
  */
+/** Escape HTML special chars to prevent XSS in email templates */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
 router.post('/', validate(contactFormSchema), async (req: Request, res: Response) => {
   try {
     // Data already validated and sanitized by middleware
     const { name, email, subject, message } = req.body;
+
+    // Escape for safe HTML embedding
+    const safeName = escapeHtml(name);
+    const safeEmail = escapeHtml(email);
+    const safeSubject = escapeHtml(subject);
+    const safeMessage = escapeHtml(message);
 
     const emailService = getEmailService();
 
@@ -74,28 +90,28 @@ router.post('/', validate(contactFormSchema), async (req: Request, res: Response
     <div style="padding: 30px;">
       <div style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
         <h3 style="color: #00d4ff; margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase;">De:</h3>
-        <p style="color: #ffffff; margin: 0; font-size: 16px;"><strong>${name}</strong></p>
-        <p style="color: #a0a0a0; margin: 5px 0 0 0; font-size: 14px;">${email}</p>
+        <p style="color: #ffffff; margin: 0; font-size: 16px;"><strong>${safeName}</strong></p>
+        <p style="color: #a0a0a0; margin: 5px 0 0 0; font-size: 14px;">${safeEmail}</p>
       </div>
-      
+
       <div style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
         <h3 style="color: #ff006e; margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase;">Assunto:</h3>
-        <p style="color: #ffffff; margin: 0; font-size: 16px;">${subject}</p>
+        <p style="color: #ffffff; margin: 0; font-size: 16px;">${safeSubject}</p>
       </div>
-      
+
       <div style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px;">
         <h3 style="color: #ff8c00; margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase;">Mensagem:</h3>
-        <p style="color: #ffffff; margin: 0; font-size: 15px; line-height: 1.6; white-space: pre-wrap;">${message}</p>
+        <p style="color: #ffffff; margin: 0; font-size: 15px; line-height: 1.6; white-space: pre-wrap;">${safeMessage}</p>
       </div>
     </div>
-    
+
     <!-- Footer -->
     <div style="background: rgba(0,0,0,0.3); padding: 20px; text-align: center;">
       <p style="color: #666; margin: 0; font-size: 12px;">
         Enviado através do formulário de contato do VoxelPromo
       </p>
       <p style="color: #666; margin: 8px 0 0 0; font-size: 12px;">
-        Para responder, clique em "Responder" ou envie para: ${email}
+        Para responder, clique em "Responder" ou envie para: ${safeEmail}
       </p>
     </div>
   </div>

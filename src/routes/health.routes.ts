@@ -3,6 +3,7 @@ import { OfferModel } from '../models/Offer';
 import { logger } from '../utils/logger';
 import mongoose from 'mongoose';
 import { AffiliateHealthCheckService } from '../services/link/AffiliateHealthCheckService';
+import { authenticate } from '../middleware/auth';
 
 const router = Router();
 const startTime = Date.now();
@@ -391,7 +392,7 @@ router.get('/links/broken', async (req, res) => {
  *       200:
  *         description: Link verification result
  */
-router.post('/links/verify', async (req, res) => {
+router.post('/links/verify', authenticate, async (req, res) => {
   try {
     const { url } = req.body;
 

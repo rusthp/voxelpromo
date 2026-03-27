@@ -2,11 +2,24 @@ import { Router, Response } from 'express';
 import { PostHistoryModel } from '../models/PostHistory';
 import { logger } from '../utils/logger';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import Joi from 'joi';
 
 const router = Router();
 
 // All post routes require authentication
 router.use(authenticate);
+
+const VALID_PLATFORMS = ['telegram', 'whatsapp', 'instagram', 'x', 'twitter', 'facebook'];
+const VALID_STATUSES = ['success', 'failed', 'pending'];
+
+const historyQuerySchema = Joi.object({
+  limit: Joi.number().integer().min(1).max(200).default(50),
+  skip: Joi.number().integer().min(0).default(0),
+  platform: Joi.string().valid(...VALID_PLATFORMS).optional(),
+  status: Joi.string().valid(...VALID_STATUSES).optional(),
+  startDate: Joi.string().isoDate().optional(),
+  endDate: Joi.string().isoDate().optional(),
+});
 
 /**
  * GET /api/posts/history
@@ -15,7 +28,14 @@ router.use(authenticate);
 router.get('/history', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { limit = 50, skip = 0, platform, status, startDate, endDate } = req.query;
+
+    const { error, value } = historyQuerySchema.validate(req.query, { abortEarly: false, stripUnknown: true });
+    if (error) {
+      res.status(400).json({ error: error.details.map((d) => d.message).join(', ') });
+      return;
+    }
+
+    const { limit, skip, platform, status, startDate, endDate } = value;
 
     // Build filter - always include userId
     const filter: any = { userId };
@@ -31,10 +51,10 @@ router.get('/history', async (req: AuthRequest, res: Response) => {
     if (startDate || endDate) {
       filter.postedAt = {};
       if (startDate) {
-        filter.postedAt.$gte = new Date(startDate as string);
+        filter.postedAt.$gte = new Date(startDate);
       }
       if (endDate) {
-        filter.postedAt.$lte = new Date(endDate as string);
+        filter.postedAt.$lte = new Date(endDate);
       }
     }
 
@@ -45,17 +65,17 @@ router.get('/history', async (req: AuthRequest, res: Response) => {
     const posts = await PostHistoryModel.find(filter)
       .populate('offerId', 'title imageUrl productUrl source discountPercentage currentPrice')
       .sort({ postedAt: -1 })
-      .limit(parseInt(limit as string))
-      .skip(parseInt(skip as string));
+      .limit(limit)
+      .skip(skip);
 
     res.json({
       success: true,
       posts,
       pagination: {
         total,
-        limit: parseInt(limit as string),
-        skip: parseInt(skip as string),
-        hasMore: total > parseInt(skip as string) + parseInt(limit as string),
+        limit,
+        skip,
+        hasMore: total > skip + limit,
       },
     });
   } catch (error: any) {
