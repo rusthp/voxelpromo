@@ -77,11 +77,15 @@ export default function Pricing() {
                                             <span className="text-muted-foreground ml-2">/mês</span>
                                         )}
                                     </div>
-                                    {plan.trialDays && (
+                                    {plan.price === 0 ? (
                                         <p className="text-sm text-muted-foreground mt-2">
                                             Sem cartão de crédito necessário
                                         </p>
-                                    )}
+                                    ) : plan.trialDays ? (
+                                        <p className="text-sm text-muted-foreground mt-2">
+                                            {plan.trialDays} dias grátis, depois {plan.priceDisplay.split('/')[0]}/mês
+                                        </p>
+                                    ) : null}
                                 </CardDescription>
                             </CardHeader>
 
@@ -103,7 +107,7 @@ export default function Pricing() {
                                     size="lg"
                                     onClick={() => handleSelectPlan(plan.id)}
                                 >
-                                    {plan.trialDays ? 'Começar Teste Grátis' : 'Assinar Agora'}
+                                    {plan.price === 0 ? 'Começar Teste Grátis' : plan.trialDays ? `Testar ${plan.trialDays} dias grátis` : 'Assinar Agora'}
                                 </Button>
                             </CardFooter>
                         </Card>

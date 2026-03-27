@@ -1,9 +1,11 @@
 import { AutomationConfigModel } from '../../models/AutomationConfig';
 import { OfferModel } from '../../models/Offer';
+import { UserModel } from '../../models/User';
 import { ProductStatsModel } from '../../models/ProductStats';
 import { Offer } from '../../types';
 import { logger } from '../../utils/logger';
 import { configCache } from '../../utils/cache';
+import { getPlan } from '../../config/plans.config';
 import { PrioritizationService } from './PrioritizationService';
 import { TemplateService } from './TemplateService';
 
@@ -16,6 +18,27 @@ export class AutomationService {
   constructor() {
     this.prioritizationService = new PrioritizationService();
     this.templateService = new TemplateService();
+  }
+
+  /**
+   * Returns how many more posts the user can make today based on their plan.
+   * Returns Infinity for unlimited plans.
+   */
+  private async getRemainingPostsToday(userId: string): Promise<number> {
+    const user = await UserModel.findById(userId).select('plan').lean();
+    const planId = (user as any)?.plan?.id || (user as any)?.plan?.name || 'trial';
+    const plan = getPlan(planId);
+    const limit = plan?.limits?.postsPerDay ?? 10;
+    if (limit === -1) return Infinity;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const postsToday = await OfferModel.countDocuments({
+      userId,
+      isPosted: true,
+      updatedAt: { $gte: today },
+    });
+    return Math.max(0, limit - postsToday);
   }
 
   /**
@@ -350,6 +373,13 @@ export class AutomationService {
         return 0;
       }
 
+      // Enforce daily post limit based on user plan
+      const remaining = await this.getRemainingPostsToday(userId);
+      if (remaining <= 0) {
+        logger.info(`🚫 Daily post limit reached for user ${userId}. Skipping.`);
+        return 0;
+      }
+
       // Get next offers to post (scoped by userId)
       const offers = await this.getNextScheduledOffers(userId, config, 1); // Get 1 offer per cycle
 
@@ -587,8 +617,15 @@ export class AutomationService {
         return 0;
       }
 
-      // Take the exact quantity needed (limited by available offers and remaining time)
-      const maxPosts = Math.min(quantity, availableOffers.length, remainingMinutes);
+      // Enforce daily post limit based on user plan
+      const remainingToday = await this.getRemainingPostsToday(userId);
+      if (remainingToday <= 0) {
+        logger.info(`🚫 Smart Planner: Daily post limit reached for user ${userId}. Skipping.`);
+        return 0;
+      }
+
+      // Take the exact quantity needed (limited by available offers, remaining time and daily limit)
+      const maxPosts = Math.min(quantity, availableOffers.length, remainingMinutes, remainingToday);
       const selectedOffers = availableOffers.slice(0, maxPosts);
 
       if (maxPosts < quantity) {

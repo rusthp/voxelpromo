@@ -8,6 +8,7 @@ import mongoose from 'mongoose';
 jest.mock('../../../models/AutomationConfig');
 jest.mock('../../../models/Offer');
 jest.mock('../../../models/ProductStats');
+jest.mock('../../../models/User');
 jest.mock('../../../utils/logger', () => ({
   logger: {
     info: jest.fn(),
@@ -27,6 +28,7 @@ jest.mock('../TemplateService');
 jest.mock('../../offer/OfferService');
 
 import { configCache } from '../../../utils/cache';
+import { UserModel } from '../../../models/User';
 
 describe('AutomationService', () => {
   let automationService: AutomationService;
@@ -35,6 +37,15 @@ describe('AutomationService', () => {
   beforeEach(() => {
     automationService = new AutomationService();
     jest.clearAllMocks();
+
+    // Default: user on 'pro' plan with plenty of daily posts remaining
+    (UserModel.findById as jest.Mock).mockReturnValue({
+      select: jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValue({ plan: { id: 'pro' } }),
+      }),
+    });
+    // Default: 0 posts today → limit not reached
+    (OfferModel.countDocuments as jest.Mock).mockResolvedValue(0);
   });
 
   describe('shouldPostNow', () => {
