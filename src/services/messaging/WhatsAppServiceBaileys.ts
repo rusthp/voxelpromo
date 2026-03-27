@@ -746,9 +746,13 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
       // Adapt: convert HTML to WhatsApp formatting (*bold*, _italic_)
       const message = this.convertHtmlToWhatsApp(rawMessage);
 
-      // Only add link if it's not already in the message
-      const finalMessage = (offer.affiliateUrl && !message.includes(offer.affiliateUrl))
-        ? `${message}\n\n🔗 ${offer.affiliateUrl}`
+      // Only add link if it's not already in the message — prefer tracked short URL
+      const baseUrl = process.env.FRONTEND_URL || 'https://voxelpromo.com';
+      const waLink = (offer as any).shortCode
+        ? `${baseUrl}/s/${(offer as any).shortCode}?ch=whatsapp`
+        : offer.affiliateUrl;
+      const finalMessage = (waLink && !message.includes(waLink) && !message.includes(offer.affiliateUrl || ''))
+        ? `${message}\n\n🔗 ${waLink}`
         : message;
 
       // Enviar para todos os grupos/números configurados
@@ -857,9 +861,13 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
     const post = offer.aiGeneratedPost || this.generateDefaultPost(offer);
     const formattedPost = this.convertHtmlToWhatsApp(post);
 
-    // Only add link if it's not already in the post
-    if (offer.affiliateUrl && !formattedPost.includes(offer.affiliateUrl)) {
-      return `${formattedPost}\n\n🔗 ${offer.affiliateUrl}`;
+    // Only add link if it's not already in the post — prefer tracked short URL
+    const baseUrl = process.env.FRONTEND_URL || 'https://voxelpromo.com';
+    const waLink = (offer as any).shortCode
+      ? `${baseUrl}/s/${(offer as any).shortCode}?ch=whatsapp`
+      : offer.affiliateUrl;
+    if (waLink && !formattedPost.includes(waLink) && !formattedPost.includes(offer.affiliateUrl || '')) {
+      return `${formattedPost}\n\n🔗 ${waLink}`;
     }
 
     return formattedPost;

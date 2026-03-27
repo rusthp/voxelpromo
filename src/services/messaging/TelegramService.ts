@@ -166,8 +166,12 @@ export class TelegramService {
       parts.push(`🎟️ CUPOM: <b>${offer.coupons[0]}</b>`);
     }
 
-    // Link
-    parts.push(`🔗 ${offer.affiliateUrl}`);
+    // Link — prefer tracked short URL, fallback to affiliateUrl
+    const baseUrl = process.env.FRONTEND_URL || 'https://voxelpromo.com';
+    const telegramLink = (offer as any).shortCode
+      ? `${baseUrl}/s/${(offer as any).shortCode}?ch=telegram`
+      : offer.affiliateUrl;
+    parts.push(`🔗 ${telegramLink}`);
 
     // Hashtags
     const hashtags = this.generateHashtags(offer);
