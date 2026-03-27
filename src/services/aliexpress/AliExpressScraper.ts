@@ -27,10 +27,24 @@ export interface ScrapedDealsPage {
 export class AliExpressScraper {
   private client: AxiosInstance;
   private lastRequestTime = 0;
-  private minRequestDelay = 500; // 500ms between requests
+  private minRequestDelay = 1500; // 1.5s between requests — less aggressive
 
-  // Headers that mimic a Brazilian browser
-  private readonly defaultHeaders = {
+  // User-Agent rotation pool
+  private readonly userAgents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  ];
+
+  private getRandomUA(): string {
+    return this.userAgents[Math.floor(Math.random() * this.userAgents.length)];
+  }
+
+  // Base headers (without User-Agent — rotated per request)
+  private readonly baseHeaders = {
     Accept:
       'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
     'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -45,15 +59,41 @@ export class AliExpressScraper {
     'Sec-Fetch-Site': 'none',
     'Sec-Fetch-User': '?1',
     'Upgrade-Insecure-Requests': '1',
-    'User-Agent':
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
   };
+
+  private get defaultHeaders() {
+    return { ...this.baseHeaders, 'User-Agent': this.getRandomUA() };
+  }
 
   constructor() {
     this.client = axios.create({
-      timeout: 30000,
-      headers: this.defaultHeaders,
+      timeout: 60000,
+      headers: this.baseHeaders,
     });
+  }
+
+  /**
+   * Detect if page is a CAPTCHA/bot-challenge response
+   */
+  private isCaptchaPage(html: string): boolean {
+    if (html.length < 5000) return true; // Suspiciously small response
+    const lower = html.toLowerCase();
+    return (
+      lower.includes('captcha') ||
+      lower.includes('robot check') ||
+      lower.includes('bot challenge') ||
+      lower.includes('access denied') ||
+      lower.includes('please verify') ||
+      lower.includes('security check')
+    );
+  }
+
+  /**
+   * Remove installment price patterns (e.g. "12x R$ 45,50") from HTML/text
+   * before extracting standalone R$ prices — prevents picking parcel value as product price
+   */
+  private stripInstallments(text: string): string {
+    return text.replace(/\d+\s*[xX]\s*(?:de\s+)?R\$\s*[\d.,]+/g, '');
   }
 
   /**
@@ -223,6 +263,11 @@ export class AliExpressScraper {
 
       const html = response.data;
 
+      if (this.isCaptchaPage(html)) {
+        logger.warn(`⚠️ AliExpress CAPTCHA detected for product URL — skipping`);
+        return null;
+      }
+
       // Extract product ID
       const productIdMatch = url.match(/item\/(\d+)/);
       const productId = productIdMatch ? productIdMatch[1] : 'unknown';
@@ -291,9 +336,10 @@ export class AliExpressScraper {
         html.match(/<title>([^<]+)<\/title>/);
       const title = titleMatch ? titleMatch[1].trim().replace(/ - AliExpress.*$/, '') : '';
 
-      // Extract prices from HTML
-      // Pattern: R$ followed by price
-      const priceMatches = html.match(/R\$\s*([\d.,]+)/g);
+      // Extract prices from HTML — strip installment patterns first to avoid
+      // picking parcel value (e.g. "12x R$ 45") as the product price
+      const cleanedHtml = this.stripInstallments(html);
+      const priceMatches = cleanedHtml.match(/R\$\s*([\d.,]+)/g);
       let currentPrice = 0;
       let originalPrice = 0;
 
@@ -303,8 +349,8 @@ export class AliExpressScraper {
           .filter((p: number) => p > 0)
           .sort((a: number, b: number) => a - b);
         if (prices.length >= 2) {
-          currentPrice = prices[0];
-          originalPrice = prices[prices.length - 1];
+          currentPrice = prices[0];       // lowest = promotional price
+          originalPrice = prices[prices.length - 1]; // highest = original
         } else if (prices.length === 1) {
           currentPrice = prices[0];
           originalPrice = prices[0];
@@ -376,6 +422,12 @@ export class AliExpressScraper {
       });
 
       const html = response.data;
+
+      if (this.isCaptchaPage(html)) {
+        logger.warn(`⚠️ AliExpress CAPTCHA detected on Best Deals page — skipping`);
+        return { products: [], totalFound: 0 };
+      }
+
       const products: ScrapedProduct[] = [];
 
       // Try to extract products from embedded JSON
@@ -428,18 +480,23 @@ export class AliExpressScraper {
           const titleMatch = cardHtml.match(/title="([^"]+)"/);
           const title = titleMatch ? titleMatch[1] : '';
 
-          // Extract prices
-          const priceMatches = cardHtml.match(/R\$\s*([\d.,]+)/g);
+          // Extract prices — strip installments first to avoid parcel values
+          const cleanedCard = this.stripInstallments(cardHtml);
+          const priceMatches = cleanedCard.match(/R\$\s*([\d.,]+)/g);
           let currentPrice = 0;
           let originalPrice = 0;
 
           if (priceMatches && priceMatches.length > 0) {
             const prices = priceMatches
               .map((p: string) => this.parsePrice(p))
-              .filter((p: number) => p > 0);
-            if (prices.length >= 1) {
-              currentPrice = Math.min(...prices);
-              originalPrice = Math.max(...prices);
+              .filter((p: number) => p > 0)
+              .sort((a: number, b: number) => a - b);
+            if (prices.length >= 2) {
+              currentPrice = prices[0];
+              originalPrice = prices[prices.length - 1];
+            } else if (prices.length === 1) {
+              currentPrice = prices[0];
+              originalPrice = prices[0];
             }
           }
 
@@ -506,6 +563,12 @@ export class AliExpressScraper {
       });
 
       const html = response.data;
+
+      if (this.isCaptchaPage(html)) {
+        logger.warn(`⚠️ AliExpress CAPTCHA detected on SSR Bestsellers page — skipping`);
+        return { products: [], totalFound: 0 };
+      }
+
       const products: ScrapedProduct[] = [];
 
       // Log HTML length for debugging

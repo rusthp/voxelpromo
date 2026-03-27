@@ -866,15 +866,15 @@ export class CollectorService {
     try {
       logger.info('🔗 Starting Awin collection from Product Feeds...');
 
-      const awinService = new AwinService();
-
-      if (!awinService.isConfigured()) {
-        logger.warn('⚠️ Awin not configured, skipping collection');
+      if (!this.userId) {
+        logger.warn('⚠️ Cannot collect from Awin feeds without user context');
         return 0;
       }
 
-      if (!this.userId) {
-        logger.warn('⚠️ Cannot collect from Awin feeds without user context');
+      const awinService = await AwinService.createForUser(this.userId);
+
+      if (!awinService.isConfigured()) {
+        logger.warn('⚠️ Awin not configured for user, skipping collection');
         return 0;
       }
 

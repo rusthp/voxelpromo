@@ -452,6 +452,13 @@ export class MercadoLivreScraper {
 
         // Helper to get the CURRENT (promotional/Pix) price — the green/large one
         const getCurrentPrice = (item: Element): number => {
+          // Helper: returns true if element is inside an installment/parcelamento container
+          const isInsideInstallments = (el: Element): boolean =>
+            !!(el.closest('.poly-price__installments') ||
+               el.closest('.ui-search-installments') ||
+               el.closest('[class*="installment"]') ||
+               el.closest('[class*="parcel"]'));
+
           // Strategy 1: Look for the current/promotional price container
           const currentContainerSelectors = [
             '.poly-price__current .andes-money-amount',
@@ -460,13 +467,13 @@ export class MercadoLivreScraper {
           ];
 
           for (const sel of currentContainerSelectors) {
-            // Exclude "previous" prices that might be nested
             const containers = item.querySelectorAll(sel);
             for (const container of Array.from(containers)) {
               if (container.closest('.andes-money-amount--previous') ||
                   container.closest('.poly-price__previous') ||
-                  container.classList.contains('andes-money-amount--previous')) {
-                continue; // Skip strikethrough prices
+                  container.classList.contains('andes-money-amount--previous') ||
+                  isInsideInstallments(container)) {
+                continue;
               }
               const fractionEl = container.querySelector('.andes-money-amount__fraction');
               if (fractionEl) {
@@ -480,31 +487,26 @@ export class MercadoLivreScraper {
             }
           }
 
-          // Strategy 2: Find all non-previous .andes-money-amount__fraction and pick lowest
+          // Strategy 2: First valid non-previous, non-installment fraction
           const allFractions = item.querySelectorAll('.andes-money-amount__fraction');
-          let lowestPrice = Infinity;
-
-          allFractions.forEach((el) => {
-            // Skip if inside a "previous" (strikethrough) container
+          for (const el of Array.from(allFractions)) {
             if (el.closest('.andes-money-amount--previous') ||
                 el.closest('.poly-price__previous') ||
                 el.closest('s') ||
-                el.closest('del')) {
-              return;
+                el.closest('del') ||
+                isInsideInstallments(el)) {
+              continue;
             }
             const intPart = parseFloat(
               (el.textContent || '0').replace(/\./g, '').replace(/,/g, '.')
             );
-            // Try to find cents sibling
             const parent = el.closest('.andes-money-amount');
             const cents = parent ? getCents(parent) : 0;
             const price = intPart + cents / 100;
-            if (price > 0 && price < lowestPrice) {
-              lowestPrice = price;
-            }
-          });
+            if (price > 0) return price;
+          }
 
-          return lowestPrice === Infinity ? 0 : lowestPrice;
+          return 0;
         };
 
         const getDiscountPercentage = (item: Element): number | undefined => {
@@ -645,13 +647,19 @@ export class MercadoLivreScraper {
 
         // Get current (promotional/Pix) price
         const getCurrentPrice = (item: Element): number => {
+          const isInsideInstallments = (el: Element): boolean =>
+            !!(el.closest('.poly-price__installments') ||
+               el.closest('.ui-search-installments') ||
+               el.closest('[class*="installment"]') ||
+               el.closest('[class*="parcel"]'));
+
           const allFractions = item.querySelectorAll('.andes-money-amount__fraction');
-          let lowestPrice = Infinity;
-          allFractions.forEach((el) => {
+          for (const el of Array.from(allFractions)) {
             if (el.closest('.andes-money-amount--previous') ||
                 el.closest('.poly-price__previous') ||
-                el.closest('s') || el.closest('del')) {
-              return;
+                el.closest('s') || el.closest('del') ||
+                isInsideInstallments(el)) {
+              continue;
             }
             const intPart = parseFloat(
               (el.textContent || '0').replace(/\./g, '').replace(/,/g, '.')
@@ -659,9 +667,9 @@ export class MercadoLivreScraper {
             const parent = el.closest('.andes-money-amount');
             const cents = parent ? getCents(parent) : 0;
             const price = intPart + cents / 100;
-            if (price > 0 && price < lowestPrice) lowestPrice = price;
-          });
-          return lowestPrice === Infinity ? 0 : lowestPrice;
+            if (price > 0) return price;
+          }
+          return 0;
         };
 
         // Get discount badge
@@ -812,13 +820,19 @@ export class MercadoLivreScraper {
 
           // Get current (promotional/Pix) price
           const getCurrentPrice = (item: Element): number => {
+            const isInsideInstallments = (el: Element): boolean =>
+              !!(el.closest('.poly-price__installments') ||
+                 el.closest('.ui-search-installments') ||
+                 el.closest('[class*="installment"]') ||
+                 el.closest('[class*="parcel"]'));
+
             const allFractions = item.querySelectorAll('.andes-money-amount__fraction');
-            let lowestPrice = Infinity;
-            allFractions.forEach((el) => {
+            for (const el of Array.from(allFractions)) {
               if (el.closest('.andes-money-amount--previous') ||
                   el.closest('.poly-price__previous') ||
-                  el.closest('s') || el.closest('del')) {
-                return;
+                  el.closest('s') || el.closest('del') ||
+                  isInsideInstallments(el)) {
+                continue;
               }
               const intPart = parseFloat(
                 (el.textContent || '0').replace(/\./g, '').replace(/,/g, '.')
@@ -826,9 +840,9 @@ export class MercadoLivreScraper {
               const parent = el.closest('.andes-money-amount');
               const cents = parent ? getCents(parent) : 0;
               const price = intPart + cents / 100;
-              if (price > 0 && price < lowestPrice) lowestPrice = price;
-            });
-            return lowestPrice === Infinity ? 0 : lowestPrice;
+              if (price > 0) return price;
+            }
+            return 0;
           };
 
           // Get discount badge

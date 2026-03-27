@@ -1118,17 +1118,23 @@ export class MercadoLivreService {
             id = idMatch ? idMatch[1].replace('-', '') : '';
           }
 
+          // Strip installment blocks before extracting prices to avoid parcel values
+          const cleanedItemHtml = itemHtml
+            .replace(/<[^>]*(?:installment|parcel)[^>]*>[\s\S]*?<\/[a-z]+>/gi, '')
+            .replace(/class="[^"]*installment[^"]*"[\s\S]*?(?=<\/(?:div|span|li)>)/gi, '');
+
           // Extract all prices (fraction + optional cents)
           const priceRegex = /<span class="andes-money-amount__fraction">([\d.]+)<\/span>(?:\s*<span[^>]*class="[^"]*andes-money-amount__cents[^"]*"[^>]*>(\d+)<\/span>)?/g;
           const prices: number[] = [];
           let priceMatch;
-          while ((priceMatch = priceRegex.exec(itemHtml)) !== null) {
+          while ((priceMatch = priceRegex.exec(cleanedItemHtml)) !== null) {
             const intPart = parseFloat(priceMatch[1].replace(/\./g, ''));
             const cents = priceMatch[2] ? parseInt(priceMatch[2], 10) : 0;
             prices.push(intPart + cents / 100);
           }
 
           // If multiple prices: highest = original, lowest = current
+          // Note: prices were extracted AFTER stripping installment patterns
           let currentPrice = 0;
           let originalPrice: number | undefined;
           let discountPercentage: number | undefined;
