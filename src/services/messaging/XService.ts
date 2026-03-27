@@ -484,42 +484,55 @@ export class XService {
   }
 
   /**
-   * Adapt text for X (Twitter): strip HTML, enforce 280 chars, NEVER cut URLs.
-   * Pure adapter — does NOT alter copy content.
+   * Adapt text for X (Twitter): strip HTML, remove filler lines, enforce 280 chars, NEVER cut URLs.
+   * Removes "💳 Pagamento seguro" line — redundant on X and wastes precious characters.
+   * Keeps hashtags (max 3) since they aid discovery on X.
    */
   private adaptForX(html: string): string {
     // Step 1: Strip HTML tags
-    const text = html.replace(/<[^>]+>/g, '');
+    let text = html.replace(/<[^>]+>/g, '');
 
-    // Step 2: If already within limit, return as-is
+    // Step 2: Remove "💳 Pagamento seguro via ..." line — not needed on X
+    text = text
+      .split('\n')
+      .filter((line) => !/Pagamento seguro/i.test(line))
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n') // collapse extra blank lines left behind
+      .trim();
+
+    // Step 3: If already within limit, return as-is
     if (text.length <= 280) return text;
 
-    // Step 3: Extract URLs — X wraps all URLs to 23 chars (t.co), but we keep the real URL
+    // Step 4: Extract URLs
     const urlRegex = /https?:\/\/[^\s]+/g;
     const urls = text.match(urlRegex) || [];
-    const mainUrl = urls[0] || ''; // Only keep the first (most important) URL
+    const mainUrl = urls[0] || '';
 
-    // Step 4: Extract hashtags (last line of the text)
+    // Step 5: Extract hashtag line (last line starting with #), keep max 3 tags
     const lines = text.split('\n');
-    const hashtagLine = [...lines].reverse().find((l: string) => l.trim().startsWith('#')) || '';
+    const rawHashtagLine = [...lines].reverse().find((l: string) => l.trim().startsWith('#')) || '';
+    const hashtagLine = rawHashtagLine
+      .split(/\s+/)
+      .filter((t) => t.startsWith('#'))
+      .slice(0, 3)
+      .join(' ');
 
-    // Step 5: Remove URL and hashtags from body to truncate only the copy
+    // Step 6: Remove URL and hashtags from body
     let body = text;
     if (mainUrl) body = body.replace(mainUrl, '').trim();
-    if (hashtagLine) body = body.replace(hashtagLine, '').trim();
+    if (rawHashtagLine) body = body.replace(rawHashtagLine, '').trim();
+    body = body.replace(/\n{3,}/g, '\n\n').trim();
 
-    // Step 6: Build in priority order: body → URL → hashtags (sacrificed if no space)
-    // X counts URLs as 23 chars (t.co), but we use real length for safety
+    // Step 7: Build in priority order: body → URL → hashtags (sacrificed last)
     const urlBlock = mainUrl ? `\n\n${mainUrl}` : '';
-    const urlLen = mainUrl ? mainUrl.length + 2 : 0; // +2 for \n\n
-    const hashLen = hashtagLine ? hashtagLine.length + 2 : 0; // +2 for \n\n
+    const urlLen = mainUrl ? mainUrl.length + 2 : 0;
+    const hashLen = hashtagLine ? hashtagLine.length + 2 : 0;
     const maxBodyLen = 280 - urlLen - hashLen;
 
     let result: string;
     if (body.length <= maxBodyLen) {
       result = body + urlBlock + (hashtagLine ? `\n\n${hashtagLine}` : '');
     } else {
-      // Hashtags don't fit — sacrifice them, keep URL
       const maxBodyNoHash = 280 - urlLen;
       const truncatedBody = body.substring(0, maxBodyNoHash - 3).trimEnd() + '...';
       result = truncatedBody + urlBlock;
