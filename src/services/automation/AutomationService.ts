@@ -25,7 +25,23 @@ export class AutomationService {
    * Returns Infinity for unlimited plans.
    */
   private async getRemainingPostsToday(userId: string): Promise<number> {
-    const user = await UserModel.findById(userId).select('plan').lean();
+    const user = await UserModel.findById(userId).select('plan access').lean();
+
+    // Block automation if trial has expired
+    const access = (user as any)?.access;
+    if (access?.plan === 'TRIAL' || access?.plan === 'trial') {
+      const trialEndsAt = access?.trialEndsAt ? new Date(access.trialEndsAt) : null;
+      if (trialEndsAt && trialEndsAt < new Date()) {
+        logger.info(`🚫 Trial expired for user ${userId} — skipping automation.`);
+        return 0;
+      }
+    }
+    // Also block if subscription is not active (PAST_DUE or CANCELED)
+    if (access?.status && !['ACTIVE', 'active'].includes(access.status)) {
+      logger.info(`🚫 Subscription not active (${access.status}) for user ${userId} — skipping automation.`);
+      return 0;
+    }
+
     const planId = (user as any)?.plan?.id || (user as any)?.plan?.name || 'trial';
     const plan = getPlan(planId);
     const limit = plan?.limits?.postsPerDay ?? 10;
