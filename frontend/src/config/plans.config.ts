@@ -58,11 +58,13 @@ export const PLANS: Plan[] = [
         billingCycle: 'por mês',
         features: [
             'Posts ilimitados',
-            'White-label',
-            'API',
-            'Suporte dedicado',
-            'Múltiplas Contas',
-            'Consultoria Mensal'
+            'Automação ilimitada',
+            'Filtros avançados & Regex',
+            'Suporte dedicado (WhatsApp)',
+            'Consultoria Mensal',
+            '🔜 API de Integração (em breve)',
+            '🔜 White-label (em breve)',
+            '🔜 Múltiplas Contas (em breve)'
         ],
         trialDays: 7
     }

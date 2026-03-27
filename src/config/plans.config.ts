@@ -81,11 +81,12 @@ export const PLANS: Record<string, PlanConfig> = {
     features: [
       'Ofertas Ilimitadas',
       'Automação Ilimitada',
-      'Múltiplas Contas',
       'Filtros Avançados & Regex',
-      'API de Integração',
       'Atendimento Dedicado (WhatsApp)',
       'Consultoria Mensal',
+      'API de Integração (em breve)',
+      'White-label (em breve)',
+      'Múltiplas Contas (em breve)',
     ],
   },
 };
