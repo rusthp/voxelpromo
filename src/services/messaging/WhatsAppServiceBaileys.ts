@@ -170,7 +170,7 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
       logger.debug('🔌 Creating socket...');
       this.sock = makeWASocket({
         version,
-        printQRInTerminal: true,
+        printQRInTerminal: false,
         auth: state,
         browser: ['VoxelPromo', 'Chrome', '1.0.0'],
         logger: silentLogger,

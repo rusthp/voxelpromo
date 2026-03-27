@@ -53,16 +53,15 @@ const Login = () => {
         setVerificationRequired(false);
 
         try {
-            await login(email, password);
+            const response = await login(email, password);
             toast.success("Login realizado com sucesso!");
-            navigate("/products");
+            navigate(response?.isFirstLogin ? "/onboarding" : "/dashboard");
         } catch (error: any) {
             console.error("Login error:", error);
 
             // Check if email verification is required
             if (error.response?.data?.requiresVerification) {
                 setVerificationRequired(true);
-                toast.error("Verifique seu email antes de fazer login.");
             } else {
                 toast.error(error.response?.data?.error || "Erro ao fazer login");
             }
@@ -90,9 +89,9 @@ const Login = () => {
 
     const handleGoogleLogin = async (idToken: string) => {
         try {
-            await loginWithGoogle(idToken);
+            const response = await loginWithGoogle(idToken);
             toast.success("Login realizado com sucesso!");
-            navigate("/products");
+            navigate(response?.isFirstLogin ? "/onboarding" : "/dashboard");
         } catch (error: any) {
             console.error("Google login error:", error);
             toast.error(error.response?.data?.error || "Erro ao fazer login com Google");

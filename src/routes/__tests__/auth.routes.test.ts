@@ -200,8 +200,9 @@ describe('Auth Routes', () => {
         .send({ email: 'test@test.com', password: 'validPassword123' });
 
       expect(response.status).toBe(401);
-      // Security: unified response prevents user enumeration (no requiresVerification flag)
-      expect(response.body.error).toContain('Credenciais');
+      // After password is validated, email verification is revealed to the legitimate user
+      expect(response.body.requiresVerification).toBe(true);
+      expect(response.body.error).toContain('Email não verificado');
     });
   });
 

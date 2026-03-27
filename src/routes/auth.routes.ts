@@ -314,8 +314,8 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
       return res.status(423).json({ error: 'Conta temporariamente bloqueada. Tente novamente mais tarde.' });
     }
 
-    if (!user.isActive || !user.emailVerified) {
-      // Unified response — do not reveal which condition failed
+    if (!user.isActive) {
+      // Inactive account — generic error to prevent enumeration
       await bcrypt.compare(password, '$2b$10$invalidhashpaddingtomimicbcryptX');
       return res.status(401).json(INVALID_CREDENTIALS);
     }
@@ -346,7 +346,16 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
+    // PASSWORD IS VALID — now check email verification (safe to reveal since user knows password)
+    if (!user.emailVerified) {
+      return res.status(401).json({
+        error: 'Email não verificado. Verifique sua caixa de entrada.',
+        requiresVerification: true,
+      });
+    }
+
     // SUCCESS: Reset failed attempts and lockout
+    const isFirstLogin = !user.lastLogin;
     user.failedLoginAttempts = 0;
     user.lockUntil = undefined;
     user.lastLogin = new Date();
@@ -367,6 +376,7 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
       message: 'Login realizado com sucesso',
       accessToken,
       refreshToken,
+      isFirstLogin,
       user: {
         id: user._id,
         username: user.username,

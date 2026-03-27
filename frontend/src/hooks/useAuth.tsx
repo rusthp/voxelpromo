@@ -145,6 +145,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         // Refresh to get full profile data
         await refreshProfile();
+        return response.data;
     };
 
     const loginWithGoogle = async (idToken: string) => {
@@ -158,6 +159,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         // Refresh to get full profile data
         await refreshProfile();
+        return response.data;
     };
 
     const logout = async () => {
