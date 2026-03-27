@@ -45,6 +45,17 @@ api.interceptors.response.use(
     async (error) => {
         const originalRequest = error.config;
         
+        // Handle 403 subscription/trial errors — redirect to pricing
+        if (error.response?.status === 403) {
+            const errCode = error.response.data?.error;
+            if (errCode === 'TRIAL_EXPIRED' || errCode === 'SUBSCRIPTION_EXPIRED') {
+                if (window.location.pathname !== '/pricing') {
+                    window.location.href = '/pricing';
+                }
+            }
+            return Promise.reject(error);
+        }
+
         // Return immediately if it's not a 401 or if it's already a retry of our refresh token request
         if (!error.response || error.response.status !== 401 || originalRequest.url === '/auth/refresh') {
             return Promise.reject(error);

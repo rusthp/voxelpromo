@@ -439,10 +439,22 @@ export class AutomationService {
       logger.info(`📝 Using message: ${message.substring(0, 100)}...`);
 
       // Check if offer has specific channels override, otherwise use config
-      const channels =
+      const rawChannels =
         config.enabledChannels && config.enabledChannels.length > 0
           ? config.enabledChannels
           : ['telegram'];
+
+      // Filter channels by what the user's plan allows (trial = telegram + whatsapp only)
+      const userForPlan = await UserModel.findById(userId).select('access').lean();
+      const userPlanId = ((userForPlan as any)?.access?.plan || 'TRIAL').toLowerCase();
+      const planConfig = getPlan(userPlanId === 'trial' ? 'trial' : userPlanId === 'pro' ? 'pro' : userPlanId === 'agency' ? 'agency' : 'trial');
+      const allowedChannels = planConfig?.limits?.channelsAllowed ?? ['telegram', 'whatsapp'];
+      const channels = rawChannels.filter((ch: string) => allowedChannels.includes(ch.toLowerCase()));
+
+      if (channels.length === 0) {
+        logger.warn(`🚫 No allowed channels for user ${userId} (plan: ${userPlanId}). Skipping offer.`);
+        return 0;
+      }
 
       // Initialize OfferService dynamically to avoid circular dependencies
       const { OfferService } = await import('../offer/OfferService');

@@ -284,5 +284,71 @@ export function setupCronJobs(): void {
   const tokenExpiryJob = new TokenExpiryJob();
   tokenExpiryJob.start();
 
+  // 9. Trial Expiration Reminders (Daily at 10 AM)
+  // Sends email at D-5 and D-1 before trial/subscription ends
+  cron.schedule('0 10 * * *', async () => {
+    logger.info('📧 Running Trial Expiration Reminder job...');
+    try {
+      const { getEmailService } = await import('../services/EmailService');
+      const emailService = getEmailService();
+      if (!emailService.isConfigured()) return;
+
+      const now = new Date();
+
+      // D-5: users whose trial ends in 5 days (between 4d23h and 5d1h from now)
+      const d5Start = new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000 + 23 * 60 * 60 * 1000);
+      const d5End = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000);
+
+      // D-1: users whose trial ends in 1 day (between 23h and 25h from now)
+      const d1Start = new Date(now.getTime() + 23 * 60 * 60 * 1000);
+      const d1End = new Date(now.getTime() + 25 * 60 * 60 * 1000);
+
+      const usersD5 = await UserModel.find({
+        'access.plan': 'TRIAL',
+        'access.status': 'ACTIVE',
+        'access.trialEndsAt': { $gte: d5Start, $lte: d5End },
+      }).select('email name access');
+
+      const usersD1 = await UserModel.find({
+        'access.plan': 'TRIAL',
+        'access.status': 'ACTIVE',
+        'access.trialEndsAt': { $gte: d1Start, $lte: d1End },
+      }).select('email name access');
+
+      for (const user of usersD5) {
+        try {
+          await emailService.sendExpirationReminder5Days(
+            user.email,
+            (user as any).name || user.email,
+            'Teste Grátis',
+            new Date((user as any).access.trialEndsAt)
+          );
+          logger.info(`📧 D-5 trial reminder sent to ${user.email}`);
+        } catch (err) {
+          logger.warn(`Failed to send D-5 reminder to ${user.email}:`, err);
+        }
+      }
+
+      for (const user of usersD1) {
+        try {
+          await emailService.sendExpirationReminderTomorrow(
+            user.email,
+            (user as any).name || user.email,
+            'Teste Grátis'
+          );
+          logger.info(`📧 D-1 trial reminder sent to ${user.email}`);
+        } catch (err) {
+          logger.warn(`Failed to send D-1 reminder to ${user.email}:`, err);
+        }
+      }
+
+      if (usersD5.length + usersD1.length > 0) {
+        logger.info(`📧 Trial reminders sent: ${usersD5.length} D-5, ${usersD1.length} D-1`);
+      }
+    } catch (err) {
+      logger.error('Error in trial expiration reminder job:', err);
+    }
+  }, { timezone: 'America/Sao_Paulo' });
+
   logger.info('✅ Cron jobs scheduled (Multi-Tenant Mode)');
 }
