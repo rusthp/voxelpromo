@@ -653,8 +653,9 @@ export class XService {
       const now = new Date();
       const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-      // Check daily count
+      // Check daily count per user
       const dailyCount = await PostHistoryModel.countDocuments({
+        ...(this.userId ? { userId: this.userId } : {}),
         platform: { $in: ['x', 'twitter'] },
         postedAt: { $gt: oneDayAgo },
         status: 'success',
@@ -667,8 +668,9 @@ export class XService {
         };
       }
 
-      // Check interval
+      // Check interval per user
       const lastPost = await PostHistoryModel.findOne({
+        ...(this.userId ? { userId: this.userId } : {}),
         platform: { $in: ['x', 'twitter'] },
         status: 'success',
       }).sort({ postedAt: -1 });

@@ -37,6 +37,7 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
 
   private userId?: string; // For multi-tenancy
   private authFolder: string = 'auth_info_baileys'; // Default, will be overridden for valid users
+  private initializingPromise: Promise<void> | null = null; // Mutex to prevent concurrent init
 
   constructor(userId?: string) {
     this.userId = userId;
@@ -52,8 +53,11 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
     // Return cached instance if it exists to prevent multiple socket connections
     if (this.instances.has(userId)) {
       const existingService = this.instances.get(userId)!;
-      // Always reload settings to ensure we have the latest target numbers/groups
-      await existingService.loadSettings();
+      // Only reload settings if not currently connected — avoids redundant DB calls
+      // and prevents "Stream Errored (conflict)" from double-initialization
+      if (!existingService.isReady()) {
+        await existingService.loadSettings();
+      }
       return existingService;
     }
 
@@ -132,11 +136,23 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
    * Initialize Baileys socket
    */
   private async initializeSocket(): Promise<void> {
-    // Prevent multiple simultaneous initializations
+    // Prevent multiple simultaneous initializations via mutex
+    if (this.initializingPromise) {
+      logger.debug('WhatsApp (Baileys) initialization already in progress, waiting...');
+      return this.initializingPromise;
+    }
     if (this.initialized) {
       logger.debug('WhatsApp (Baileys) already initializing, skipping...');
       return;
     }
+
+    this.initializingPromise = this._doInitializeSocket().finally(() => {
+      this.initializingPromise = null;
+    });
+    return this.initializingPromise;
+  }
+
+  private async _doInitializeSocket(): Promise<void> {
 
     // Reset state before initialization
     // Don't set initialized=true yet - wait until socket is created
