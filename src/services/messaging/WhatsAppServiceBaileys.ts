@@ -474,11 +474,11 @@ export class WhatsAppServiceBaileys implements IWhatsAppService {
         for (const msg of messages) {
           if (msg.key?.remoteJid && msg.key.remoteJid.includes('@g.us')) {
             const groupId = msg.key.remoteJid;
-            logger.info(`📱 💡 Grupo detectado! ID do grupo: ${groupId}`);
-            logger.info(`   Use este ID na configuração: ${groupId}`);
 
-            // Store detected group
+            // Store detected group and log only on first detection
             if (!this.detectedGroups.has(groupId)) {
+              logger.info(`📱 💡 Grupo detectado! ID do grupo: ${groupId}`);
+              logger.info(`   Use este ID na configuração: ${groupId}`);
               this.detectedGroups.set(groupId, {
                 id: groupId,
                 name: `Grupo Detectado (${groupId.substring(0, 8)}...)`, // Placeholder name
